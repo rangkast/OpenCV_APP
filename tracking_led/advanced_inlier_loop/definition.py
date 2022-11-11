@@ -352,7 +352,7 @@ def init_model_json(cam_dev_list):
                                       'distorted_2d': [],
                                       'undistorted_2d': [],
                                       'detect_status': [NOT_SET, 0, 0],
-                                      'track_cal': [],
+                                      'track_cal': {'data': [], 'recording': []},
                                       'S_R_T': {'rvecs': RVECS, 'tvecs': TVECS},
                                       'D_R_T': {'rvecs': NOT_SET, 'tvecs': NOT_SET},
                                       'D_R_T_A': [],
@@ -934,7 +934,7 @@ MED_RT = 5
 
 DO_ESTIMATE_POSE = ENABLE
 DO_SOLVEPNP_REFINE = DISABLE
-DO_UNDISTORT = ENABLE
+DO_UNDISTORT = DISABLE
 DO_SOLVEPNP_RANSAC = ENABLE
 USE_PRINT_FRAME = DISABLE
 PRINT_FRAME_INFOS = DISABLE
@@ -964,4 +964,7 @@ ORIGIN = 'rifts2_left.json'
 TARGET = 'rifts2_left.json'
 INLIER_ST = 'rifts2_json'
 LR_POSITION = 'left'
+
+
+JSON_FILE = '0_json'
 ########################################### DEFINE #####################################################

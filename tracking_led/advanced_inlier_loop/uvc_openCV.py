@@ -458,6 +458,41 @@ def median_blobs(cam_id, blob_array, rt_array):
     return blob_array, med_rt_array
 
 
+# NON-Planar calibration  안됨.
+def calibrate_camera(cam_id, frame, blob_array):
+    print('calibrate camera')
+    led_ids = []
+    obj_points = []
+    img_points = []
+    length = len(blob_array)
+    objectpoint = np.zeros((length, D3D), np.float32)
+    imgpoint = np.zeros((length, D2D), np.float32)
+
+    for idx, blobs in enumerate(blob_array):
+        led_num = int(blobs['idx'])
+        objectpoint[idx] = leds_dic['pts'][led_num]['pos']
+        led_ids.append(led_num)
+        imgpoint[idx] = [blobs['cx'], blobs['cy']]
+
+    obj_points.append(objectpoint)
+    img_points.append(imgpoint)
+    print(obj_points)
+    print(img_points)
+
+    # Calibrating left camera
+
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, frame.shape[::-1], None, None)
+    h, w = frame.shape[:2]
+    new_mtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
+
+    if DEBUG == ENABLE:
+        print('mtx:', mtx, ' dist:', dist, ' rvecs:', rvecs, ' tvecs:', tvecs)
+        print('h:', h, ' w:', w)
+        print('new_mtx:', new_mtx, ' roi:', roi)
+
+    return
+
+
 def simple_solvePNP(cam_id, frame, blob_array):
     model_points = []
     image_points = []

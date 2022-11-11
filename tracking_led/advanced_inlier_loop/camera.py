@@ -1,13 +1,153 @@
-import copy
-import threading
 import time
 from collections import deque
-import random
 
-from PyQt5 import QtWidgets
+import cv2
+import imutils
+from PyQt5 import QtCore, QtGui, QtWidgets
+import sys
+import threading
+
+from PyQt5.QtWidgets import QLabel
 
 from main import *
 from definition import *
+from collections import OrderedDict
+
+
+class CameraWidget(QtWidgets.QWidget):
+    def __init__(self, width, height, stream_dev_cam, aspect_ratio=False, parent=None, deque_size=1):
+        try:
+            super(CameraWidget, self).__init__(parent)
+            # Initialize deque used to store frames read from the stream
+            self.deque = deque(maxlen=deque_size)
+
+            # So add offset to counter the padding
+            self.offset = 16
+            self.screen_width = width - self.offset
+            self.screen_height = height - self.offset
+            self.maintain_aspect_ratio = aspect_ratio
+
+            self.camera_stream_link = stream_dev_cam
+
+            # Flag to check if camera is valid/working
+            self.online = False
+            self.capture = None
+            self.video_frame = QtWidgets.QLabel()
+
+            self.load_dev_cam_stream()
+
+            # Start background frame grabbing
+            self.get_frame_thread = threading.Thread(target=self.get_frame, args=())
+            self.get_frame_thread.daemon = True
+            self.get_frame_thread.start()
+
+            # Periodically set video frame to display
+            self.timer = QtCore.QTimer()
+            self.timer.timeout.connect(self.set_frame)
+            self.timer.start(int(.5))
+            print('Start camera: {}'.format(self.camera_stream_link))
+        except:
+            print('exception')
+            traceback.print_exc()
+        pass
+
+    def load_dev_cam_stream(self):
+        """Verifies stream link and open new stream if valid"""
+
+        def load_dev_cam_stream_thread():
+            if self.verify_camera_stream(self.camera_stream_link):
+                self.capture = cv2.VideoCapture(self.camera_stream_link)
+                self.online = True
+
+        self.load_stream_thread = threading.Thread(target=load_dev_cam_stream_thread, args=())
+        self.load_stream_thread.daemon = True
+        self.load_stream_thread.start()
+
+    def verify_camera_stream(self, link):
+
+        """Attempts to receive a frame from given link"""
+        cap = cv2.VideoCapture(link)
+        if not cap.isOpened():
+            return False
+        cap.release()
+        return True
+
+    def get_frame(self):
+        """Reads frame, resizes, and converts image to pixmap"""
+        while True:
+            try:
+                if self.capture.isOpened() and self.online:
+                    # Read next frame from stream and insert into deque
+                    status, frame = self.capture.read()
+                    if status:
+                        cam_lock.acquire()
+                        self.deque.append(frame)
+                        cam_lock.release()
+                    else:
+                        self.capture.release()
+                        self.online = False
+                else:
+                    # Attempt to reconnect
+                    print('attempting to reconnect', self.camera_stream_link)
+                    self.load_dev_cam_stream()
+                    self.spin(2)
+                self.spin(.001)
+            except AttributeError:
+                pass
+
+    def spin(self, seconds):
+        """Pause for set amount of seconds, replaces time.sleep so program doesnt stall"""
+
+        time_end = time.time() + seconds
+        while time.time() < time_end:
+            QtWidgets.QApplication.processEvents()
+
+    def set_frame(self):
+        """Sets pixmap image to video frame"""
+
+        if not self.online:
+            self.spin(1)
+            return
+
+        if self.deque and self.online:
+            cam_lock.acquire()
+            # Grab latest frame
+            frame = self.deque[-1]
+
+            # Keep frame aspect ratio
+            if self.maintain_aspect_ratio:
+                self.frame = imutils.resize(frame, width=self.screen_width)
+            # Force resize
+            else:
+                self.frame = cv2.resize(frame, (self.screen_width, self.screen_height))
+
+            # Convert to pixmap and set to video frame
+            self.img = QtGui.QImage(self.frame, self.frame.shape[1], self.frame.shape[0],
+                                    QtGui.QImage.Format_RGB888).rgbSwapped()
+            self.pix = QtGui.QPixmap.fromImage(self.img)
+            self.video_frame.setPixmap(self.pix)
+            cam_lock.release()
+
+    def get_video_frame(self):
+        return self.video_frame
+
+    def mouseMoveEvent(self, e):
+        x = e.x()
+        y = e.y()
+
+        text = 'x: {0}, y: {1}'.format(x, y)
+        self.label.setText(text)
+        self.label.adjustSize()
+
+
+def exit_application():
+    """Exit program event handler"""
+    sys.exit(1)
+
+
+def init_cam_lock():
+    global cam_lock
+    cam_lock = threading.Lock()
 
 
 def single_tracker():
@@ -187,6 +327,9 @@ def multi_tracker():
             view_camera_infos(img_draw, ''.join(['Cam[', f'{cam_id}', '] ', f'{video_src}']),
                               CAP_PROP_FRAME_WIDTH - 250, 35)
 
+            cv2.circle(img_draw, (int(CAP_PROP_FRAME_WIDTH / 2), int(CAP_PROP_FRAME_HEIGHT / 2)), 2, color=(0, 0, 255),
+                       thickness=-1)
+
             cv2.imshow('MultiTracker', img_draw)
 
         # end while
@@ -200,6 +343,7 @@ def multi_tracker():
 
         tracker_start = 0
         capture_start = 0
+        recording_start = 0
         prev_data_stack_num = -1
         # Process video and track objects
         while cap.isOpened():
@@ -209,6 +353,14 @@ def multi_tracker():
 
             ret, img_contour_binary = cv2.threshold(frame, CV_FINDCONTOUR_LVL, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
             img_gray = cv2.cvtColor(img_contour_binary, cv2.COLOR_BGR2GRAY)
+
+            # # Todo
+            # cv2.imshow('img_gray', img_gray.shape[::-1])
+            # print(img_gray.shape[::-1])
+            # hL, wL = img_gray.shape[:2]
+            #
+            # print('hl ', hL, ' wl ', wL)
+            # continue
 
             # Initialize MultiTracker
             if tracker_start == 0:
@@ -229,6 +381,8 @@ def multi_tracker():
                 view_camera_infos(img_gray, ''.join([f'{IDX}']), int(newbox[0]), int(newbox[1]) - 10)
 
             KEY = cv2.waitKey(1)
+
+            # key control
             if KEY == ord('c'):
                 capture_start = 1
 
@@ -243,7 +397,10 @@ def multi_tracker():
                         # print(new_blobs)
                         blobs = new_blobs
 
+                # ToDo
                 ret_status, min_blob = simple_solvePNP(cam_id, frame, blobs)
+                # calibrate_camera(cam_id, img_gray, blobs)
+
                 if ret_status == SUCCESS:
                     leds_dic['cam_info'][cam_id]['detect_status'][1] += 1
                     leds_dic['test_status']['cam_capture'] = DONE
@@ -281,9 +438,27 @@ def multi_tracker():
                 return
             elif KEY == ord('e'):
                 break
+            elif KEY == ord('s'):
+                if recording_start == 0:
+                    # w = round(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    # h = round(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    # print('w', w, 'h', h, 'fps', fps)
+                    # fourcc  val 받아오기, *는 문자를 풀어쓰는 방식, *'DIVX' == 'D', 'I', 'V', 'X'
+                    delay = round(1000 / fps)
+                    now = datetime.datetime.now()
+                    recording_file_name = ''.join([f'{now}', '.avi'])
+                    print('recording start', ' ', recording_file_name)
+                    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                    recording_out = cv2.VideoWriter(recording_file_name, fourcc, fps,
+                                                    (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
+                    recording_start = 1
+
+                    leds_dic['cam_info'][cam_id]['track_cal']['recording'].append(
+                        {'name': recording_file_name})
+
             elif KEY & 0xFF in range(48, 58):  # 0~9 숫자 입력   ---⑥
                 NUMBER = KEY - 48
-
                 if prev_data_stack_num != NUMBER and capture_start == 1:
                     blob_array, rt_array = median_blobs(cam_id,
                                                         leds_dic['cam_info'][cam_id]['med_blobs'],
@@ -292,7 +467,7 @@ def multi_tracker():
                     prev_data_stack_num = NUMBER
                     capture_start = 0
 
-                    leds_dic['cam_info'][cam_id]['track_cal'].append(
+                    leds_dic['cam_info'][cam_id]['track_cal']['data'].append(
                         {'idx': NUMBER, 'blobs': blob_array, 'R_T': rt_array})
 
                     leds_dic['cam_info'][cam_id]['med_blobs'].clear()
@@ -300,8 +475,12 @@ def multi_tracker():
 
                     print(leds_dic['cam_info'][cam_id]['track_cal'])
 
+                if recording_start == 1:
+                    recording_out.release()
+                    recording_start = 0
+
             # print current stacked data
-            for i, track_data in enumerate(leds_dic['cam_info'][cam_id]['track_cal']):
+            for i, track_data in enumerate(leds_dic['cam_info'][cam_id]['track_cal']['data']):
                 track_r = R.from_rotvec(track_data['R_T']['rvecs'].reshape(3)).as_quat()
                 track_r_euler = np.round_(get_euler_from_quat('xyz', track_r), 3)
                 track_t = track_data['R_T']['tvecs'].reshape(3)
@@ -309,17 +488,40 @@ def multi_tracker():
                                                ' T 'f'{track_t}']),
                             (CAP_PROP_FRAME_WIDTH - 400, 35 + i * 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.3, 255, lineType=cv2.LINE_AA)
+
+            if recording_start == 1:
+                recording_out.write(frame)
+
             # show frame
             cv2.imshow('MultiTracker', img_gray)
 
             # release camera frame
+        if recording_start == 1:
+            recording_out.release()
+
         cap.release()
         cv2.destroyAllWindows()
 
-        #remake 3D
+        # remake 3D
         pair_xy(cam_id, 'target_pts')
         refactor_3d_point(cam_id, 'target_pts')
         draw_ax_plot()
+
+        if len(leds_dic['cam_info'][cam_id]['track_cal']['data']) == 2:
+            print('store data')
+            json_file = ''.join(['jsons/test_result/', f'{JSON_FILE}'])
+            group_data = OrderedDict()
+            group_data['stereol'] = {'cam_id': cam_id,
+                                     'blobs': leds_dic['cam_info'][cam_id]['track_cal']['data'][0]['blobs'],
+                                     'rvecs': leds_dic['cam_info'][cam_id]['track_cal']['data'][0]['R_T']['rvecs'][:, 0].tolist(),
+                                     'tvecs': leds_dic['cam_info'][cam_id]['track_cal']['data'][0]['R_T']['tvecs'][:, 0].tolist(),
+                                     'file': leds_dic['cam_info'][cam_id]['track_cal']['recording'][0]['name']}
+            group_data['stereor'] = {'cam_id': cam_id,
+                                     'blobs': leds_dic['cam_info'][cam_id]['track_cal']['data'][1]['blobs'],
+                                     'rvecs': leds_dic['cam_info'][cam_id]['track_cal']['data'][1]['R_T']['rvecs'][:, 0].tolist(),
+                                     'tvecs': leds_dic['cam_info'][cam_id]['track_cal']['data'][1]['R_T']['tvecs'][:, 0].tolist(),
+                                     'file': leds_dic['cam_info'][cam_id]['track_cal']['recording'][1]['name']}
+            rw_json_data(WRITE, json_file, group_data)
 
 
 def refactor_3d_point(cam_id, target):
@@ -350,10 +552,10 @@ def coordRefactor(cam_info, cam_l, cam_r):
     cam_l_id = cam_l['cidx']
     cam_r_id = cam_r['cidx']
 
-    l_rvec = cam_info['track_cal'][cam_l_id]['R_T']['rvecs']
-    r_rvec = cam_info['track_cal'][cam_r_id]['R_T']['rvecs']
-    l_tvec = cam_info['track_cal'][cam_l_id]['R_T']['tvecs']
-    r_tvec = cam_info['track_cal'][cam_r_id]['R_T']['tvecs']
+    l_rvec = cam_info['track_cal']['data'][cam_l_id]['R_T']['rvecs']
+    r_rvec = cam_info['track_cal']['data'][cam_r_id]['R_T']['rvecs']
+    l_tvec = cam_info['track_cal']['data'][cam_l_id]['R_T']['tvecs']
+    r_tvec = cam_info['track_cal']['data'][cam_r_id]['R_T']['tvecs']
 
     left_rotation, jacobian = cv2.Rodrigues(l_rvec)
     right_rotation, jacobian = cv2.Rodrigues(r_rvec)
@@ -385,7 +587,7 @@ def coordRefactor(cam_info, cam_l, cam_r):
 
 def pair_xy(cam_id, target):
     print('start pair_xy')
-    for track_data in leds_dic['cam_info'][cam_id]['track_cal']:
+    for track_data in leds_dic['cam_info'][cam_id]['track_cal']['data']:
         idx_num = int(track_data['idx'])
         for leds in track_data['blobs']:
             led_num = int(leds['idx'])
