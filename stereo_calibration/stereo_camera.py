@@ -455,7 +455,6 @@ def stereo_camera_start():
         cap2 = cv2.VideoCapture(leds_dic['cam_info'][1]['port'])
 
         cap1.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
-        cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
         # cap1.set(cv2.CAP_PROP_FORMAT, cv2.CV_64FC1)
 
         cap2.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
@@ -479,7 +478,7 @@ def stereo_camera_start():
 
             # show origin frame
             alpha = 0.5
-            origin_frame = cv2.addWeighted(imgL, alpha, imgR, alpha, 0)
+            # origin_frame = cv2.addWeighted(imgL, alpha, imgR, alpha, 0)
             # cv2.imshow('origin frame', origin_frame)
 
             # Rectification
@@ -496,7 +495,7 @@ def stereo_camera_start():
 
             if KEY == ord('c'):
                 # make 3d point cloud
-                point_cloud_frame = make_point_3d(jdata, disparity_frame, R_L_F, R_L_F)
+                point_cloud_frame = make_point_3d(jdata, disparity_frame, imgL, imgR)
                 cv2.imshow("point cloud", point_cloud_frame)
             elif cv2.waitKey(1) & 0xFF == 27:  # Esc pressed
                 break
