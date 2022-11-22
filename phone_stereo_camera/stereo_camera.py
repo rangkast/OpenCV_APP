@@ -104,7 +104,9 @@ def calibrate_camera():
             print('start calibrate')
             if USE_EXTERNAL_TOOL_CALIBRAION == DISABLE:
                 # Calibrating left camera
-                retL, mtxL, distL, rvecsL, tvecsL = cv2.calibrateCamera(obj_pts, img_ptsL, imgL_gray.shape[::-1], None,
+                retL, mtxL, distL, rvecsL, tvecsL = cv2.calibrateCamera(obj_pts, img_ptsL,
+                                                                        (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT),
+                                                                        None,
                                                                         None)
                 hL, wL = imgL_gray.shape[:2]
                 print('hL ', hL, ' wL', wL)
@@ -113,7 +115,9 @@ def calibrate_camera():
                                                                1, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
 
                 # Calibrating right camera
-                retR, mtxR, distR, rvecsR, tvecsR = cv2.calibrateCamera(obj_pts, img_ptsR, imgR_gray.shape[::-1], None,
+                retR, mtxR, distR, rvecsR, tvecsR = cv2.calibrateCamera(obj_pts, img_ptsR,
+                                                                        (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT),
+                                                                        None,
                                                                         None)
                 hR, wR = imgR_gray.shape[:2]
                 new_mtxR, roiR = cv2.getOptimalNewCameraMatrix(mtxR, distR,
@@ -170,6 +174,8 @@ def calibrate_camera():
 
             print('save rectification map')
             rw_file_storage(WRITE, RECTIFY_MAP, Left_Stereo_Map, Right_Stereo_Map)
+
+            print('save stereo info')
             json_file = ''.join(['jsons/test_result/', f'{JSON_FILE}'])
             group_data = OrderedDict()
             group_data['stereoRectify'] = {
@@ -177,8 +183,12 @@ def calibrate_camera():
                 'rect_r': rect_r.tolist(),
                 'proj_mat_l': proj_mat_l.tolist(),
                 'proj_mat_r': proj_mat_r.tolist(),
-                'Q': Q.tolist()}
-            print('save stereo info')
+                'Q': Q.tolist(),
+                'R': R.tolist(),
+                'T': T.tolist(),
+                'E': E.tolist(),
+                'F': F.tolist()
+            }
             group_data['stereol'] = {'cam_id': CAM_1[1],
                                      'camera_k': new_mtxL.tolist(),
                                      'distcoeff': distL.tolist()}
@@ -298,6 +308,8 @@ def make_point_3d(jdata, disp, imgL, imgR):
                     jdata['stereoRectify']['Q'][2],
                     jdata['stereoRectify']['Q'][3]])
 
+    print('Q ', Q)
+
     points = cv2.reprojectImageTo3D(disp, Q)
 
     reflect_matrix = np.identity(3)
@@ -308,36 +320,44 @@ def make_point_3d(jdata, disp, imgL, imgR):
     colors = cv2.cvtColor(imgL, cv2.COLOR_BGR2RGB)
 
     # filter by min disparity
+    print('disp.min() ', disp.min())
     mask = disp > disp.min()
     out_points = points[mask]
     out_colors = colors[mask]
 
     # filter by dimension
-    idx = np.fabs(out_points[:, 0]) < 4.5
+    idx = np.fabs(out_points[:, 0]) < 20.0
     out_points = out_points[idx]
     out_colors = out_colors.reshape(-1, 3)
     out_colors = out_colors[idx]
 
-    write_ply('out.ply', out_points, out_colors)
-    print('%s saved' % 'out.ply')
+    reflected_pts = np.matmul(out_points, reflect_matrix)
     if USE_EXTERNAL_TOOL_CALIBRAION == DISABLE:
         camera_k = np.array(jdata['stereor']['camera_k'], dtype=np.float64)
         dist_coeff = np.array(jdata['stereor']['distcoeff'], dtype=np.float64)
+        Rvec = np.array(jdata['stereoRectify']['R'], dtype=np.float64)
+        Tvec = np.array(jdata['stereoRectify']['T'], dtype=np.float64)
     else:
         json_file = ''.join(['jsons/test_result/', f'{EXTERNAL_TOOL_CALIBRATION}'])
         external_jdata = rw_json_data(READ, json_file, None)
         camera_k = np.array(external_jdata['stereor']['camera_k'], dtype=np.float64)
         dist_coeff = np.array(external_jdata['stereor']['distcoeff'], dtype=np.float64)
+        Rvec = np.identity(3)
+        Tvec = np.array([0., 0., 0.])
 
-    reflected_pts = np.matmul(out_points, reflect_matrix)
     projected_img, _ = cv2.projectPoints(reflected_pts, np.identity(3), np.array([0., 0., 0.]),
                                          camera_k, dist_coeff)
+
+    # ToDo
+    write_ply('out.ply', out_points, out_colors)
+    print('%s saved' % 'out.ply')
 
     projected_img = projected_img.reshape(-1, 2)
 
     blank_img = np.zeros(imgL.shape, 'uint8')
     img_colors = imgR[mask][idx].reshape(-1, 3)
 
+    # ToDo 왜 거꾸로 나오지?
     for i, pt in enumerate(projected_img):
         # Rotate?
         pt_x = int(pt[0])
@@ -394,7 +414,7 @@ def stereo_camera_start():
             out[:, :, 0] = R_R_F[:, :, 0]
             out[:, :, 1] = R_R_F[:, :, 1]
             out[:, :, 2] = R_L_F[:, :, 2]
-            # cv2.imshow("rectification", out)
+            cv2.imshow("rectification", out)
 
             # Disparity
             disparity_frame = disparity_map(R_L_F, R_R_F)
