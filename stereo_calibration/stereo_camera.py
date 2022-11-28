@@ -500,8 +500,6 @@ def stereo_camera_start():
             elif cv2.waitKey(1) & 0xFF == 27:  # Esc pressed
                 break
 
-
-
             cv2.waitKey(delay)
 
         cap1.release()

@@ -80,8 +80,8 @@ def Rotate(src, degrees):
     return dst
 
 
-CAM_1 = ["/dev/video4", "imgL"]
-CAM_2 = ["/dev/video5", "imgR"]
+CAM_1 = ["/dev/video0", "imgL"]
+CAM_2 = ["/dev/video1", "imgR"]
 
 CAP_PROP_FRAME_WIDTH = 1920
 CAP_PROP_FRAME_HEIGHT = 1080
