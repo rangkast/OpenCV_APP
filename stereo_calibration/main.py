@@ -20,8 +20,8 @@ if __name__ == '__main__':
     leds_dic['pts'] = init_coord_json(ORIGIN)
 
     # ToDo make stereo camera and calibration
-    camera_setting()
-    # camera_rt_test()
-    # stereo_calibrate()
+    # camera_setting()
+    camera_rt_test()
+    stereo_calibrate()
     # stereo_camera_start()
 

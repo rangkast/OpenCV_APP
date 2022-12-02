@@ -41,32 +41,37 @@ def set_camera_info():
     cap1 = cv2.VideoCapture(cap1_name)
     cap2_name = leds_dic['cam_info'][1]['port']
     cap2 = cv2.VideoCapture(cap2_name)
+    if SENSOR_NAME == 'Droidcam':
+        width1 = cap1.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height1 = cap1.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        print('cap1 size: %d, %d' % (width1, height1))
+        leds_dic['cam_info'][0]['display']['width'] = width1
+        leds_dic['cam_info'][0]['display']['height'] = height1
 
-    width1 = cap1.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height1 = cap1.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    print('cap1 size: %d, %d' % (width1, height1))
-    leds_dic['cam_info'][0]['display']['width'] = width1
-    leds_dic['cam_info'][0]['display']['height'] = height1
+        width2 = cap2.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height2 = cap2.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        print('cap2 size: %d, %d' % (width2, height2))
+        leds_dic['cam_info'][1]['display']['width'] = width2
+        leds_dic['cam_info'][1]['display']['height'] = height2
 
-    width2 = cap2.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height2 = cap2.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    print('cap2 size: %d, %d' % (width2, height2))
-    leds_dic['cam_info'][1]['display']['width'] = width2
-    leds_dic['cam_info'][1]['display']['height'] = height2
-
-    json_file = ''.join(['jsons/test_result/', f'{EXTERNAL_TOOL_CALIBRATION}'])
-    external_jdata = rw_json_data(READ, json_file, None)
-    if USE_EXTERNAL_TOOL_CALIBRAION == ENABLE:
-        leds_dic['cam_info'][0]['cam_cal']['cameraK'] = np.array(external_jdata['stereol']['camera_k'],
-                                                                 dtype=np.float64)
-        leds_dic['cam_info'][0]['cam_cal']['dist_coeff'] = np.array(external_jdata['stereol']['distcoeff'],
-                                                                    dtype=np.float64)
-        leds_dic['cam_info'][1]['cam_cal']['cameraK'] = np.array(external_jdata['stereor']['camera_k'],
-                                                                 dtype=np.float64)
-        leds_dic['cam_info'][1]['cam_cal']['dist_coeff'] = np.array(external_jdata['stereor']['distcoeff'],
-                                                                    dtype=np.float64)
-    leds_dic['cam_info'][0]['rotate'] = int(external_jdata['stereol']['rotate'])
-    leds_dic['cam_info'][1]['rotate'] = int(external_jdata['stereor']['rotate'])
+        json_file = ''.join(['jsons/test_result/', f'{EXTERNAL_TOOL_CALIBRATION}'])
+        external_jdata = rw_json_data(READ, json_file, None)
+        if USE_EXTERNAL_TOOL_CALIBRAION == ENABLE:
+            leds_dic['cam_info'][0]['cam_cal']['cameraK'] = np.array(external_jdata['stereol']['camera_k'],
+                                                                     dtype=np.float64)
+            leds_dic['cam_info'][0]['cam_cal']['dist_coeff'] = np.array(external_jdata['stereol']['distcoeff'],
+                                                                        dtype=np.float64)
+            leds_dic['cam_info'][1]['cam_cal']['cameraK'] = np.array(external_jdata['stereor']['camera_k'],
+                                                                     dtype=np.float64)
+            leds_dic['cam_info'][1]['cam_cal']['dist_coeff'] = np.array(external_jdata['stereor']['distcoeff'],
+                                                                        dtype=np.float64)
+        leds_dic['cam_info'][0]['display']['rotate'] = int(external_jdata['stereol']['rotate'])
+        leds_dic['cam_info'][1]['display']['rotate'] = int(external_jdata['stereor']['rotate'])
+    else:
+        leds_dic['cam_info'][0]['display']['width'] = CAP_PROP_FRAME_WIDTH
+        leds_dic['cam_info'][0]['display']['height'] = CAP_PROP_FRAME_HEIGHT
+        leds_dic['cam_info'][1]['display']['width'] = CAP_PROP_FRAME_WIDTH
+        leds_dic['cam_info'][1]['display']['height'] = CAP_PROP_FRAME_HEIGHT
 
     cap1.release()
     cap2.release()
@@ -89,6 +94,14 @@ def camera_setting_test():
     width2 = leds_dic['cam_info'][1]['display']['width']
     height2 = leds_dic['cam_info'][1]['display']['height']
 
+    cap1.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+    cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
+    cap1.set(cv2.CAP_PROP_FORMAT, cv2.CV_64FC1)
+
+    cap2.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+    cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
+    cap2.set(cv2.CAP_PROP_FORMAT, cv2.CV_64FC1)
+
     if not cap1.isOpened() or not cap2.isOpened():
         sys.exit()
 
@@ -99,15 +112,27 @@ def camera_setting_test():
             break
         if cv2.waitKey(1) & 0xFF == 27:  # Esc pressed
             break
-        imgL = Rotate(frame1, leds_dic['cam_info'][0]['rotate'])
-        imgR = Rotate(frame2, leds_dic['cam_info'][1]['rotate'])
+
+        if SENSOR_NAME == 'Rift':
+            frame1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+            frame2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+
+        imgL = Rotate(frame1, int(leds_dic['cam_info'][0]['display']['rotate']))
+        imgR = Rotate(frame2, int(leds_dic['cam_info'][1]['display']['rotate']))
+
+        if SENSOR_NAME == 'Rift':
+            cv2.circle(imgL, (int(width1 / 2), int(height1 / 2)), 3, color=(0, 0, 255),
+                       thickness=-1)
+            cv2.circle(imgR, (int(width2 / 2), int(height2 / 2)), 3, color=(0, 0, 255),
+                       thickness=-1)
+        else:
+            cv2.circle(imgL, (int(height1 / 2), int(width1 / 2)), 3, color=(0, 0, 255),
+                       thickness=-1)
+            cv2.circle(imgR, (int(height2 / 2), int(width2 / 2)), 3, color=(0, 0, 255),
+                       thickness=-1)
         view_camera_infos(imgL, f'{cap1_name}', 30, 35)
-        cv2.circle(imgL, (int(height1 / 2), int(width1 / 2)), 3, color=(0, 0, 255),
-                   thickness=-1)
         cv2.imshow('left camera', imgL)
         view_camera_infos(imgR, f'{cap2_name}', 30, 35)
-        cv2.circle(imgR, (int(height2 / 2), int(width2 / 2)), 3, color=(0, 0, 255),
-                   thickness=-1)
         cv2.imshow("right camera", imgR)
 
         cv2.waitKey(CAM_DELAY)
@@ -236,6 +261,111 @@ def draw_ax_plot():
     plt.show()
 
 
+def get_points(blob_array):
+    model_points = []
+    image_points = []
+    led_ids = []
+
+    for blobs in blob_array:
+        led_num = int(blobs['idx'])
+        # if DEBUG == ENABLE:
+        #     print('idx:', led_num, ' added 3d', leds_dic['pts'][led_num]['pos'], ' remake: ',
+        #           leds_dic['target_pts'][led_num]['remake_3d'],
+        #           ' 2d', [blobs['cx'], blobs['cy']])
+
+        model_points.append(leds_dic['pts'][led_num]['pos'])
+        led_ids.append(led_num)
+        image_points.append([blobs['cx'], blobs['cy']])
+
+    model_points_len = len(model_points)
+    image_points_len = len(image_points)
+    # check assertion
+    if model_points_len != image_points_len:
+        print("assertion len is not equal")
+        return ERROR, ERROR, ERROR
+
+    return led_ids, np.array(model_points), np.array(image_points)
+
+# ToDo
+# def stereo_calibrate():
+#     try:
+#         led_num_l, points3D_l, points2D_l = get_points(leds_dic['cam_info'][0]['med_blobs'])
+#         led_num_r, points3D_r, points2D_r = get_points(leds_dic['cam_info'][1]['med_blobs'])
+#
+#         # ToDo
+#         camera_k_l = leds_dic['cam_info'][0]['cam_cal']['cameraK']
+#         dist_coeff_l = leds_dic['cam_info'][0]['cam_cal']['dist_coeff']
+#
+#         camera_k_r = leds_dic['cam_info'][1]['cam_cal']['cameraK']
+#         dist_coeff_r = leds_dic['cam_info'][1]['cam_cal']['dist_coeff']
+#
+#         print('cam l info')
+#         print(led_num_l)
+#         print(points3D_l)
+#         print(points2D_l)
+#         print('cam r info')
+#         print(led_num_r)
+#         print(points3D_r)
+#         print(points2D_r)
+#
+#         obj_points = []
+#         img_points_l = []
+#         img_points_r = []
+#         length = len(led_num_l)
+#         objectpoint = np.zeros((length, D3D), np.float32)
+#         imgpointl = np.zeros((length, D2D), np.float32)
+#         imgpointr = np.zeros((length, D2D), np.float32)
+#
+#         for idx, led_num in enumerate(led_num_l):
+#             objectpoint[idx] = leds_dic['pts'][led_num]['pos']
+#             imgpointl[idx] = points2D_l[idx]
+#             imgpointr[idx] = points2D_r[idx]
+#         obj_points.append(objectpoint)
+#         img_points_l.append(imgpointl)
+#         img_points_r.append(imgpointr)
+#         print(obj_points)
+#         print(img_points_l)
+#         print(img_points_r)
+#
+#         flags = 0
+#         flags |= cv2.CALIB_FIX_INTRINSIC
+#         criteria_stereo = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+#         ret, CM1, dist0, CM2, dist1, R, T, E, F = cv2.stereoCalibrate(obj_points, img_points_l, img_points_r,
+#                                                                       camera_k_l, dist_coeff_l,
+#                                                                       camera_k_r, dist_coeff_r,
+#                                                                       (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT),
+#                                                                       criteria_stereo,
+#                                                                       flags)
+#         print('CM1 , dist0')
+#         print(CM1, ' ', dist0)
+#         print('CM2 , dist1')
+#         print(CM2, ' ', dist1)
+#         print('R ', R, '\nT ', T, '\nE ', E, '\nF ', F)
+#
+#         rectify_scale = 1
+#         rect_l, rect_r, proj_mat_l, proj_mat_r, Q, roiL, roiR = cv2.stereoRectify(CM1, dist0, CM2, dist1,
+#                                                                                   (CAP_PROP_FRAME_WIDTH,
+#                                                                                    CAP_PROP_FRAME_HEIGHT),
+#                                                                                   R, T,
+#                                                                                   rectify_scale, (0, 0))
+#
+#         print('rect_l ', rect_l)
+#         print('rect_r ', rect_r)
+#         print('proj_mat_l ', proj_mat_l)
+#         print('proj_mat_r ', proj_mat_r)
+#
+#         Left_Stereo_Map = cv2.initUndistortRectifyMap(CM1, dist0, rect_l, proj_mat_l,
+#                                                       (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT), cv2.CV_16SC2)
+#         Right_Stereo_Map = cv2.initUndistortRectifyMap(CM2, dist1, rect_r, proj_mat_r,
+#                                                        (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT), cv2.CV_16SC2)
+#
+#         return DONE, Left_Stereo_Map, Right_Stereo_Map
+#     except:
+#         traceback.print_exc()
+#         return ERROR, NOT_SET, NOT_SET
+#
+
+
 def camera_rt_test():
     set_camera_info()
 
@@ -252,19 +382,19 @@ def camera_rt_test():
         cap = cv2.VideoCapture(video_src)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FORMAT, cv2.CV_64FC1)
 
         print('width ', leds_dic['cam_info'][cam_id]['display']['width'])
         print('height ', leds_dic['cam_info'][cam_id]['display']['height'])
-
-        # cap.set(cv2.CAP_PROP_FORMAT, cv2.CV_64FC1)
 
         while True:
             ret, frame = cap.read()
             if not ret:
                 print('Cannot read video file')
                 break
-            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            frame = Rotate(frame, leds_dic['cam_info'][cam_id]['rotate'])
+            if SENSOR_NAME == 'Rift':
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            frame = Rotate(frame, int(leds_dic['cam_info'][cam_id]['display']['rotate']))
             img_draw = frame.copy()
 
             if cv2.waitKey(1) == ord('a'):
@@ -301,17 +431,25 @@ def camera_rt_test():
                 for i, data in enumerate(bboxes):
                     (x, y, w, h) = data['bbox']
                     IDX = data['idx']
-                    cv2.rectangle(img_draw, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2, 1)
+                    cv2.rectangle(img_draw, (int(x), int(y)), (int(x + w), int(y + h)), (255, 255, 255), 2, 1)
                     view_camera_infos(img_draw, ''.join([f'{IDX}']), int(x), int(y) - 10)
                     view_camera_infos(img_draw, ''.join(['[', f'{IDX}', '] '
                                                             , f' {x}'
                                                             , f' {y}']), 30, 35 + i * 30)
 
-            view_camera_infos(img_draw, ''.join(['Cam[', f'{cam_id}', '] ', f'{video_src}']),
-                              height - 500, 35)
+            if SENSOR_NAME == 'Rift':
+                view_camera_infos(img_draw, ''.join(['Cam[', f'{cam_id}', '] ', f'{video_src}']),
+                                  width - 250, 35)
+            else:
+                view_camera_infos(img_draw, ''.join(['Cam[', f'{cam_id}', '] ', f'{video_src}']),
+                                  height - 500, 35)
 
-            cv2.circle(img_draw, (int(height / 2), int(width / 2)), 3, color=(0, 0, 255),
-                       thickness=-1)
+            if SENSOR_NAME == 'Rift':
+                cv2.circle(img_draw, (int(width / 2), int(height / 2)), 3, color=(255, 255, 255),
+                           thickness=-1)
+            else:
+                cv2.circle(img_draw, (int(height / 2), int(width / 2)), 3, color=(255, 255, 255),
+                           thickness=-1)
 
             cv2.imshow('MultiTracker', img_draw)
 
@@ -333,7 +471,7 @@ def camera_rt_test():
             if not success:
                 break
 
-            frame = Rotate(frame, leds_dic['cam_info'][cam_id]['rotate'])
+            frame = Rotate(frame, int(leds_dic['cam_info'][cam_id]['display']['rotate']))
             img_draw = frame.copy()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             img_gray = frame
@@ -374,7 +512,10 @@ def camera_rt_test():
                     leds_dic['cam_info'][cam_id]['med_blobs'].append(min_blob)
                     leds_dic['cam_info'][cam_id]['detect_status'][1] += 1
 
-                    cv2.rectangle(img_draw, (10, 10), (height - 10, width - 10), (255, 255, 255), 2)
+                    if SENSOR_NAME == 'Rift':
+                        cv2.rectangle(img_draw, (10, 10), (width - 10, height - 10), (255, 255, 255), 1)
+                    else:
+                        cv2.rectangle(img_draw, (10, 10), (height - 10, width - 10), (255, 255, 255), 1)
                     cam_ori = R.from_rotvec(leds_dic['cam_info'][cam_id]['RER']['C_R_T']['rvecs'].reshape(3)).as_quat()
                     cam_ori_euler = np.round_(get_euler_from_quat('xyz', cam_ori), 3)
                     cam_ori_quat = np.round_(get_quat_from_euler('xyz', cam_ori_euler), 8)
@@ -421,9 +562,13 @@ def camera_rt_test():
                 leds_dic['cam_info'][cam_id]['med_blobs'] = blob_array
                 leds_dic['cam_info'][cam_id]['D_R_T_A'] = rt_array
 
+                # ToDo ????
                 if recording_start == 1:
                     recording_out.release()
                     recording_start = 0
+
+                print('capture done')
+
                 break
 
             if recording_start == 1:

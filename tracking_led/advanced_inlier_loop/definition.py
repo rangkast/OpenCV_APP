@@ -961,7 +961,7 @@ camera position
 #             ]
 cam_json = ['cam_005.json']
 ORIGIN = 'rifts2_left.json'
-ccccccc
+TARGET = 'rifts2_left.json'
 INLIER_ST = 'rifts2_json'
 LR_POSITION = 'left'
 

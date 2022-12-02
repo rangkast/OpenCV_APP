@@ -20,6 +20,7 @@ import sys
 import glob
 import itertools
 
+
 @dataclass
 class vector3:
     x: float = 0.0
@@ -269,7 +270,7 @@ def Rotate(src, degrees):
         dst = cv2.transpose(src)
         dst = cv2.flip(dst, 0)
     else:
-        dst = NOT_SET
+        dst = src
     return dst
 
 
@@ -315,29 +316,48 @@ def init_data_array(cam_dev_list):
     camera_info_array = []
     for i in range(len(cam_dev_list)):
         cam_info = cam_dev_list[i].split('\n\t')
-        for cam_id, dev_name in enumerate(cam_info):
-            if 'dev' in dev_name:
-                # print(dev_name)
-                camera_info_array.append({'idx': cam_id,
-                                          'port': dev_name,
-                                          'display': {'width': CAP_PROP_FRAME_WIDTH, 'height': CAP_PROP_FRAME_HEIGHT, 'rotate': NOT_SET},
 
-                                          'blobs': [],
-                                          'med_blobs': [],
+        temp_struct = copy.deepcopy(cam_info_struct)
 
-                                          'distorted_2d': [],
-                                          'undistorted_2d': [],
+        if SENSOR_NAME == 'Droidcam':
+            for cam_id, dev_name in enumerate(cam_info):
+                if 'dev' in dev_name:
+                    # print(dev_name)
+                    temp_struct['idx'] = cam_id
+                    temp_struct['port'] = dev_name
+        elif SENSOR_NAME == 'Rift':
+            temp_struct['idx'] = i
+            temp_struct['port'] = cam_info[1]
 
-                                          'cam_cal': {'cameraK': cameraK, 'dist_coeff': distCoeff},
+            print('cam_id[', i, '] :', cam_json[i])
+            jsonObject = json.load(open(''.join(['jsons/', f'{cam_json[i]}'])))
 
-                                          'detect_status': [NOT_SET, 0, 0],
+            cam_info = cam_dev_list[i].split('\n\t')
 
-                                          'track_cal': {'data': [], 'recording': {'name': NOT_SET}},
+            '''                        
+              k = [ k₁ k₂, k₃, k4 ] for CV1 fisheye distortion                    
 
-                                          'D_R_T': {'rvecs': NOT_SET, 'tvecs': NOT_SET},
-                                          'D_R_T_A': [],
-                                          'RER': {'C_R_T': {'rvecs': NOT_SET, 'tvecs': NOT_SET}}})
+                  ⎡ fx 0  cx ⎤
+              A = ⎢ 0  fy cy ⎥
+                  ⎣ 0  0  1  ⎦          
+            '''
+            f = jsonObject.get('camera_f')
+            c = jsonObject.get('camera_c')
+            k = jsonObject.get('camera_k')
 
+            A = np.array([[f[0], 0.0, c[0]],
+                          [0.0, f[1], c[1]],
+                          [0.0, 0.0, 1.0]], dtype=np.float64)
+            K = np.array([[k[0]], [k[1]], [k[2]], [k[3]]], dtype=np.float64)
+
+            if DEBUG == ENABLE:
+                print('cameraK: ', A)
+                print('dist_coeff: ', K)
+
+            temp_struct['cam_cal']['cameraK'] = A
+            temp_struct['cam_cal']['dist_coeff'] = K
+
+        camera_info_array.append(temp_struct)
     print('camera info', camera_info_array)
 
     return camera_info_array
@@ -556,9 +576,9 @@ def cal_RER_px(led_ids, frame, points3D, points2D, inliers, rvecs, tvecs, camera
                 led_except = led_ids[idx]
                 except_inlier = idx
 
-        # print('led_num: ', led_ids[idx], ' dis:', '%0.18f' % temp_dis, ' : ',
-        #       points2D_reproj[idx][0], ' ', points2D_reproj[idx][1],
-        #       ' vs ', points2D[idx][0], ' ', points2D[idx][1])
+        print('led_num: ', led_ids[idx], ' dis:', '%0.18f' % temp_dis, ' : ',
+              points2D_reproj[idx][0], ' ', points2D_reproj[idx][1],
+              ' vs ', points2D[idx][0], ' ', points2D[idx][1])
 
         if temp_dis > 100:
             return ERROR, 0, 0, blob_array, except_inlier
@@ -706,9 +726,9 @@ def median_blobs(cam_id, blob_array, rt_array):
                         'tvecs': np.array([[mean_tvt[0]], [mean_tvt[1]], [mean_tvt[2]]], dtype=np.float64)}
 
         len_rt_array = len(rt_array)
-    #     print(f"rt_array_len = {len_rt_array}")
-    #     print(f"med_rt_array = {med_rt_array}")
-    # print(f"med_blobs_array = {med_blobs_array}")
+        print(f"rt_array_len = {len_rt_array}")
+        print(f"med_rt_array = {med_rt_array}")
+    print(f"med_blobs_array = {med_blobs_array}")
 
     blob_array = med_blobs_array
 
@@ -753,6 +773,7 @@ def draw_dots(dimension, pts, ax, c):
             label = '%s' % idx
             ax.text(x + 0.001, y + 0.001, label, size=6)
 
+
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
         # get the current x and y limits
@@ -789,12 +810,11 @@ def zoom_factory(ax, base_scale=2.):
     return zoom_fun
 
 
-
 leds_dic = {}
 
 # Default
-CAP_PROP_FRAME_WIDTH = 1920
-CAP_PROP_FRAME_HEIGHT = 1080
+CAP_PROP_FRAME_WIDTH = 1280
+CAP_PROP_FRAME_HEIGHT = 960
 
 # Defining the dimensions of checkerboard
 CHECKERBOARD = (7, 4)
@@ -817,7 +837,8 @@ SUCCESS = 1
 
 DEBUG = ENABLE
 
-SENSOR_NAME = "Droidcam"
+# SENSOR_NAME = "Droidcam"
+SENSOR_NAME = "Rift"
 
 EXTERNAL_TOOL_CALIBRATION = 'calibration_json'
 RECTIFY_MAP = "improved_params2.xml"
@@ -856,3 +877,25 @@ D3D = 3
 D2D = 2
 
 LOOP_CNT = 100
+
+cam_json = ['WMTD307H601E9L.json', 'WMTD302J600GA9.json']
+
+cam_info_struct = {'idx': NOT_SET,
+                   'port': NOT_SET,
+                   'display': {'width': CAP_PROP_FRAME_WIDTH, 'height': CAP_PROP_FRAME_HEIGHT, 'rotate': 0},
+
+                   'blobs': [],
+                   'med_blobs': [],
+
+                   'distorted_2d': [],
+                   'undistorted_2d': [],
+
+                   'cam_cal': {'cameraK': cameraK, 'dist_coeff': distCoeff},
+
+                   'detect_status': [NOT_SET, 0, 0],
+
+                   'track_cal': {'data': [], 'recording': {'name': NOT_SET}},
+
+                   'D_R_T': {'rvecs': NOT_SET, 'tvecs': NOT_SET},
+                   'D_R_T_A': [],
+                   'RER': {'C_R_T': {'rvecs': NOT_SET, 'tvecs': NOT_SET}}}
