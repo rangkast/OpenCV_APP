@@ -19,9 +19,19 @@ angle_spec = 80
 CV_PI = 3.14159
 
 
-def recover_test():
-    return
+def camera_displacement(r1, r2, t1, t2):
+    Rod1, _ = cv2.Rodrigues(r1)
+    Rod2, _ = cv2.Rodrigues(r2)
+    R1to2 = Rod2.dot(Rod1.T)
+    rvec1to2, _ = cv2.Rodrigues(R1to2)
+    tvec1to2 = -R1to2.dot(t1) + t2
 
+    print('Rod1\n', Rod1)
+    print('Rod2\n', Rod2)
+    print('rvec1to2\n', rvec1to2.T)
+    print('tvec1to2\n', tvec1to2.T)
+
+    return rvec1to2, tvec1to2
 
 def make_camera_array_2():
     MAX_DEGREE = 60
@@ -141,15 +151,7 @@ if __name__ == "__main__":
     # print imagePoint result
     print('imagePoints1\n', imagePoint1)
     print('imagePoints2\n', imagePoint2)
-    Rod1, _ = cv2.Rodrigues(rvecs1)
-    Rod2, _ = cv2.Rodrigues(rvecs2)
-    R1to2 = Rod2.dot(Rod1.T)
-    rvec1to2, _ = cv2.Rodrigues(R1to2)
-    tvec1to2 = -R1to2.dot(np.array(cam_pose[0]['position'])) + np.array(cam_pose[1]['position'])
-
-    print('rvec1to2\n', rvec1to2.T)
-    print('tvec1to2\n', tvec1to2.T)
-
+    rvec1to2, tvec1to2 = camera_displacement(rvecs1, rvecs2, np.array(cam_pose[0]['position']), np.array(cam_pose[1]['position']))
     # 펀더멘털 매트릭스 왜 안나옴????
     # 8개는 되야 제대로 나옴.....ㅅㅂ
     F, mask = cv2.findFundamentalMat(imagePoint1, imagePoint2, method=cv2.FM_RANSAC)
@@ -165,15 +167,13 @@ if __name__ == "__main__":
     _, Rvecs, Tvecs, M = cv2.recoverPose(E, imagePoint1, imagePoint2)
     recover_rvec, _ = cv2.Rodrigues(Rvecs)
     print('After Recover Pose\n')
-    print('Rvecs\n', recover_rvec.T)
+    print('Rvecs\n', recover_rvec)
     print('Tvecs\n', Tvecs)
-
-    # scalePose = tvec1to2.at < double > (2, 0) / t.at < double > (2, 0);
-
-    scalePose = tvec1to2[2, 0] / Tvecs[2, 0]
+    scalePose = tvec1to2[2] / Tvecs[2][0]
     print('scalePose : ', scalePose)
 
-
+    new_Tvecs = scalePose*Tvecs
+    print('new_Tvecs\n', new_Tvecs)
     # trianglutatePoints
     print('origin\n', origin_leds)
     print('solvePnP + trianglutePoint')
@@ -205,6 +205,11 @@ if __name__ == "__main__":
                                                   temp_camera_k,
                                                   None)
 
+    print('r_1\n', r_1)
+    print('t_1\n', t_1)
+
+    print(camera_displacement(r_1, r_2, t_1, t_2))
+
     left_rotation, jacobian = cv2.Rodrigues(r_1)
     right_rotation, jacobian = cv2.Rodrigues(r_2)
     left_projection = np.hstack((left_rotation, t_1))
@@ -225,12 +230,25 @@ if __name__ == "__main__":
     print('get_points(solvePnP)\n', sget_points)
 
     print('recoverPose + triangluatePoint')
-    P = np.hstack((Rvecs, Tvecs))
+    P = np.hstack((Rvecs, new_Tvecs))
+    # pm1 = np.zeros((3, 4))
+    pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
+    print('pm1\n', pm1)
+    print('P\n', P)
+    d_r, _ = cv2.Rodrigues(np.eye(3))
+    d_t, _ = cv2.Rodrigues(np.eye(3))
 
-    # curr_proj_matrix = cv2.hconcat([Rvecs, Tvecs])
-    # print('curr proj m\n', curr_proj_matrix)
-    pm1 = np.eye(3, 4)
-    # pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
+    print('d_r ', d_r, ' d_t ', d_t)
+    print(camera_displacement(d_r, recover_rvec, d_t, new_Tvecs))
+
+    # left_rotation, jacobian = cv2.Rodrigues(d_r)
+    # left_projection = np.hstack((left_rotation, d_t))
+    # print('left_project\n', left_projection)
+    #
+    # right_rotation, jacobian = cv2.Rodrigues(recover_rvec)
+    # right_projection = np.hstack((right_rotation, new_Tvecs))
+    # print('right_project\n', right_projection)
+
     triangulation_r = cv2.triangulatePoints(pm1, P,
                                             list_2d_undistorted_o1,
                                             list_2d_undistorted_o2)
