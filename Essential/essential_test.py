@@ -17,11 +17,34 @@ CAP_PROP_FRAME_HEIGHT = 960
 angle_spec = 80
 
 
+def make_camera_array_2():
+    MAX_DEGREE = 60
+    cam_id = 0
+    cam_pose = []
+    # 30cm
+    for dist in range(1):
+        for idx in range(MAX_DEGREE):
+            degree = idx * 3
+            cam_pose.append({
+                'idx': cam_id,
+                'position': vector3(0.0, 0.0, 0.5 + (dist * 0.1)),
+                'orient': get_quat_from_euler('zxy', [0, 55, degree])
+            })
+            cam_pose.append({
+                'idx': cam_id + 1,
+                'position': vector3(0.0, 0.0, 0.5 + (dist * 0.1)),
+                'orient': get_quat_from_euler('zxy', [0, 55, -(180 - degree)])
+            })
+            cam_id += 2
+
+    return cam_pose
+
+
 def make_camera_array():
     dist_to_controller = 0.5
 
     depth = 0.5
-    step = 30
+    step = 60
     dx = 360
     dz = 180
 
@@ -33,6 +56,7 @@ def make_camera_array():
         delta = math.radians(k * step)  # alpha : x 축과 이루는 각도 (0 ~ 360도)
         for m in range(int(dz / step)):
             theta = math.radians(m * step)  # beta : z 축과 이루는 각도 (0 ~ 180도)
+            # theta = math.radians(90)  # beta : z 축과 이루는 각도 (0 ~ 180도)
 
             x = math.cos(delta) * math.sin(theta) * depth
             y = math.sin(delta) * math.sin(theta) * depth
@@ -202,7 +226,7 @@ def check_projection(cam_pose, cam_array):
 
 
 def essential_test(cam_array, origin, target):
-    cam_pose = make_camera_array()
+    cam_pose = make_camera_array_2()
     # for cam_array_data in cam_array:
     #     model = np.array(cam_array_data['model']['leds'])
     #
@@ -236,10 +260,10 @@ def essential_test(cam_array, origin, target):
                 cam_pose_map[key_string] = [{'camera': data, 'leds': key_data}]
         # print('\n')
 
-        new_pt = data['position_view']
-        ax.scatter(new_pt.x, new_pt.y, new_pt.z, marker='.', color='red', s=20)
-        label = (f"{data['idx']}")
-        ax.text(new_pt.x, new_pt.y, new_pt.z, label, size=10)
+        # new_pt = data['position_view']
+        # ax.scatter(new_pt.x, new_pt.y, new_pt.z, marker='.', color='red', s=20)
+        # label = (f"{data['idx']}")
+        # ax.text(new_pt.x, new_pt.y, new_pt.z, label, size=10)
 
     for i, key in enumerate(cam_pose_map):
         acc_cams_array = cam_pose_map.get(key)
@@ -259,9 +283,8 @@ def essential_test(cam_array, origin, target):
             prime_T = NOT_SET
             prime_C_d = NOT_SET
             prime_C_u = NOT_SET
-            for cnt, info in enumerate(acc_cams_array):
+            for prime_cnt, info in enumerate(acc_cams_array):
                 print(info)
-
                 origin_leds = []
 
                 for led_num in info['leds']:
@@ -271,6 +294,7 @@ def essential_test(cam_array, origin, target):
                 # 여기서 오리지널 pts를 투영 시켜 본다.
                 obj_cam_pos_n = np.array(info['camera']['position'])
                 rotR = R.from_quat(np.array(info['camera']['orient']))
+                print('test!!!\n', np.round_(get_euler_from_quat('zxy', info['camera']['orient']), 3))
                 Rod, _ = cv2.Rodrigues(rotR.as_matrix())
 
                 oret = cv2.projectPoints(origin_leds, Rod, obj_cam_pos_n,
@@ -295,7 +319,8 @@ def essential_test(cam_array, origin, target):
                 _, r_o, t_o, inliers = cv2.solvePnPRansac(origin_leds, list_2d_undistorted_o,
                                                           cameraK,
                                                           distCoeff)
-                if cnt == 0:
+
+                if prime_cnt == 0:
                     prime_R = r_o.copy()
                     prime_T = t_o.copy()
 
@@ -391,9 +416,9 @@ def essential_test(cam_array, origin, target):
                                                           list_2d_undistorted_o)
                     homog_points = triangulation.transpose()
 
-                    get_points = cv2.convertPointsFromHomogeneous(homog_points)
+                    sget_points = cv2.convertPointsFromHomogeneous(homog_points)
 
-                    print('get_points(solvePnP)\n', get_points)
+                    print('get_points(solvePnP)\n', sget_points)
 
 
                     # ToDo
@@ -402,29 +427,31 @@ def essential_test(cam_array, origin, target):
                     #                                None)
 
                     E, mask = cv2.findEssentialMat(prime_C_d, blobs_2d_distort_o,
-                                                   threshold=0.05,
+                                                   threshold=1.0,
                                                    prob=0.99,
                                                    method=cv2.RANSAC,
                                                    focal=focal,
                                                    pp=pp)
 
                     decompose = cv2.decomposeEssentialMat(E)
+
                     print('decompose\n', decompose)
+                    F = np.linalg.inv(temp_camera_k.T).dot(E).dot(np.linalg.inv(temp_camera_k))
 
                     p1, p2 = cv2.correctMatches(E, prime_C_u, list_2d_undistorted_o)
                     print('before ', prime_C_u)
                     print('after ', p1)
-                    _, Rvecs, Tvecs, M = cv2.recoverPose(E, p1, p1)
+                    _, Rvecs, Tvecs, M = cv2.recoverPose(E, p1, p2)
 
-                    RodP, _ = cv2.Rodrigues(prime_R)
-                    print('RodP\n', RodP)
-                    RodC, _ = cv2.Rodrigues(r_o)
-                    print('RodC\n', RodC)
-                    rvecPNP = np.linalg.inv(RodP) * RodC
-                    tvecPNP = RodC * t_o - RodP * prime_T
-
-                    print('rvecPNP\n', rvecPNP)
-                    print('tvecPNP\n', tvecPNP)
+                    # RodP, _ = cv2.Rodrigues(prime_R)
+                    # print('RodP\n', RodP)
+                    # RodC, _ = cv2.Rodrigues(r_o)
+                    # print('RodC\n', RodC)
+                    # rvecPNP = np.linalg.inv(RodP) * RodC
+                    # tvecPNP = RodC * t_o - RodP * prime_T
+                    #
+                    # print('rvecPNP\n', rvecPNP)
+                    # print('tvecPNP\n', tvecPNP)
 
                     print('Rvecs\n', Rvecs)
                     print('Tvecs\n', Tvecs)
@@ -438,8 +465,6 @@ def essential_test(cam_array, origin, target):
                                                             list_2d_undistorted_o)
                     homog_points_r = triangulation_r.transpose()
                     get_points = cv2.convertPointsFromHomogeneous(homog_points_r)
-
-
 
                     print('get_points(recoverPose)\n', get_points)
 
@@ -461,46 +486,17 @@ def essential_test(cam_array, origin, target):
                         print('remake ', get_points[index])
                         leds_data[origin][leds]['remake_3d'].append(
                             {'idx': leds, 'cam_l': prime_cam_id, 'cam_r': int(info['camera']['idx']),
+                             'solve_coord': sget_points[index],
                              'coord': get_points[index],
                              'coord_tmp': tmp_point[index]})
-                    # em, mask = cv2.findEssentialMat(prime_C_d, blobs_2d_distort_o,
-                    #                                 threshold=0.05,
-                    #                                 prob=0.95,
-                    #                                 method=cv2.RANSAC,
-                    #                                 focal=focal,
-                    #                                 pp=pp)
-                    # print('mask\n', mask)
-                    # print('decompose\n', cv2.decomposeEssentialMat(em))
-                    # F = np.linalg.inv(temp_camera_k.T).dot(em).dot(np.linalg.inv(temp_camera_k))
-                    # # optimal solution for triangulation of  object points
-                    # print('prime C U\n', prime_C_u)
-                    # print('curr point\n', list_2d_undistorted_o)
-                    # p1, p2 = cv2.correctMatches(em, prime_C_u, list_2d_undistorted_o)
                     #
-                    # print('r_o\n', r_o)
-                    # print('t_o\n', t_o)
                     #
-                    # RodP, _ = cv2.Rodrigues(prime_R)
-                    # print('RodP\n', RodP)
-                    # RodC, _ = cv2.Rodrigues(r_o)
-                    # print('RodC\n', RodC)
                     #
-                    # rvecPNP = np.linalg.inv(RodP) * RodC
-                    # tvecPNP = RodC * t_o - RodP * prime_T
-                    #
-                    # print('rvecPNP\n', rvecPNP)
-                    # print('tvecPNP\n', tvecPNP)
-                    #
-                    # points, r, t, mask = cv2.recoverPose(em, p1, p2)
-                    # print('r\n', r)
-                    # print('t\n', t)
-                    #
-                    # P = np.hstack((r, t))
-                    # pm1 = np.eye(3, 4)
-                    #
-                    # pts_sps = compute3Dpoints(pm1, P, p1, p2)
-                    #
-                    # print('result\n', pts_sps)
+                    # prime_C_d = blobs_2d_distort_o.copy()
+                    # prime_C_u = list_2d_undistorted_o.copy()
+                    # prime_cam_id = int(info['camera']['idx'])
+                    # prime_cam_info = info.copy()
+
 
 
 def compute3Dpoints(P1, P2, npts1, npts2):
@@ -541,7 +537,7 @@ def UndistorTiePoints(tie_pts, cam_m, distor):
 
 def draw_blobs(ax, camera_array, origin, target):
     draw_dots(3, leds_data[origin], ax, 'blue')
-    draw_dots(3, leds_data[target], ax, 'red')
+    # draw_dots(3, leds_data[target], ax, 'red')
 
     # # 원점
     # ax.scatter(0, 0, 0, marker='o', color='k', s=20)
@@ -573,20 +569,30 @@ def draw_ax_plot(pts, ax, c):
             z = [coord['coord'][0][2] for coord in pts[i]['remake_3d']]
             idx = [coord['idx'] for coord in pts[i]['remake_3d']]
 
-            ax.scatter(x, y, z, marker='o', s=30, color=c, alpha=0.5)
+            ax.scatter(x, y, z, marker='o', s=10, color=c, alpha=0.5)
             for idx, x, y, z in zip(idx, x, y, z):
                 label = '%s' % idx
-                ax.text(x, y, z, label, size=10)
+                ax.text(x, y, z, label, size=5)
 
             x = [coord['coord_tmp'][0] for coord in pts[i]['remake_3d']]
             y = [coord['coord_tmp'][1] for coord in pts[i]['remake_3d']]
             z = [coord['coord_tmp'][2] for coord in pts[i]['remake_3d']]
             idx = [coord['idx'] for coord in pts[i]['remake_3d']]
 
-            ax.scatter(x, y, z, marker='o', s=30, color='blue', alpha=0.5)
+            ax.scatter(x, y, z, marker='o', s=10, color='blue', alpha=0.5)
             for idx, x, y, z in zip(idx, x, y, z):
                 label = '%s' % idx
-                ax.text(x, y, z, label, size=10)
+                ax.text(x, y, z, label, size=5)
+
+            x = [coord['solve_coord'][0][0] for coord in pts[i]['remake_3d']]
+            y = [coord['solve_coord'][0][1] for coord in pts[i]['remake_3d']]
+            z = [coord['solve_coord'][0][2] for coord in pts[i]['remake_3d']]
+            idx = [coord['idx'] for coord in pts[i]['remake_3d']]
+
+            ax.scatter(x, y, z, marker='o', s=10, color='black', alpha=0.5)
+            for idx, x, y, z in zip(idx, x, y, z):
+                label = '%s' % idx
+                ax.text(x, y, z, label, size=5)
 
     # 원점
     ax.scatter(0, 0, 0, marker='o', color='k', s=20)
