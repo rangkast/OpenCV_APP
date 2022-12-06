@@ -137,8 +137,9 @@ int main() {
   }
 
   //new camera pose
-  cv::Mat rvec2 = (cv::Mat_<double>(3, 1) << -3.0*CV_PI / 180.0, -5.0*CV_PI / 180.0, -3.0*CV_PI / 180.0);
-  cv::Mat tvec2 = (cv::Mat_<double>(3, 1) <<  0.1, 0.2, 2.0);
+  //여기서 카메라 포지션과 orient 다 달라야 한다.
+  cv::Mat rvec2 = (cv::Mat_<double>(3, 1) << -3.0*CV_PI / 180.0, -1.0*CV_PI / 180.0, -3.0*CV_PI / 180.0);
+  cv::Mat tvec2 = (cv::Mat_<double>(3, 1) <<  0.1, 0.3, 2.0);
   std::cout << "rvec2: " << rvec2.t() << std::endl;
   std::cout << "tvec2: " << tvec2.t() << std::endl;
 

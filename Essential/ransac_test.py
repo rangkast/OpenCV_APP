@@ -76,24 +76,24 @@ def init_model_json(path):
             blobs = jsonObject.get('blobs')
             undistorted_2d = jsonObject.get('undistort_blobs')
             distorted_2d = jsonObject.get('distorted_2d')
-            print('cameraK: ', A)
-            print('dist_coeff: ', K)
-
-            print('rvecs: ', RVECS)
-            print('tvecs: ', TVECS)
-
-            print('blobs: ', blobs)
-            print('undistorted: ', undistorted_2d)
-            print('distorted_2d: ', distorted_2d)
+            # print('cameraK: ', A)
+            # print('dist_coeff: ', K)
+            #
+            # print('rvecs: ', RVECS)
+            # print('tvecs: ', TVECS)
+            #
+            # print('blobs: ', blobs)
+            # print('undistorted: ', undistorted_2d)
+            # print('distorted_2d: ', distorted_2d)
 
             cam_pos = TVECS.reshape(3)
             cam_ori = R.from_rotvec(RVECS.reshape(3)).as_quat()
             cam_ori_euler = np.round_(get_euler_from_quat('zxy', cam_ori), 3)
             cam_ori_quat = np.round_(get_quat_from_euler('zxy', cam_ori_euler), 8)
 
-            print('pos: ', cam_pos, ' ori(euler): ', cam_ori_euler,
-                  ' ori(quat): ', cam_ori,
-                  ' ori(re-quat): ', cam_ori_quat)
+            # print('pos: ', cam_pos, ' ori(euler): ', cam_ori_euler,
+            #       ' ori(quat): ', cam_ori,
+            #       ' ori(re-quat): ', cam_ori_quat)
 
             if i % 2 == 0:
                 group_num = i
@@ -148,7 +148,7 @@ def read_led_pts(fname):
         pts.append({'idx': idx, 'pos': _pos, 'dir': _dir, 'pair_xy': [], 'remake_3d': [],
                     'min': {'dis': 10, 'remake': []}})
 
-    print(f'{fname} PointsRead')
+    # print(f'{fname} PointsRead')
     leds_data[fname] = pts
 
 
