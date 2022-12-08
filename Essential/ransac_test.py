@@ -41,8 +41,8 @@ def init_model_json(path):
         TVECS = []
 
         for i in range(len(cam_json)):
-            print('\n')
-            print('cam_id[', i, ']')
+            # print('\n')
+            # print('cam_id[', i, ']')
 
             # ../ backup / jsons /
             jsonObject = json.load(

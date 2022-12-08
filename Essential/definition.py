@@ -228,7 +228,7 @@ def draw_dots(dimension, pts, ax, c):
         v = [x['dir'][1] for x in pts]
         w = [x['dir'][2] for x in pts]
         idx = [x['idx'] for x in pts]
-        ax.scatter(x, y, z, marker='o', s=10, color=c, alpha=0.5)
+        ax.scatter(x, y, z, marker='o', s=5, color=c, alpha=0.5)
         ax.quiver(x, y, z, u, v, w, length=0.05, linewidths=0.1, color='red', normalize=True)
         for idx, x, y, z in zip(idx, x, y, z):
             label = '%s' % idx
@@ -303,8 +303,8 @@ def init_model_json(cam_dev_list):
         if DEBUG == ENABLE:
             print(cam_dev_list, ' count:', len(cam_dev_list))
         for i in range(len(cam_dev_list)):
-            print('\n')
-            print('cam_id[', i, '] :', cam_json[i])
+            # print('\n')
+            # print('cam_id[', i, '] :', cam_json[i])
             jsonObject = json.load(open(''.join(['jsons/', f'{LR_POSITION}/', f'{cam_json[i]}'])))
             model_points = jsonObject.get('model_points')
             model = []

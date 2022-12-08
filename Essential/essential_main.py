@@ -17,29 +17,6 @@ CAP_PROP_FRAME_HEIGHT = 960
 angle_spec = 80
 
 
-def make_camera_array_2():
-    MAX_DEGREE = 60
-    cam_id = 0
-    cam_pose = []
-    # 30cm
-    for dist in range(1):
-        for idx in range(MAX_DEGREE):
-            degree = idx * 3
-            cam_pose.append({
-                'idx': cam_id,
-                'position': vector3(0.0, 0.0, 0.5 + (dist * 0.1)),
-                'orient': get_quat_from_euler('zxy', [0, 55, degree])
-            })
-            cam_pose.append({
-                'idx': cam_id + 1,
-                'position': vector3(0.0, 0.0, 0.5 + (dist * 0.1)),
-                'orient': get_quat_from_euler('zxy', [0, 55, -(180 - degree)])
-            })
-            cam_id += 2
-
-    return cam_pose
-
-
 def make_camera_array():
     dist_to_controller = 0.5
 
@@ -114,12 +91,10 @@ def check_facing_dot(target, cam_pose):
     return pts_facing, leds_array
 
 
-def get_facing_dot(fname, cam_pose, print_val):
+def get_facing_dot(fname, cam_pose):
     pts_facing = []
     leds_array = []
 
-    if print_val == 1 and cam_pose['idx'] <= 1:
-        print(f"[DEBUG_SM][{fname}] cam_id{cam_pose}")
     for i, data in enumerate(leds_data[fname]):
         # 카메라 pose 기준으로 led 좌표 변환 & led의 방향 벡터 변환
         led_id = int(data['idx'])
@@ -154,90 +129,67 @@ def color_loop(idx):
     else:
         return 'blue'
 
-#
-# def check_projection(cam_pose, cam_array):
-#     plt.style.use('default')
-#     fig_ransac = plt.figure(figsize=(15, 15))
-#     plt.rc('xtick', labelsize=5)  # x축 눈금 폰트 크기
-#     plt.rc('ytick', labelsize=5)
-#     for cam_num, cam_pose_data in enumerate(cam_pose):
-#
-#         # ax_ransac = fig_ransac.add_subplot()
-#         # ax_ransac.set_title('cam: 'f'{cam_num}')
-#
-#         length = round((len(cam_pose) + 2) / 4)
-#         if length == 0:
-#             length = 1
-#         fig_ransac.tight_layout()
-#         ax_ransac = fig_ransac.add_subplot(4, length, cam_num + 1)
-#         ax_ransac.set_title('cam: 'f'{cam_num}')
-#         # o_pts_facing, leds_array = np.array(check_facing_dot(leds_data[origin], cam_pose_data))
-#         o_pts_facing, leds_array = get_facing_dot(origin, cam_pose_data, 0)
-#
-#         print('f: ', leds_array)
-#         print('cam id: ', cam_pose_data['idx'], ' ori: ', cam_pose_data)
-#         # print('n ', new_pts_facing)
-#         # facing dot 과 좌표를 찾는다.
-#
-#         origin_leds = []
-#
-#         for x in o_pts_facing:
-#             origin_leds.append([[x['pos'][0], x['pos'][1], x['pos'][2]]])
-#         origin_leds = np.array(origin_leds, dtype=np.float64)
-#
-#         # 여기서 오리지널 pts를 투영 시켜 본다.
-#         obj_cam_pos_n = np.array(cam_pose_data['position'])
-#         rotR = R.from_quat(np.array(cam_pose_data['orient']))
-#         Rod, _ = cv2.Rodrigues(rotR.as_matrix())
-#
-#         cam_num = 0
-#         oret = cv2.projectPoints(origin_leds, Rod, obj_cam_pos_n,
-#                                  cam_array[cam_num]['cam_cal']['cameraK'],
-#                                  cam_array[cam_num]['cam_cal']['dist_coeff'])
-#         o_xx, o_yy = oret[0].reshape(len(origin_leds), 2).transpose()
-#         blobs_2d_origin = []
-#         for i in range(len(o_xx)):
-#             blobs_2d_origin.append([[o_xx[i], o_yy[i]]])
-#
-#         print(blobs_2d_origin)
-#         #
-#         origin_pts = []
-#         for i in range(len(o_xx)):
-#             _opos = list(map(float, [o_xx[i], o_yy[i]]))
-#             origin_pts.append({'idx': leds_array[i], 'pos': _opos, 'reserved': 0})
-#         #
-#         color = color_loop(cam_num)
-#         draw_dots(2, origin_pts, ax_ransac, color)
-#         #
-#         max_x = 0
-#         max_y = 0
-#         if abs(max(o_xx)) > max_x: max_x = abs(max(o_xx))
-#         if abs(min(o_xx)) > max_x: max_x = abs(min(o_xx))
-#         if abs(max(o_yy)) > max_y: max_y = abs(max(o_yy))
-#         if abs(min(o_yy)) > max_y: max_y = abs(min(o_yy))
-#         dimen = max(max_x, max_y)
-#         dimen *= 1.1
-#         ax_ransac.set_xlim([0, 1280])
-#         ax_ransac.set_ylim([0, 960])
-#         #
-#         #
-#         # blobs_2d = np.array(blobs_2d_origin, dtype=np.float64)
-#         # blobs_2d = blobs_2d[:, 0]
+
+def calc_led_datas(info, temp_camera_k, temp_dist_coeff):
+    # print(info)
+    origin_leds = []
+
+    for led_num in info['leds']:
+        origin_leds.append([leds_data[origin][led_num]['pos']])
+    origin_leds = np.array(origin_leds, dtype=np.float64)
+    # print(origin_leds[0][0][0])
+    # 여기서 오리지널 pts를 투영 시켜 본다.
+    obj_cam_pos_n = np.array(info['camera']['position'])
+    obj_cam_pos_view = np.array(info['camera']['position_view'])
+    rotR = R.from_quat(np.array(info['camera']['orient']))
+    euler_degree = np.round_(get_euler_from_quat('zxy', info['camera']['orient']), 3)
+    euler_radian = []
+    for data in euler_degree:
+        euler_radian.append(math.radians(data))
+
+    print('euler_radian: ', euler_radian)
+    # Rod, _ = cv2.Rodrigues(rotR.as_matrix())
+    # print('Rod\n', Rod)
+
+    oret = cv2.projectPoints(origin_leds, np.array(euler_radian), obj_cam_pos_view,
+                             temp_camera_k,
+                             None)
+    o_xx, o_yy = oret[0].reshape(len(origin_leds), 2).transpose()
+    blobs_2d_origin = []
+    for i in range(len(o_xx)):
+        blobs_2d_origin.append([[o_xx[i], o_yy[i]]])
+
+    # print(blobs_2d_origin)
+    blobs_2d_distort_o = np.array(blobs_2d_origin, dtype=np.float64)
+    blobs_2d_distort_o = copy.deepcopy(np.reshape(blobs_2d_distort_o, (1, 6, 2)))
+
+    # pts1 = np.ascontiguousarray(blobs_2d_distort_o, np.float32)
+
+    list_2d_undistorted_o = cv2.undistortPoints(blobs_2d_distort_o,
+                                                temp_camera_k,
+                                                None)
+    list_2d_undistorted_o = copy.deepcopy(np.reshape(list_2d_undistorted_o, (1, 6, 2)))
+
+    _, r_o, t_o, inliers = cv2.solvePnPRansac(origin_leds, list_2d_undistorted_o,
+                                              cameraK,
+                                              distCoeff)
+
+    return blobs_2d_distort_o, list_2d_undistorted_o, r_o, t_o, euler_radian, origin_leds
 
 
-def essential_test(cam_array, origin, target):
+def get_cam_id(acc_cams_array, prime_num):
+    for prime_cnt, info in enumerate(acc_cams_array):
+        if int(info['camera']['idx']) == prime_num:
+            return prime_cnt
+
+
+def essential_test(cam_array, origin):
     cam_pose = make_camera_array()
-    # for cam_array_data in cam_array:
-    #     model = np.array(cam_array_data['model']['leds'])
-    #
-    #     temp_camera_k = cam_array_data['cam_cal']['cameraK']
-    #     temp_dist_coeff = cam_array_data['cam_cal']['dist_coeff']
-    #
-    #     print('m: ', model)
-
     cam_pose_map = {}
+    result_data = []
+    cam_mesh_map = {}
     for i, data in enumerate(cam_pose):
-        pts_facing, leds_array = get_facing_dot(origin, data, 0)
+        pts_facing, leds_array = get_facing_dot(origin, data)
         # pts_facing, leds_array = np.array(check_facing_dot(leds_data[origin], data))
         cnt = len(pts_facing)
 
@@ -258,12 +210,6 @@ def essential_test(cam_array, origin, target):
             else:
                 # print('not found')
                 cam_pose_map[key_string] = [{'camera': data, 'leds': key_data}]
-        # print('\n')
-
-        # new_pt = data['position_view']
-        # ax.scatter(new_pt.x, new_pt.y, new_pt.z, marker='.', color='red', s=20)
-        # label = (f"{data['idx']}")
-        # ax.text(new_pt.x, new_pt.y, new_pt.z, label, size=10)
 
     for i, key in enumerate(cam_pose_map):
         acc_cams_array = cam_pose_map.get(key)
@@ -274,180 +220,186 @@ def essential_test(cam_array, origin, target):
         temp_dist_coeff = cam_array[cam_num]['cam_cal']['dist_coeff']
         pp = (temp_camera_k[0, 2], temp_camera_k[1, 2])
         focal = temp_camera_k[0, 0]
-        print('focal ', focal, ' pp ', pp)
+        # print('focal ', focal, ' pp ', pp)
 
         if length > 1:
+            # if key != "0,1,11,12,13,14":
+            #     continue
             print('group ', i, ' len ', length)
             print('leds ', key)
-            prime_R = NOT_SET
-            prime_T = NOT_SET
-            prime_C_d = NOT_SET
-            prime_C_u = NOT_SET
-            for prime_cnt, info in enumerate(acc_cams_array):
-                print(info)
-                origin_leds = []
 
-                for led_num in info['leds']:
-                    origin_leds.append([leds_data[origin][led_num]['pos']])
-                origin_leds = np.array(origin_leds, dtype=np.float64)
-                # print(origin_leds)
-                # 여기서 오리지널 pts를 투영 시켜 본다.
-                obj_cam_pos_n = np.array(info['camera']['position'])
-                obj_cam_pos_view = np.array(info['camera']['position_view'])
-                rotR = R.from_quat(np.array(info['camera']['orient']))
-                euler_degree = np.round_(get_euler_from_quat('zxy', info['camera']['orient']), 3)
-                euler_radian = []
-                for data in euler_degree:
-                    euler_radian.append(math.radians(data))
+            if key in cam_mesh_map:
+                cam_mesh_map[key].append({'acc_data': acc_cams_array, 'group': i})
+            else:
+                cam_mesh_map[key] = [{'acc_data': acc_cams_array, 'group': i}]
 
-                print('test!!!\n', euler_radian)
-                # Rod, _ = cv2.Rodrigues(rotR.as_matrix())
-                # print('Rod\n', Rod)
+            debug_number = get_cam_id(acc_cams_array, 2149)
+            debug_number = 0
+            for primary_cam_number in range(length):
+                if primary_cam_number != debug_number:
+                    continue
 
-                oret = cv2.projectPoints(origin_leds, np.array(euler_radian), obj_cam_pos_view,
-                                         temp_camera_k,
-                                         None)
-                o_xx, o_yy = oret[0].reshape(len(origin_leds), 2).transpose()
-                blobs_2d_origin = []
-                for i in range(len(o_xx)):
-                    blobs_2d_origin.append([[o_xx[i], o_yy[i]]])
+                prime_C_d, prime_C_u, prime_R, prime_T, prime_cam_r, origin_leds = calc_led_datas(acc_cams_array[primary_cam_number], temp_camera_k, None)
+                prime_cam_t = np.array(acc_cams_array[primary_cam_number]['camera']['position'])
+                prime_cam_t_view = np.array(acc_cams_array[primary_cam_number]['camera']['position_view'])
+                prime_rotR = R.from_quat(np.array(acc_cams_array[primary_cam_number]['camera']['orient']))
+                prime_cam_id = int(acc_cams_array[primary_cam_number]['camera']['idx'])
+                # draw_camera_position(acc_cams_array[primary_cam_number], 'black')
+                over_spec_cnt = 0
 
-                # print(blobs_2d_origin)
-                blobs_2d_distort_o = np.array(blobs_2d_origin, dtype=np.float64)
-                blobs_2d_distort_o = copy.deepcopy(np.reshape(blobs_2d_distort_o, (1, 6, 2)))
+                for prime_cnt, info in enumerate(acc_cams_array):
+                    distort_2d, undistort_2d, r_o, t_o, euler_radian, _ = calc_led_datas(info, temp_camera_k, None)
+                    obj_cam_pos_view = np.array(info['camera']['position_view'])
 
-                # pts1 = np.ascontiguousarray(blobs_2d_distort_o, np.float32)
+                    if prime_cnt != primary_cam_number:
+                        rvec1to2, tvec1to2 = camera_displacement(np.array(prime_cam_r), np.array(euler_radian), prime_cam_t_view,
+                                                                 obj_cam_pos_view)
+                        print('solvePnP')
+                        camera_displacement(prime_R, r_o, prime_T, t_o)
 
-                list_2d_undistorted_o = cv2.undistortPoints(blobs_2d_distort_o,
-                                                            temp_camera_k,
-                                                            None)
-                list_2d_undistorted_o = copy.deepcopy(np.reshape(list_2d_undistorted_o, (1, 6, 2)))
+                        # 펀더멘털 매트릭스 왜 안나옴????
+                        # 8개는 되야 제대로 나옴.....ㅅㅂ
+                        # F, mask = cv2.findFundamentalMat(prime_C_d, blobs_2d_distort_o, method=cv2.FM_RANSAC)
+                        # print('F\n', F)
+                        E, mask = cv2.findEssentialMat(prime_C_u, undistort_2d, 1.0, (0, 0),
+                                                       cv2.RANSAC, 0.999, 1, None)
 
-                _, r_o, t_o, inliers = cv2.solvePnPRansac(origin_leds, list_2d_undistorted_o,
-                                                          cameraK,
-                                                          distCoeff)
+                        # F2 = np.linalg.inv(temp_camera_k.T).dot(E).dot(np.linalg.inv(temp_camera_k))
 
-                if prime_cnt == 0:
-                    prime_cam_r = copy.deepcopy(np.array(euler_radian))
-                    prime_cam_t = copy.deepcopy(obj_cam_pos_n)
-                    prime_cam_t_view = copy.deepcopy(obj_cam_pos_view)
-                    prime_R = copy.deepcopy(r_o)
-                    prime_T = copy.deepcopy(t_o)
+                        # E2 = temp_camera_k.T.dot(F2).dot(temp_camera_k)
+                        # print('F2\n', F2)
+                        # print('E\n', E)
+                        # print('E2\n', E2)
 
-                    prime_C_d = copy.deepcopy(blobs_2d_distort_o)
-                    prime_C_u = copy.deepcopy(list_2d_undistorted_o)
+                        _, Rvecs, Tvecs, M = cv2.recoverPose(E, prime_C_u, undistort_2d)
+                        recover_rvec, _ = cv2.Rodrigues(Rvecs)
+                        # print('After Recover Pose\n')
+                        print('Rvecs\n', recover_rvec.T)
+                        # print('Tvecs\n', Tvecs)
+                        scalePose = tvec1to2[2] / Tvecs[2][0]
+                        print('scalePose : ', scalePose)
 
-                    print('prime R\n', prime_R, '\nprime T\n', prime_T)
-                    prime_cam_id = int(info['camera']['idx'])
-                    prime_cam_info = info.copy()
+                        new_Tvecs = scalePose * Tvecs
+                        print('new_Tvecs\n', new_Tvecs.T)
+                        # trianglutatePoints
+                        # print('solvePnP + trianglutePoint')
 
-                else:
-                    print('cam_pose\n')
-                    rvec1to2, tvec1to2 = camera_displacement(prime_cam_r, np.array(euler_radian), prime_cam_t_view,
-                                                             obj_cam_pos_view)
-                    print('solvePnP')
-                    camera_displacement(prime_R, r_o, prime_T, t_o)
+                        # ToDo
+                        # SolvePnP + triangluatePoints
+                        left_rotation, jacobian = cv2.Rodrigues(prime_R)
+                        right_rotation, jacobian = cv2.Rodrigues(r_o)
 
-                    # 펀더멘털 매트릭스 왜 안나옴????
-                    # 8개는 되야 제대로 나옴.....ㅅㅂ
-                    # F, mask = cv2.findFundamentalMat(prime_C_d, blobs_2d_distort_o, method=cv2.FM_RANSAC)
-                    # print('F\n', F)
-                    E, mask = cv2.findEssentialMat(prime_C_u, list_2d_undistorted_o, 1.0, (0, 0),
-                                                   cv2.RANSAC, 0.999, 1, None)
+                        left_projection = np.hstack((left_rotation, prime_T))
+                        # print('left_project\n', left_projection)
+                        right_projection = np.hstack((right_rotation, t_o))
+                        # print('right_project\n', right_projection)
 
-                    # F2 = np.linalg.inv(temp_camera_k.T).dot(E).dot(np.linalg.inv(temp_camera_k))
+                        triangulation = cv2.triangulatePoints(left_projection, right_projection,
+                                                              prime_C_u,
+                                                              undistort_2d)
+                        homog_points = triangulation.transpose()
 
-                    # E2 = temp_camera_k.T.dot(F2).dot(temp_camera_k)
-                    # print('F2\n', F2)
-                    # print('E\n', E)
-                    # print('E2\n', E2)
+                        sget_points = cv2.convertPointsFromHomogeneous(homog_points)
+                        sdistance = 0
+                        for ii, points in enumerate(sget_points):
+                            sdistance += math.sqrt(math.pow(points[0][0] - origin_leds[ii][0][0], 2) +
+                                                   math.pow(points[0][1] - origin_leds[ii][0][1], 2) +
+                                                   math.pow(points[0][2] - origin_leds[ii][0][2], 2))
 
-                    _, Rvecs, Tvecs, M = cv2.recoverPose(E, prime_C_d, blobs_2d_distort_o)
-                    recover_rvec, _ = cv2.Rodrigues(Rvecs)
-                    # print('After Recover Pose\n')
-                    print('Rvecs\n', recover_rvec.T)
-                    # print('Tvecs\n', Tvecs)
-                    scalePose = tvec1to2[2] / Tvecs[2][0]
-                    print('scalePose : ', scalePose)
+                        solvepnp_distance = sdistance / len(sget_points)
+                        print('solvepnp_distance ', solvepnp_distance)
 
-                    new_Tvecs = scalePose * Tvecs
-                    print('new_Tvecs\n', new_Tvecs.T)
-                    # trianglutatePoints
-                    # print('origin\n', origin_leds)
-                    print('solvePnP + trianglutePoint')
+                        # print('get_points(solvePnP)\n', sget_points)
 
-                    # ToDo
-                    # SolvePnP + triangluatePoints
-                    left_rotation, jacobian = cv2.Rodrigues(prime_R)
-                    right_rotation, jacobian = cv2.Rodrigues(r_o)
+                        print('recoverPose + triangluatePoint')
+                        # P = np.hstack((Rvecs, new_Tvecs))
+                        #
+                        # pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
+                        # print('pm1\n', pm1)
+                        # print('P\n', P)
+                        d_r, _ = cv2.Rodrigues(np.eye(3))
+                        d_t = np.zeros((3, 1))
+                        #
+                        # print(camera_displacement(d_r, recover_rvec, d_t, new_Tvecs))
 
-                    left_projection = np.hstack((left_rotation, prime_T))
-                    print('left_project\n', left_projection)
-                    right_projection = np.hstack((right_rotation, t_o))
-                    print('right_project\n', right_projection)
+                        rvec_1to2, tvec_1to2 = camera_displacement(d_r, recover_rvec, d_t, new_Tvecs)
+                        inv_rvec, inv_tvec = inverse_matrix(rvec_1to2, tvec_1to2.T[0], prime_R.T[0], prime_T.T[0])
+                        print('r_2\n', r_o)
+                        print('t_2\n', t_o)
+                        print('inv_rvec\n', inv_rvec)
+                        print('inv_tvec\n', inv_tvec)
+                        inv_right_rotation, jacobian = cv2.Rodrigues(inv_rvec)
+                        int_right_projection = np.hstack((inv_right_rotation, inv_tvec))
+                        print('int_right_projection\n', int_right_projection)
 
-                    triangulation = cv2.triangulatePoints(left_projection, right_projection,
-                                                          prime_C_u,
-                                                          list_2d_undistorted_o)
-                    homog_points = triangulation.transpose()
+                        triangulation_r = cv2.triangulatePoints(left_projection, int_right_projection,
+                                                                prime_C_u,
+                                                                undistort_2d)
+                        homog_points_r = triangulation_r.transpose()
+                        get_points = cv2.convertPointsFromHomogeneous(homog_points_r)
 
-                    sget_points = cv2.convertPointsFromHomogeneous(homog_points)
+                        print('get_points(recoverPose)\n', get_points)
 
-                    print('get_points(solvePnP)\n', sget_points)
+                        over_distance = 0
+                        distance = 0
+                        for ii, points in enumerate(get_points):
+                            distance += math.sqrt(math.pow(points[0][0] - origin_leds[ii][0][0], 2) +
+                                                  math.pow(points[0][1] - origin_leds[ii][0][1], 2) +
+                                                  math.pow(points[0][2] - origin_leds[ii][0][2], 2))
 
-                    print('recoverPose + triangluatePoint')
-                    # P = np.hstack((Rvecs, new_Tvecs))
-                    #
-                    # pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
-                    # print('pm1\n', pm1)
-                    # print('P\n', P)
-                    d_r, _ = cv2.Rodrigues(np.eye(3))
-                    d_t = np.zeros((3, 1))
-                    #
-                    # print(camera_displacement(d_r, recover_rvec, d_t, new_Tvecs))
+                        recover_distance = distance / len(get_points)
+                        print('recover_distance ', recover_distance)
 
-                    rvec_1to2, tvec_1to2 = camera_displacement(d_r, recover_rvec, d_t, new_Tvecs)
-                    inv_rvec, inv_tvec = inverse_matrix(rvec_1to2, tvec_1to2.T[0], prime_R.T[0], prime_T.T[0])
-                    print('r_2\n', r_o)
-                    print('t_2\n', t_o)
-                    print('inv_rvec\n', inv_rvec)
-                    print('inv_tvec\n', inv_tvec)
-                    inv_right_rotation, jacobian = cv2.Rodrigues(inv_rvec)
-                    int_right_projection = np.hstack((inv_right_rotation, inv_tvec))
-                    print('int_right_projection\n', int_right_projection)
 
-                    triangulation_r = cv2.triangulatePoints(left_projection, int_right_projection,
-                                                            prime_C_u,
-                                                            list_2d_undistorted_o)
-                    homog_points_r = triangulation_r.transpose()
-                    get_points = cv2.convertPointsFromHomogeneous(homog_points_r)
-
-                    # get_points = compute3Dpoints(pm1, P, list_2d_undistorted_o1, list_2d_undistorted_o2)
-                    print('get_points(recoverPose)\n', get_points)
-
-                    filter_get_point = []
-
-                    over_distance = 0
-                    for points in get_points:
-                        d = math.sqrt(math.pow(points[0][0], 2) + math.pow(points[0][1], 2) + math.pow(points[0][2], 2))
-                        if d > 0.5:
+                        # spec 2cm
+                        if recover_distance > 0.02:
                             over_distance = 1
-                            break
+                            over_spec_cnt += 1
+                            # draw_camera_position(info, 'gray')
 
-                    if over_distance == 0:
-                        for index, leds in enumerate(info['leds']):
-                            print('remake ', get_points[index])
-                            leds_data[origin][leds]['remake_3d'].append(
-                                {'idx': leds, 'cam_l': prime_cam_id, 'cam_r': int(info['camera']['idx']),
-                                 'solve_coord': sget_points[index],
-                                 'coord': get_points[index]})
-                    #
-                    #
-                    #
-                    # prime_C_d = blobs_2d_distort_o.copy()
-                    # prime_C_u = list_2d_undistorted_o.copy()
-                    # prime_cam_id = int(info['camera']['idx'])
-                    # prime_cam_info = info.copy()
+                        if over_distance == 0:
+                            # draw_camera_position(info, 'red')
+                            for index, leds in enumerate(info['leds']):
+                                # print('remake ', get_points[index])
+                                leds_data[origin][leds]['remake_3d'].append(
+                                    {'idx': leds, 'cam_l': prime_cam_id, 'cam_r': int(info['camera']['idx']),
+                                     'solve_coord': sget_points[index],
+                                     'coord': get_points[index]})
+
+                result_data.append({'prime_cam': acc_cams_array[primary_cam_number]['camera']['idx'],
+                                    'over_cnt': over_spec_cnt,
+                                    'key': key})
+                print('over spec cnt ', over_spec_cnt)
+
+    # check results
+    print('results')
+    print('primary camera cnt', len(result_data))
+    for results in result_data:
+        print(results)
+    print('\n')
+    print('primary cam_mesh_data cnt', len(cam_mesh_map))
+    mesh_keys = sliding_window([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], 6)
+    for key_data in mesh_keys:
+        key_string = ','.join(str(e) for e in key_data)
+        cam_mesh_data = cam_mesh_map.get(key_string)
+        print('key ', key_string)
+        print('cam_mesh_data ', cam_mesh_data)
+
+        acc_data = cam_mesh_data[0]['acc_data']
+        draw_camera_position(acc_data[0], 'black')
+
+    # for key in cam_mesh_map:
+    #     cam_mesh_data = cam_mesh_map.get(key)
+    #     print('key: ', key)
+    #     for mesh_data in cam_mesh_data:
+    #         print(mesh_data['group'])
+
+
+def draw_camera_position(cam_data, color):
+    new_pt = cam_data['camera']['position_view']
+    ax.scatter(new_pt.x, new_pt.y, new_pt.z, marker='.', color=color, s=20)
+    label = (f"{cam_data['camera']['idx']}")
+    ax.text(new_pt.x, new_pt.y, new_pt.z, label, size=5)
 
 
 def camera_displacement(r1, r2, t1, t2):
@@ -618,8 +570,8 @@ if __name__ == "__main__":
     camera_array_origin = init_model_json("../Calibration/jsons/")
     # camera_array_target = init_model_json(path_4)
 
-    essential_test(camera_array_origin, origin, target)
+    essential_test(camera_array_origin, origin)
 
-    draw_ax_plot(leds_data[origin], ax, 'gray')
+    draw_ax_plot(leds_data[origin], ax, 'black')
     draw_blobs(ax, camera_array_origin, origin, target)
     plt.show()

@@ -159,6 +159,7 @@ if __name__ == "__main__":
 
     # ToDo
     # 여기 study 필요
+    # 정답이 안나오는 이상한 위치가 있음
     cam_pose.append({
         'idx': 0,
         'position': vector3(0.0, 0.0, 0.5),
@@ -239,7 +240,7 @@ if __name__ == "__main__":
     # print('E\n', E)
     # print('E2\n', E2)
 
-    _, Rvecs, Tvecs, M = cv2.recoverPose(E, imagePoint1, imagePoint2)
+    _, Rvecs, Tvecs, M = cv2.recoverPose(E, list_2d_undistorted_o1, list_2d_undistorted_o2)
     recover_rvec, _ = cv2.Rodrigues(Rvecs)
     print('After Recover Pose')
     print('Rvecs\n', recover_rvec.T)
