@@ -10,7 +10,6 @@ import numpy as np
 import re
 
 from definition import *
-from ransac_test import *
 from essential_main import *
 
 CAP_PROP_FRAME_WIDTH = 1280
@@ -119,13 +118,12 @@ if __name__ == "__main__":
     read_led_pts(target)
 
     print('origin')
-    for led in leds_data[origin]:
+    for led in leds_dic[origin]:
         print(led)
     print('target')
-    for led in leds_data[target]:
+    for led in leds_dic[target]:
         print(led)
-
-    camera_array_origin = init_model_json("../Calibration/jsons/")
+    camera_array_origin = init_model_json("../stereo_calibration/", cam_json)
 
     MAX_DEGREE = 60
     cam_id = 0
@@ -179,7 +177,7 @@ if __name__ == "__main__":
     # leds objectPoints
     origin_leds = []
     for led_num in leds_array:
-        origin_leds.append([leds_data[origin][led_num]['pos']])
+        origin_leds.append([leds_dic[origin][led_num]['pos']])
     origin_leds = np.array(origin_leds, dtype=np.float64)
     rvecs1 = np.array(cam_pose[0]['orient'])
 

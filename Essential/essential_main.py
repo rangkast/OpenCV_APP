@@ -10,7 +10,6 @@ import numpy as np
 import re
 
 from definition import *
-from ransac_test import *
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
@@ -95,7 +94,7 @@ def get_facing_dot(fname, cam_pose):
     pts_facing = []
     leds_array = []
 
-    for i, data in enumerate(leds_data[fname]):
+    for i, data in enumerate(leds_dic[fname]):
         # 카메라 pose 기준으로 led 좌표 변환 & led의 방향 벡터 변환
         led_id = int(data['idx'])
         # origin
@@ -135,7 +134,7 @@ def calc_led_datas(info, temp_camera_k, temp_dist_coeff):
     origin_leds = []
 
     for led_num in info['leds']:
-        origin_leds.append([leds_data[origin][led_num]['pos']])
+        origin_leds.append([leds_dic[origin][led_num]['pos']])
     origin_leds = np.array(origin_leds, dtype=np.float64)
     # print(origin_leds[0][0][0])
     # 여기서 오리지널 pts를 투영 시켜 본다.
@@ -183,11 +182,15 @@ def get_cam_id(acc_cams_array, prime_num):
             return prime_cnt
 
 
+cam_pose_map = {}
+bridge_point = []
+cam_pose_refactor = {}
+cam_mesh_map = {}
+primary_cam_array = []
+
 def essential_test(cam_array, origin):
     cam_pose = make_camera_array()
-    cam_pose_map = {}
-    result_data = []
-    cam_mesh_map = {}
+
     for i, data in enumerate(cam_pose):
         pts_facing, leds_array = get_facing_dot(origin, data)
         # pts_facing, leds_array = np.array(check_facing_dot(leds_data[origin], data))
@@ -199,7 +202,6 @@ def essential_test(cam_array, origin):
         # print(leds_array)
         # print('key values')
         keys = sliding_window(leds_array, 6)
-
         for key_data in keys:
             key_string = ','.join(str(e) for e in key_data)
             # print(key_string)
@@ -210,9 +212,89 @@ def essential_test(cam_array, origin):
             else:
                 # print('not found')
                 cam_pose_map[key_string] = [{'camera': data, 'leds': key_data}]
+    # for i, key in enumerate(cam_pose_map):
+    #     acc_cams_array = cam_pose_map.get(key)
+    #     length = len(acc_cams_array)
+    #     if length > 1:
+    #         print('group ', i, ' len ', length)
+    #         print('leds ', key)
+    #
+    #         if key in cam_mesh_map:
+    #             cam_mesh_map[key].append({'acc_data': acc_cams_array, 'group': i})
+    #         else:
+    #             cam_mesh_map[key] = [{'acc_data': acc_cams_array, 'group': i}]
+    #
+    # print('primary cam_mesh_data cnt', len(cam_mesh_map))
+    mesh_keys = sliding_window([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                                0, 1, 2, 3, 4], 6)
 
-    for i, key in enumerate(cam_pose_map):
-        acc_cams_array = cam_pose_map.get(key)
+    for idx in range(len(mesh_keys) - 1):
+        curr_key = ','.join(str(e) for e in mesh_keys[idx])
+        next_key = ','.join(str(e) for e in mesh_keys[idx + 1])
+
+        print('curr_key ', curr_key)
+        print('next_key ', next_key)
+
+        curr_cam_mesh_data = cam_pose_map.get(curr_key)
+        next_cam_mesh_data = cam_pose_map.get(next_key)
+
+        m_array = []
+        for curr_cam_info in curr_cam_mesh_data:
+            curr_cam_number = curr_cam_info['camera']['idx']
+            for next_cam_info in next_cam_mesh_data:
+                next_cam_number = next_cam_info['camera']['idx']
+                if curr_cam_number == next_cam_number:
+                    m_array.append({'camera': cam_pose[curr_cam_number]})
+
+        bridge_point.append({'curr_key': curr_key, 'next_key': next_key, 'group': idx, 'm_array': m_array})
+
+# ToDo
+###################################################################
+    # pos_cnt = 0
+    # # init start position group
+    # cam_mesh_data = bridge_point[0]['m_array']
+    # min_position = find_short_path(cam_mesh_data, pos_cnt)
+    # pos_cnt += 1
+    # primary_cam_array.append({'prime_cam': min_position, 'acc_cam': cam_mesh_data, 'key': key_data})
+    # draw_camera_position(cam_mesh_data[min_position], 'black')
+    #
+    # print(primary_cam_array)
+    #
+    # for key_data in mesh_keys:
+    #     key_string = ','.join(str(e) for e in key_data)
+    #     for curr_bridge in bridge_point:
+    #         if key_string == curr_bridge['next_key']:
+    #             cam_mesh_data = curr_bridge['m_array']
+    #             print('key ', key_string)
+    #             # print('cam_mesh_data ', cam_mesh_data)
+    #
+    #             # acc_data = cam_mesh_data[0]['acc_data']
+    #             min_position = find_short_path(cam_mesh_data, pos_cnt)
+    #             if min_position != NOT_SET:
+    #                 pos_cnt += 1
+    #                 primary_cam_array.append({'prime_cam': min_position, 'acc_cam': cam_mesh_data, 'key': key_data})
+    #                 draw_camera_position(cam_mesh_data[min_position], 'black')
+
+    pos_cnt = 0
+    for data in bridge_point:
+        if len(data['m_array']) > 0:
+            
+            min_position = find_short_path(data['m_array'], pos_cnt)
+
+
+            print(data)
+
+    print('primary len ', len(primary_cam_array))
+    ###################################################################
+    return
+    for i, cam_data in enumerate(primary_cam_array):
+        primary_cam_number = cam_data['prime_cam']
+
+        key = cam_data['key']
+        key_string = ','.join(str(e) for e in key)
+        # acc_cams_array = cam_data['acc_cam']
+        acc_cams_array = cam_pose_map.get(key_string)
+
         length = len(acc_cams_array)
 
         cam_num = 0
@@ -225,20 +307,177 @@ def essential_test(cam_array, origin):
         if length > 1:
             # if key != "0,1,11,12,13,14":
             #     continue
+            # print('group ', i, ' len ', length)
+            # print('leds ', key)
+
+            # if key in cam_mesh_map:
+            #     cam_mesh_map[key].append({'acc_data': acc_cams_array, 'group': i})
+            # else:
+            #     cam_mesh_map[key] = [{'acc_data': acc_cams_array, 'group': i}]
+
+            # debug_number = get_cam_id(acc_cams_array, 2149)
+            # debug_number = 0
+
+            prime_C_d, prime_C_u, prime_R, prime_T, prime_cam_r, origin_leds = calc_led_datas(
+                acc_cams_array[primary_cam_number], temp_camera_k, None)
+            prime_cam_t = np.array(acc_cams_array[primary_cam_number]['camera']['position'])
+            prime_cam_t_view = np.array(acc_cams_array[primary_cam_number]['camera']['position_view'])
+            prime_rotR = R.from_quat(np.array(acc_cams_array[primary_cam_number]['camera']['orient']))
+            prime_cam_id = int(acc_cams_array[primary_cam_number]['camera']['idx'])
+            # draw_camera_position(acc_cams_array[primary_cam_number], 'black')
+            over_spec_cnt = 0
+
+            for prime_cnt, info in enumerate(acc_cams_array):
+                if prime_cnt == primary_cam_number:
+                    continue
+                distort_2d, undistort_2d, r_o, t_o, euler_radian, _ = calc_led_datas(info, temp_camera_k, None)
+                obj_cam_pos_view = np.array(info['camera']['position_view'])
+
+                rvec1to2, tvec1to2 = camera_displacement(np.array(prime_cam_r), np.array(euler_radian),
+                                                         prime_cam_t_view,
+                                                         obj_cam_pos_view)
+                # print('solvePnP')
+                camera_displacement(prime_R, r_o, prime_T, t_o)
+
+                # 펀더멘털 매트릭스 왜 안나옴????
+                # 8개는 되야 제대로 나옴.....ㅅㅂ
+                # F, mask = cv2.findFundamentalMat(prime_C_d, blobs_2d_distort_o, method=cv2.FM_RANSAC)
+                # print('F\n', F)
+                E, mask = cv2.findEssentialMat(prime_C_u, undistort_2d, 1.0, (0, 0),
+                                               cv2.RANSAC, 0.999, 1, None)
+
+                # F2 = np.linalg.inv(temp_camera_k.T).dot(E).dot(np.linalg.inv(temp_camera_k))
+
+                # E2 = temp_camera_k.T.dot(F2).dot(temp_camera_k)
+                # print('F2\n', F2)
+                # print('E\n', E)
+                # print('E2\n', E2)
+
+                _, Rvecs, Tvecs, M = cv2.recoverPose(E, prime_C_u, undistort_2d)
+                recover_rvec, _ = cv2.Rodrigues(Rvecs)
+                # print('After Recover Pose\n')
+                # print('Rvecs\n', recover_rvec.T)
+                # print('Tvecs\n', Tvecs)
+                scalePose = tvec1to2[2] / Tvecs[2][0]
+                # print('scalePose : ', scalePose)
+
+                new_Tvecs = scalePose * Tvecs
+                # print('new_Tvecs\n', new_Tvecs.T)
+                # trianglutatePoints
+                # print('solvePnP + trianglutePoint')
+
+                # ToDo
+                # SolvePnP + triangluatePoints
+                left_rotation, jacobian = cv2.Rodrigues(prime_R)
+                right_rotation, jacobian = cv2.Rodrigues(r_o)
+
+                left_projection = np.hstack((left_rotation, prime_T))
+                # print('left_project\n', left_projection)
+                right_projection = np.hstack((right_rotation, t_o))
+                # print('right_project\n', right_projection)
+
+                triangulation = cv2.triangulatePoints(left_projection, right_projection,
+                                                      prime_C_u,
+                                                      undistort_2d)
+                homog_points = triangulation.transpose()
+
+                sget_points = cv2.convertPointsFromHomogeneous(homog_points)
+                sdistance = 0
+                for ii, points in enumerate(sget_points):
+                    sdistance += math.sqrt(math.pow(points[0][0] - origin_leds[ii][0][0], 2) +
+                                           math.pow(points[0][1] - origin_leds[ii][0][1], 2) +
+                                           math.pow(points[0][2] - origin_leds[ii][0][2], 2))
+
+                solvepnp_distance = sdistance / len(sget_points)
+                # print('solvepnp_distance ', solvepnp_distance)
+
+                # print('get_points(solvePnP)\n', sget_points)
+
+                # print('recoverPose + triangluatePoint')
+                # P = np.hstack((Rvecs, new_Tvecs))
+                #
+                # pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
+                # print('pm1\n', pm1)
+                # print('P\n', P)
+                d_r, _ = cv2.Rodrigues(np.eye(3))
+                d_t = np.zeros((3, 1))
+                #
+                # print(camera_displacement(d_r, recover_rvec, d_t, new_Tvecs))
+
+                rvec_1to2, tvec_1to2 = camera_displacement(d_r, recover_rvec, d_t, new_Tvecs)
+                inv_rvec, inv_tvec = inverse_matrix(rvec_1to2, tvec_1to2.T[0], prime_R.T[0], prime_T.T[0])
+                # print('r_2\n', r_o)
+                # print('t_2\n', t_o)
+                # print('inv_rvec\n', inv_rvec)
+                # print('inv_tvec\n', inv_tvec)
+                inv_right_rotation, jacobian = cv2.Rodrigues(inv_rvec)
+                int_right_projection = np.hstack((inv_right_rotation, inv_tvec))
+                # print('int_right_projection\n', int_right_projection)
+
+                triangulation_r = cv2.triangulatePoints(left_projection, int_right_projection,
+                                                        prime_C_u,
+                                                        undistort_2d)
+                homog_points_r = triangulation_r.transpose()
+                get_points = cv2.convertPointsFromHomogeneous(homog_points_r)
+
+                # print('get_points(recoverPose)\n', get_points)
+
+                over_distance = 0
+                distance = 0
+                for ii, points in enumerate(get_points):
+                    distance += math.sqrt(math.pow(points[0][0] - origin_leds[ii][0][0], 2) +
+                                          math.pow(points[0][1] - origin_leds[ii][0][1], 2) +
+                                          math.pow(points[0][2] - origin_leds[ii][0][2], 2))
+
+                recover_distance = distance / len(get_points)
+                # print('recover_distance ', recover_distance)
+
+                # spec 2cm
+                if recover_distance > 0.02:
+                    over_distance = 1
+                    over_spec_cnt += 1
+                    # draw_camera_position(info, 'gray')
+
+                if over_distance == 0:
+                    draw_camera_position(info, 'red')
+                    #ToDo
+                    for index, leds in enumerate(info['leds']):
+                        # print('remake ', get_points[index])
+                        leds_dic[origin][leds]['remake_3d'].append(
+                            {'idx': leds, 'cam_l': prime_cam_id, 'cam_r': int(info['camera']['idx']),
+                             'solve_coord': sget_points[index],
+                             'coord': get_points[index]})
+
+                    if key_string in cam_pose_refactor:
+                        cam_pose_refactor[key_string].append({'camera': info['camera'], 'leds': key})
+                    else:
+                        cam_pose_refactor[key_string] = [{'camera': info['camera'], 'leds': key}]
+
+
+
+def follow_path_refactor_acc(cam_array):
+
+    return
+
+
+
+# ToDo
+# primary_cam_array
+def follow_path_refator(cam_array):
+    for i, key in enumerate(cam_pose_refactor):
+        acc_cams_array = cam_pose_refactor.get(key)
+        length = len(acc_cams_array)
+        cam_num = 0
+        temp_camera_k = cam_array[cam_num]['cam_cal']['cameraK']
+        temp_dist_coeff = cam_array[cam_num]['cam_cal']['dist_coeff']
+
+        if length > 1:
+            # if key != "0,1,11,12,13,14":
+            #     continue
             print('group ', i, ' len ', length)
             print('leds ', key)
 
-            if key in cam_mesh_map:
-                cam_mesh_map[key].append({'acc_data': acc_cams_array, 'group': i})
-            else:
-                cam_mesh_map[key] = [{'acc_data': acc_cams_array, 'group': i}]
-
-            debug_number = get_cam_id(acc_cams_array, 2149)
-            debug_number = 0
             for primary_cam_number in range(length):
-                if primary_cam_number != debug_number:
-                    continue
-
                 prime_C_d, prime_C_u, prime_R, prime_T, prime_cam_r, origin_leds = calc_led_datas(acc_cams_array[primary_cam_number], temp_camera_k, None)
                 prime_cam_t = np.array(acc_cams_array[primary_cam_number]['camera']['position'])
                 prime_cam_t_view = np.array(acc_cams_array[primary_cam_number]['camera']['position_view'])
@@ -312,11 +551,7 @@ def essential_test(cam_array, origin):
                         # print('get_points(solvePnP)\n', sget_points)
 
                         print('recoverPose + triangluatePoint')
-                        # P = np.hstack((Rvecs, new_Tvecs))
-                        #
-                        # pm1 = np.hstack((np.eye(3), np.zeros((3, 1))))
-                        # print('pm1\n', pm1)
-                        # print('P\n', P)
+
                         d_r, _ = cv2.Rodrigues(np.eye(3))
                         d_t = np.zeros((3, 1))
                         #
@@ -350,7 +585,6 @@ def essential_test(cam_array, origin):
                         recover_distance = distance / len(get_points)
                         print('recover_distance ', recover_distance)
 
-
                         # spec 2cm
                         if recover_distance > 0.02:
                             over_distance = 1
@@ -358,41 +592,51 @@ def essential_test(cam_array, origin):
                             # draw_camera_position(info, 'gray')
 
                         if over_distance == 0:
-                            # draw_camera_position(info, 'red')
+                            draw_camera_position(info, 'blue')
                             for index, leds in enumerate(info['leds']):
                                 # print('remake ', get_points[index])
-                                leds_data[origin][leds]['remake_3d'].append(
+                                leds_dic[origin][leds]['remake_3d'].append(
                                     {'idx': leds, 'cam_l': prime_cam_id, 'cam_r': int(info['camera']['idx']),
                                      'solve_coord': sget_points[index],
                                      'coord': get_points[index]})
 
-                result_data.append({'prime_cam': acc_cams_array[primary_cam_number]['camera']['idx'],
-                                    'over_cnt': over_spec_cnt,
-                                    'key': key})
-                print('over spec cnt ', over_spec_cnt)
+    return
 
-    # check results
-    print('results')
-    print('primary camera cnt', len(result_data))
-    for results in result_data:
-        print(results)
-    print('\n')
-    print('primary cam_mesh_data cnt', len(cam_mesh_map))
-    mesh_keys = sliding_window([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14], 6)
-    for key_data in mesh_keys:
-        key_string = ','.join(str(e) for e in key_data)
-        cam_mesh_data = cam_mesh_map.get(key_string)
-        print('key ', key_string)
-        print('cam_mesh_data ', cam_mesh_data)
 
-        acc_data = cam_mesh_data[0]['acc_data']
-        draw_camera_position(acc_data[0], 'black')
+find_path_array = []
+find_cam_id = []
+def find_short_path(acc_data, idx):
+    print('acc len ', len(acc_data))
+    if len(acc_data) == 0:
+        return NOT_SET
+    MIN_DIS = 1.0
+    MIN_POSISTION = 0
+    if idx != 0:
+        prev_candidates_pts = find_path_array[idx - 1]['camera']['position_view']
+    else:
+        prev_candidates_pts = vector3(0, 0, 0)
+    for i, candidates in enumerate(acc_data):
+        candidates_pts = candidates['camera']['position_view']
+        curr_idx = int(candidates['camera']['idx'])
+        dis = 0
+        dis += math.sqrt(math.pow(prev_candidates_pts.x - candidates_pts.x, 2) +
+                         math.pow(prev_candidates_pts.y - candidates_pts.y, 2) +
+                         math.pow(prev_candidates_pts.z - candidates_pts.z, 2))
+        if dis < MIN_DIS and not curr_idx in find_cam_id:
+            MIN_DIS = copy.deepcopy(dis)
+            MIN_POSISTION = copy.deepcopy(i)
 
-    # for key in cam_mesh_map:
-    #     cam_mesh_data = cam_mesh_map.get(key)
-    #     print('key: ', key)
-    #     for mesh_data in cam_mesh_data:
-    #         print(mesh_data['group'])
+    find_path_array.append(acc_data[MIN_POSISTION])
+    find_cam_id.append(int(acc_data[MIN_POSISTION]['camera']['idx']))
+    curr_candidates_pts = acc_data[MIN_POSISTION]['camera']['position_view']
+
+    x = np.array([prev_candidates_pts.x, curr_candidates_pts.x])
+    y = np.array([prev_candidates_pts.y, curr_candidates_pts.y])
+    z = np.array([prev_candidates_pts.z, curr_candidates_pts.z])
+    # plotting
+    ax.plot3D(x, y, z, linewidth=1)
+
+    return MIN_POSISTION
 
 
 def draw_camera_position(cam_data, color):
@@ -472,7 +716,7 @@ def UndistorTiePoints(tie_pts, cam_m, distor):
 
 
 def draw_blobs(ax, camera_array, origin, target):
-    draw_dots(3, leds_data[origin], ax, 'blue')
+    draw_dots(3, leds_dic[origin], ax, 'blue')
     # draw_dots(3, leds_data[target], ax, 'red')
 
     # # 원점
@@ -489,11 +733,17 @@ def draw_blobs(ax, camera_array, origin, target):
 
 def sliding_window(elements, window_size):
     key_array = []
+    key_array_sorted = []
     for i in range(len(elements) - window_size + 1):
         temp = elements[i:i + window_size]
         key_array.append(temp)
 
-    return key_array
+    for keys in key_array:
+        temp = copy.deepcopy(keys)
+        temp.sort()
+        key_array_sorted.append(temp)
+
+    return key_array_sorted
 
 
 def draw_ax_plot(pts, ax, c):
@@ -555,23 +805,13 @@ if __name__ == "__main__":
     # read target data
     read_led_pts(target)
 
-    # print('origin')
-    # for led in leds_data[origin]:
-    #     print(led)
-    # print('target')
-    # for led in leds_data[target]:
-    #     print(led)
-
-    # path_1 = "../cal_uvc/jsons/"
-    # path_2 = '../cal_uvc/jsons/backup/good_6_2/'
-    # path_3 = '../cal_uvc/jsons/backup/static_6/'
-    # path_4 = '../cal_uvc/jsons/backup/static_6_2/'
-    # path_5 = '../cal_uvc/jsons/backup/static_6_2_disable_refine/'
-    camera_array_origin = init_model_json("../Calibration/jsons/")
-    # camera_array_target = init_model_json(path_4)
+    camera_array_origin = init_model_json("../stereo_calibration/", cam_json)
 
     essential_test(camera_array_origin, origin)
 
-    draw_ax_plot(leds_data[origin], ax, 'black')
+    # follow_path_refator(camera_array_origin)
+    follow_path_refactor_acc(camera_array_origin)
+
+    draw_ax_plot(leds_dic[origin], ax, 'black')
     draw_blobs(ax, camera_array_origin, origin, target)
     plt.show()

@@ -391,7 +391,6 @@ def rw_file_storage(rw_cmd, left_map, right_map):
             traceback.print_exc()
             return ERROR, NOT_SET, NOT_SET
 
-
 leds_dic = {}
 
 ENABLE = 1
