@@ -146,7 +146,7 @@ def calc_led_datas(info, temp_camera_k, temp_dist_coeff):
     for data in euler_degree:
         euler_radian.append(math.radians(data))
 
-    print('euler_radian: ', euler_radian)
+    # print('euler_radian: ', euler_radian)
     # Rod, _ = cv2.Rodrigues(rotR.as_matrix())
     # print('Rod\n', Rod)
 
@@ -381,7 +381,7 @@ def essential_test(cam_array, origin):
                                            math.pow(points[0][2] - origin_leds[ii][0][2], 2))
 
                 solvepnp_distance = sdistance / len(sget_points)
-                # print('solvepnp_distance ', solvepnp_distance)
+                print('solvepnp_distance ', solvepnp_distance)
 
                 # print('get_points(solvePnP)\n', sget_points)
 
@@ -422,7 +422,7 @@ def essential_test(cam_array, origin):
                                           math.pow(points[0][2] - origin_leds[ii][0][2], 2))
 
                 recover_distance = distance / len(get_points)
-                # print('recover_distance ', recover_distance)
+                print('recover_distance ', recover_distance)
 
                 # spec 2cm
                 if recover_distance > 0.02:
@@ -501,35 +501,35 @@ def draw_camera_position(cam_data, color):
 
 
 def camera_displacement(r1, r2, t1, t2):
-    print('r1 ', r1)
-    print('r2 ', r2)
+    # print('r1 ', r1)
+    # print('r2 ', r2)
     Rod1, _ = cv2.Rodrigues(r1)
     Rod2, _ = cv2.Rodrigues(r2)
     R1to2 = Rod2.dot(Rod1.T)
     rvec1to2, _ = cv2.Rodrigues(R1to2)
     tvec1to2 = -R1to2.dot(t1) + t2
 
-    print('Rod1\n', Rod1)
-    print('Rod2\n', Rod2)
-    print('rvec1to2\n', rvec1to2.T)
-    print('tvec1to2\n', tvec1to2.T)
+    # print('Rod1\n', Rod1)
+    # print('Rod2\n', Rod2)
+    # print('rvec1to2\n', rvec1to2.T)
+    # print('tvec1to2\n', tvec1to2.T)
 
     return rvec1to2, tvec1to2
 
 
 def inverse_matrix(r12, t12, r1, t1):
-    print('r12\n', r12)
-    print('t12\n', t12)
-    print('r1\n', r1)
-    print('t1\n', t1)
+    # print('r12\n', r12)
+    # print('t12\n', t12)
+    # print('r1\n', r1)
+    # print('t1\n', t1)
     Rod1, _ = cv2.Rodrigues(r1)
     R1to2, _ = cv2.Rodrigues(r12)
     Rod2 = R1to2.dot(np.linalg.inv(Rod1.T))
     r2, _ = cv2.Rodrigues(Rod2)
     t2 = t12 + R1to2.dot(t1)
-
-    print('r2 ', r2)
-    print('t2 ', t2)
+    #
+    # print('r2 ', r2)
+    # print('t2 ', t2)
     return r2, t2.reshape(3, 1)
 
 
