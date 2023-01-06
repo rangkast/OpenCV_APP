@@ -15,7 +15,14 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 
 add_library(fastcv_app SHARED
-            native-lib.cpp)
+            native-lib.cpp
+            FastCVSample.cpp
+            FPSCounter.cpp
+            CameraRendererRGB565GL2.cpp
+            CameraUtil.cpp
+            FastCVSampleRenderer.cpp
+
+        )
 
 include_directories(${pathFastCV}/inc)
 add_library(lib_fastcv SHARED IMPORTED )
@@ -31,4 +38,5 @@ target_link_libraries( # Specifies the target library.
         fastcv_app
         lib_opencv
         lib_fastcv
+        GLESv2
         ${log-lib})
