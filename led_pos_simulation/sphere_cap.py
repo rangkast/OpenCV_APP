@@ -12,6 +12,7 @@ num_leds = 24
 camera_matrix = np.array([[712.623, 0., 653.448],
                           [0., 712.623, 475.572],
                           [0., 0., 1.]])
+
 dist_coeff = np.array([[0.072867],
                        [-0.026268],
                        [0.007135],
@@ -34,34 +35,37 @@ def select_points(coords, num_leds):
     return coords[selected_indices]
 
 
-# 구 캡 위의 점들을 계산
-theta = np.linspace(0, 2 * np.pi, num_points)
-phi = np.linspace(0, np.pi, num_points)
-theta, phi = np.meshgrid(theta, phi)
+def led_position(ax, R):
+    # 구 캡 위의 점들을 계산
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    phi = np.linspace(0, np.pi, num_points)
+    theta, phi = np.meshgrid(theta, phi)
 
-x = R * np.sin(phi) * np.cos(theta)
-y = R * np.sin(phi) * np.sin(theta)
-z = R * np.cos(phi)
+    x = R * np.sin(phi) * np.cos(theta)
+    y = R * np.sin(phi) * np.sin(theta)
+    z = R * np.cos(phi)
 
-# z 축 기준으로 -1 이하와 2 이상을 자르기
-mask = (z >= LOWER_Z) & (z <= UPPER_Z)
-x_masked = x[mask]
-y_masked = y[mask]
-z_masked = z[mask]
+    # z 축 기준으로 -1 이하와 2 이상을 자르기
+    mask = (z >= LOWER_Z) & (z <= UPPER_Z)
+    x_masked = x[mask]
+    y_masked = y[mask]
+    z_masked = z[mask]
+    ax.scatter(x_masked, y_masked, z_masked, color='lightgray', marker='o', alpha=0.1)
+    coords = np.array([x_masked, y_masked, z_masked]).T
+    # 시작점을 기반으로 점 선택
+    led_coords = select_points(coords, num_leds)
 
-coords = np.array([x_masked, y_masked, z_masked]).T
+    return led_coords
 
-# 시작점을 기반으로 점 선택
-led_coords = select_points(coords, num_leds)
 
 # 3D 플롯 생성
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 
 # 구 캡을 3D 플롯에 추가
-ax.scatter(x_masked, y_masked, z_masked, color='lightgray', marker='o', alpha=0.1)
-ax.scatter(led_coords[:, 0], led_coords[:, 1], led_coords[:, 2], color='red', marker='o', s=5)
-ax.scatter(coords[0][0], coords[0][1], coords[0][2], color='black', marker='o', s=10)
+led_coords_o = led_position(ax, R)
+ax.scatter(led_coords_o[1:, 0], led_coords_o[1:, 1], led_coords_o[1:, 2], color='red', marker='o', s=5)
+ax.scatter(led_coords_o[0][0], led_coords_o[0][1], led_coords_o[0][2], color='black', marker='o', s=10)
 
 # 플롯 옵션 설정
 ax.set_title('Spherical Caps with 24 LEDs')
