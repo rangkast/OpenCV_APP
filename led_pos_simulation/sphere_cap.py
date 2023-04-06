@@ -9,6 +9,13 @@ UPPER_Z = 2.5
 LOWER_Z = -1
 num_points = 60
 num_leds = 24
+camera_matrix = np.array([[712.623, 0., 653.448],
+                          [0., 712.623, 475.572],
+                          [0., 0., 1.]])
+dist_coeff = np.array([[0.072867],
+                       [-0.026268],
+                       [0.007135],
+                       [-0.000997]])
 
 
 def select_points(coords, num_leds):
@@ -68,40 +75,3 @@ ax.set_xlim(-axis_limit, axis_limit)
 ax.set_ylim(-axis_limit, axis_limit)
 ax.set_zlim(-axis_limit, axis_limit)
 plt.show()
-
-# 새로 시작
-def look_at(camera_pos, target_pos):
-    z_axis = (camera_pos - target_pos) / np.linalg.norm(camera_pos - target_pos)
-
-    if np.abs(z_axis[0]) < 1e-6 and np.abs(z_axis[1]) < 1e-6:
-        x_axis = np.array([1, 0, 0], dtype=np.float32)
-    else:
-        x_axis = np.array([-z_axis[1], z_axis[0], 0], dtype=np.float32)
-        x_axis /= np.linalg.norm(x_axis)
-
-    y_axis = np.cross(z_axis, x_axis)
-
-    rotation_matrix = np.array([x_axis, y_axis, z_axis])
-    translation_vector = -np.matmul(rotation_matrix, camera_pos)
-
-    return rotation_matrix, translation_vector
-
-camera_matrix = np.array([[714.193, 0, 636.242], [0, 714.193, 468.407], [0, 0, 1]])
-
-camera_pos = np.array([30, 0, 0], dtype=np.float32)
-origin_pos = np.array([0, 0, 0], dtype=np.float32)
-
-rotation_matrix, translation_vector = look_at(camera_pos, origin_pos)
-RT = np.hstack([rotation_matrix, translation_vector.reshape(3, 1)])
-rvec, tvec = cv2.decomposeProjectionMatrix(np.matmul(camera_matrix, RT))[:2]
-tvec = tvec[:3, 0].reshape((3, 1))  # Reshape the translation vector
-projected_points, _ = cv2.projectPoints(led_coords, rvec, tvec, camera_matrix, None)
-
-img = np.zeros((960, 1280, 3), dtype=np.uint8)
-for point in projected_points:
-    x, y = int(point[0][0]), int(point[0][1])
-    cv2.circle(img, (x, y), 3, (255, 255, 255), -1)
-
-cv2.imshow("2D Image", img)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
