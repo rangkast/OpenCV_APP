@@ -106,14 +106,6 @@ def sequential_closest_distances(coords):
     return distances
 
 
-def draw_closest_lines(ax, led_coords_o, led_closest_indices):
-    for i, coord in enumerate(led_coords_o):
-        closest_idx = led_closest_indices[i]
-        closest_coord = led_coords_o[closest_idx]
-
-        ax.plot([coord[0], closest_coord[0]], [coord[1], closest_coord[1]], [coord[2], closest_coord[2]], 'b-')
-
-
 def draw_sequential_closest_lines(ax, led_coords_o):
     visited_indices = [0]
     current_idx = 0

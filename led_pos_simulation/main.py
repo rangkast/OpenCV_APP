@@ -19,11 +19,12 @@ monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비
 monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
 
 # 구 캡의 반지름 R과 높이 h
+# 단위 cm
 R = 11
 r = 0.3
 UPPER_Z = 2.5
 LOWER_Z = -1
-num_points = 120
+num_points = 150
 num_leds = 15
 CAM_DISTANCE = 30
 ANGLE_SPEC = 70
@@ -88,7 +89,7 @@ def on_move(event):
         for i, coord in enumerate(led_coords_o):
             if i in facing_indices:
                 led_properties[i]['color'] = 'red'
-                led_properties[i]['size'] = 20
+                led_properties[i]['size'] = 25
                 led_properties[i]['alpha'] = 1.0
             else:
                 led_properties[i]['color'] = 'lightgray'
@@ -102,7 +103,7 @@ def on_move(event):
                                   s=led_properties[i]['size']) for i, coord in enumerate(led_coords_o)]
 
         # 텍스트 박스에 정보 업데이트
-        info_text = f" ENV:\n{env_info}\n\n" \
+        info_text = f" ENVIRONMENT:\n{env_info}\n\n" \
                     f" LOG:\n" \
                     f" Camera Position: {camera_pos}\n Azimuth: {azim}\n Elevation: {elev}\n Facing LEDs: {facing_indices}" \
                     f"\n Count: {len(facing_indices)}"
@@ -203,7 +204,6 @@ plt.setp(baseline, visible=False)
 for i, (xi, yi) in enumerate(zip(range(num_leds), distances)):
     ax3.annotate(f'{yi:.4f}', (xi, yi), textcoords="offset points", xytext=(0, 5), ha='center', fontsize=8)
 
-ax3.set_xlabel("LED Index")
 ax3.set_ylabel("Distance (cm)")
 ax3.set_title("Closest Distance for each LED")
 
