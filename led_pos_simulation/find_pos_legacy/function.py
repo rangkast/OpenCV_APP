@@ -2,6 +2,24 @@ import numpy as np
 from definition import *
 
 
+def pickle_data(rw_mode, path, data):
+    import pickle
+    import gzip
+    try:
+        if rw_mode == READ:
+            with gzip.open(path, 'rb') as f:
+                data = pickle.load(f)
+            return data
+        elif rw_mode == WRITE:
+            with gzip.open(path, 'wb') as f:
+                pickle.dump(data, f)
+        else:
+            print('not support mode')
+    except:
+        print('file r/w error')
+        return ERROR
+
+
 def set_axis_style(ax, alpha):
     for axis in [ax.w_xaxis, ax.w_yaxis, ax.w_zaxis]:
         axis.line.set_alpha(alpha)
@@ -67,27 +85,6 @@ def check_facing_dot(camera_pos, leds_coords, angle_spec):
     return pts_facing
 
 
-def select_points(coords, num_leds, r):
-    if num_leds > coords.shape[0]:
-        raise ValueError("num_leds cannot be greater than the number of points in coords")
-
-    selected_indices = [0]  # 시작점을 첫 번째로 선택
-
-    for _ in range(num_leds):
-        min_dists = np.full((coords.shape[0],), np.inf)
-
-        for selected_idx in selected_indices:
-            dists = np.linalg.norm(coords - coords[selected_idx], axis=1)
-            min_dists = np.minimum(min_dists, dists)
-
-        next_idx = np.argmax(min_dists)
-
-        if min_dists[next_idx] == np.inf:
-            raise ValueError("Not enough points in coords to satisfy num_leds with the given minimum distance r")
-
-        selected_indices.append(next_idx)
-
-    return coords[selected_indices]
 
 
 def sequential_closest_distances(coords):
@@ -142,6 +139,28 @@ def draw_sequential_closest_lines(ax, led_coords_o):
         )
         current_idx = closest_idx
 
+def select_points(coords, num_leds, r):
+    if num_leds > coords.shape[0]:
+        raise ValueError("num_leds cannot be greater than the number of points in coords")
+
+    selected_indices = [0]  # 시작점을 첫 번째로 선택
+
+    for _ in range(num_leds):
+        min_dists = np.full((coords.shape[0],), np.inf)
+
+        for selected_idx in selected_indices:
+            dists = np.linalg.norm(coords - coords[selected_idx], axis=1)
+            min_dists = np.minimum(min_dists, dists)
+
+        next_idx = np.argmax(min_dists)
+
+        if min_dists[next_idx] == np.inf:
+            raise ValueError("Not enough points in coords to satisfy num_leds with the given minimum distance r")
+
+        selected_indices.append(next_idx)
+
+    return coords[selected_indices]
+
 
 def led_position(*args):
     draw = args[0][0]
@@ -168,7 +187,7 @@ def led_position(*args):
     # 시작점을 기반으로 점 선택
     led_coords = select_points(coords, num_leds, r)
 
-    return led_coords
+    return coords, led_coords
 
     
 def make_camera_position(ax, radius):
@@ -223,8 +242,10 @@ def find_led_blobs(*args):
         lower_z = -TEMP_R * LOWER_Z_ANGLE
         if TEMP_R < 0:
             break
+        
+        _, ret_data = led_position([0, ax1, TEMP_R, upper_z, lower_z])
+        led_coords_o = ret_data[1:]
 
-        led_coords_o = led_position([0, ax1, TEMP_R, upper_z, lower_z])[1:]
         if len(led_coords_o) < num_leds:
             print('led_num error')
             break
@@ -255,7 +276,7 @@ def find_led_blobs(*args):
             break
 
         if facing_dot_check == 0:
-                TEMP_R -= 0.1
+                TEMP_R -= 0.5
         else:
             print('facing dot error')
             break
@@ -265,6 +286,6 @@ def find_led_blobs(*args):
 
     print('TEMP_R', TEMP_R, upper_z, lower_z)
 
-    ret_coords = led_position([1, ax1, TEMP_R, upper_z, lower_z])
+    coords, ret_coords = led_position([1, ax1, TEMP_R, upper_z, lower_z])
 
-    return cam_coords, ret_coords, upper_z, lower_z, TEMP_R
+    return coords, cam_coords, ret_coords, upper_z, lower_z, TEMP_R

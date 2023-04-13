@@ -7,6 +7,8 @@ from matplotlib.widgets import TextBox
 import cv2
 import matplotlib as mpl
 import tkinter as tk
+from collections import OrderedDict
+from dataclasses import dataclass
 
 # 구 캡의 반지름 R과 높이 h
 # 단위 cm
@@ -27,3 +29,9 @@ sine_value = np.sin(angle_radians)
 
 C_UPPER_Z = CAM_DISTANCE * sine_value
 C_LOWER_Z = -(CAM_DISTANCE * sine_value)
+
+READ = 0
+WRITE = 1
+
+ERROR = 'ERROR'
+SUCCESS = 'SUCCESS'
