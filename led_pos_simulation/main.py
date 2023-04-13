@@ -1,13 +1,5 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-from matplotlib.ticker import FormatStrFormatter
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.widgets import TextBox
-import cv2
 from function import *
-import matplotlib as mpl
-import tkinter as tk
+from definition import *
 
 root = tk.Tk()
 width_px = root.winfo_screenwidth()
@@ -18,16 +10,8 @@ mpl.rcParams['figure.dpi'] = 120  # DPI 설정
 monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
 monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
 
-# 구 캡의 반지름 R과 높이 h
-# 단위 cm
-R = 11
-r = 0.3
-UPPER_Z = 2.5
-LOWER_Z = -1
-num_points = 150
-num_leds = 15
-CAM_DISTANCE = 30
-ANGLE_SPEC = 70
+UPPER_Z = R * 0.22
+LOWER_Z = -R * 0.09
 
 env_info = f" R:{R} r:{r}\n UPPER_Z:{UPPER_Z} LOWER_Z:{LOWER_Z}\n" \
            f" num_points:{num_points} num_leds:{num_leds}" \
@@ -111,36 +95,14 @@ def on_move(event):
         plt.draw()
 
 
-def led_position(ax, R):
-    # 구 캡 위의 점들을 계산
-    theta = np.linspace(0, 2 * np.pi, num_points)
-    phi = np.linspace(0, np.pi, num_points)
-    theta, phi = np.meshgrid(theta, phi)
-
-    x = R * np.sin(phi) * np.cos(theta)
-    y = R * np.sin(phi) * np.sin(theta)
-    z = R * np.cos(phi)
-
-    # z 축 기준으로 -1 이하와 2 이상을 자르기
-    mask = (z >= LOWER_Z) & (z <= UPPER_Z)
-    x_masked = x[mask]
-    y_masked = y[mask]
-    z_masked = z[mask]
-    ax.scatter(x_masked, y_masked, z_masked, color='gray', marker='.', alpha=0.1)
-    coords = np.array([x_masked, y_masked, z_masked]).T
-    # 시작점을 기반으로 점 선택
-    led_coords = select_points(coords, num_leds, r)
-
-    return led_coords
-
-
 # Figure 크기를 모니터 해상도에 맞게 조절하고 제목 추가
 fig = plt.figure(figsize=(monitor_width_inches, monitor_height_inches), num='LED Position FinDer')
 plt.rcParams.update({'font.size': 7})
-gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 2])
+gs = gridspec.GridSpec(1, 4, width_ratios=[1, 1, 1, 1])
 ax1 = plt.subplot(gs[0], projection='3d')
 ax2 = plt.subplot(gs[1])
 ax3 = plt.subplot(gs[2])
+ax4 = plt.subplot(gs[3], projection='3d')
 ax2.axis('off')
 
 # 텍스트 박스 생성
@@ -148,13 +110,12 @@ info_box_ax = ax2
 info_box = TextBox(info_box_ax, '', initial="")
 
 # 구 캡을 3D 플롯에 추가
-ret_coords = led_position(ax1, R)
+# ret_coords = led_position(ax1, R, UPPER_Z, LOWER_Z)
+
+cam_coords, ret_coords, UPPER_Z, LOWER_Z = find_led_blobs([ax1, ax4])
 led_coords_o = ret_coords[1:]
 # led_colors = ['red'] * num_leds
 led_properties = [{'color': 'red', 'alpha': 1.0, 'size': 5} for _ in range(num_leds)]
-
-# 전역 변수로 led_points를 선언
-led_points = []
 
 # 초기 LED 점들을 led_points 리스트에 저장
 led_points = [ax1.scatter(coord[0], coord[1], coord[2], color='red', marker='o', s=5) for coord in led_coords_o]
@@ -176,20 +137,9 @@ led_quivers = [
     ax1.quiver(coord[0], coord[1], coord[2], coord[0], coord[1], coord[2], length=5, linewidths=0.2, color='red',
                normalize=True) for coord in led_coords_o[0:]]
 
+
 # 플롯 옵션 설정
-ax1.set_title(f'Controller {num_leds} LEDs')
-ax1.set_xlabel('X')
-ax1.set_ylabel('Y')
-ax1.set_zlabel('Z')
-
-# x, y, z 축 범위 설정
-axis_limit = R * 1.5
-ax1.set_xlim(-axis_limit, axis_limit)
-ax1.set_ylim(-axis_limit, axis_limit)
-ax1.set_zlim(-axis_limit, axis_limit)
-
-set_axes_equal(ax1)
-set_axis_style(ax1, 0.5)
+set_plot_option(ax1, R)
 
 # LED의 가장 가까운 거리를 계산하고 stem plot을 그립니다.
 distances = sequential_closest_distances(ret_coords)
@@ -227,5 +177,4 @@ cid_release = fig.canvas.mpl_connect('button_release_event', on_release)
 cid_move = fig.canvas.mpl_connect('motion_notify_event', on_move)
 cid_scroll = fig.canvas.mpl_connect('scroll_event', on_scroll)
 
-# plt.tight_layout()
 plt.show()

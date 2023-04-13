@@ -1,4 +1,5 @@
 import numpy as np
+from definition import *
 
 
 def set_axis_style(ax, alpha):
@@ -67,16 +68,23 @@ def check_facing_dot(camera_pos, leds_coords, angle_spec):
 
 
 def select_points(coords, num_leds, r):
+    if num_leds > coords.shape[0]:
+        raise ValueError("num_leds cannot be greater than the number of points in coords")
+
     selected_indices = [0]  # 시작점을 첫 번째로 선택
 
     for _ in range(num_leds):
         min_dists = np.full((coords.shape[0],), np.inf)
 
         for selected_idx in selected_indices:
-            dists = np.linalg.norm(coords - coords[selected_idx], axis=1) + r * 2
+            dists = np.linalg.norm(coords - coords[selected_idx], axis=1)
             min_dists = np.minimum(min_dists, dists)
 
         next_idx = np.argmax(min_dists)
+
+        if min_dists[next_idx] == np.inf:
+            raise ValueError("Not enough points in coords to satisfy num_leds with the given minimum distance r")
+
         selected_indices.append(next_idx)
 
     return coords[selected_indices]
@@ -133,3 +141,133 @@ def draw_sequential_closest_lines(ax, led_coords_o):
             linestyle='--'
         )
         current_idx = closest_idx
+
+
+def led_position(*args):
+    draw = args[0][0]
+    ax = args[0][1]
+    radius = args[0][2]
+    upper_z = args[0][3]
+    lower_z = args[0][4]
+    # 구 캡 위의 점들을 계산
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    phi = np.linspace(0, np.pi, num_points)
+    theta, phi = np.meshgrid(theta, phi)
+
+    x = radius * np.sin(phi) * np.cos(theta)
+    y = radius * np.sin(phi) * np.sin(theta)
+    z = radius * np.cos(phi)
+
+    mask = (z >= lower_z) & (z <= upper_z)
+    x_masked = x[mask]
+    y_masked = y[mask]
+    z_masked = z[mask]
+    if draw == 1:
+        ax.scatter(x_masked, y_masked, z_masked, color='gray', marker='.', alpha=0.1)
+    coords = np.array([x_masked, y_masked, z_masked]).T
+    # 시작점을 기반으로 점 선택
+    led_coords = select_points(coords, num_leds, r)
+
+    return led_coords
+
+    
+def make_camera_position(ax, radius):
+    # 구 캡 위의 점들을 계산
+    theta = np.linspace(0, 2 * np.pi, num_points)
+    phi = np.linspace(0, np.pi, num_points)
+    theta, phi = np.meshgrid(theta, phi)
+
+    x = radius * np.sin(phi) * np.cos(theta)
+    y = radius * np.sin(phi) * np.sin(theta)
+    z = radius * np.cos(phi)
+
+    mask = (z >= C_LOWER_Z) & (z <= C_UPPER_Z)
+    x_masked = x[mask]
+    y_masked = y[mask]
+    z_masked = z[mask]
+    ax.scatter(x_masked, y_masked, z_masked, color='gray', marker='.', alpha=0.1)
+    coords = np.array([x_masked, y_masked, z_masked]).T
+
+    return coords
+
+def set_plot_option(ax, radius):
+    # 플롯 옵션 설정
+    ax.set_title(f'Controller {num_leds} LEDs')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    # x, y, z 축 범위 설정
+    axis_limit = radius * 1.5
+    ax.set_xlim(-axis_limit, axis_limit)
+    ax.set_ylim(-axis_limit, axis_limit)
+    ax.set_zlim(-axis_limit, axis_limit)
+
+    set_axes_equal(ax)
+    set_axis_style(ax, 0.5)
+
+
+def find_led_blobs(*args):
+    ax1 = args[0][0]
+    ax2 = args[0][1]     
+    cam_coords = make_camera_position(ax2, CAM_DISTANCE)
+
+    TEMP_R = R
+    LOOP_CNT = 0
+    UPPER_Z_ANGLE = 0.2
+    LOWER_Z_ANGLE = 0.1
+    while True:
+        cnt = 0
+        distance_detect = 0
+        upper_z = TEMP_R * UPPER_Z_ANGLE
+        lower_z = -TEMP_R * LOWER_Z_ANGLE
+        if TEMP_R < 0:
+            break
+        led_coords_o = led_position([0, ax1, TEMP_R, upper_z, lower_z])[1:]
+        if len(led_coords_o) < num_leds:
+            print('led_num error')
+            break
+
+        distances = sequential_closest_distances(led_coords_o)
+        print(len(distances))
+        for data in distances:
+            temp_distance = data.copy()
+            print(temp_distance)
+            if temp_distance < DISTANCE_SPEC:
+                print('distance error', temp_distance)
+                distance_detect = 1
+                break
+        if distance_detect == 1:
+            print('distance_detect')
+
+        facing_dot_check = 0    
+        for camera_pos in cam_coords:        
+            facing_pts = check_facing_dot(camera_pos, led_coords_o, ANGLE_SPEC)
+            if len(facing_pts) < 4:
+                print(facing_pts)
+                print('cam_pos', camera_pos)
+                print('TEMP_R', TEMP_R, 'cnt', cnt, 'pts cnt < 4 detected')
+                facing_dot_check = 1                
+                break
+            cnt += 1
+            
+        print('loop', LOOP_CNT, 'R', TEMP_R)
+
+        if cnt == len(cam_coords) and distance_detect == 1:
+            print('all position checked')
+            break
+
+        if facing_dot_check == 0:
+                TEMP_R -= 0.5
+        else:
+            print('facing dot error')
+            # TODO
+            
+            break
+        LOOP_CNT += 1
+
+    print('TEMP_R', TEMP_R, upper_z, lower_z)
+
+    ret_coords = led_position([1, ax1, TEMP_R, upper_z, lower_z])
+
+    return cam_coords, ret_coords, upper_z, lower_z
