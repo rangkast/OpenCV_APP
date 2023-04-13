@@ -10,12 +10,8 @@ mpl.rcParams['figure.dpi'] = 120  # DPI 설정
 monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
 monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
 
-UPPER_Z = R * 0.22
-LOWER_Z = -R * 0.09
-
-env_info = f" R:{R} r:{r}\n UPPER_Z:{UPPER_Z} LOWER_Z:{LOWER_Z}\n" \
-           f" num_points:{num_points} num_leds:{num_leds}" \
-           f" CAM_DISTANCE:{CAM_DISTANCE} ANGLE_SPEC:{ANGLE_SPEC}"
+# UPPER_Z = R * 0.22
+# LOWER_Z = -R * 0.09
 
 camera_matrix = np.array([[712.623, 0., 653.448],
                           [0., 712.623, 475.572],
@@ -66,7 +62,10 @@ def on_move(event):
 
         # 이전 카메라 위치를 표시하는 점을 제거하고 새 점을 그립니다.
         camera_point.remove()
-        camera_point = ax1.scatter(*camera_pos, color='blue', marker='o', s=3)
+        if len(facing_pts) < 4:
+            camera_point = ax4.scatter(*camera_pos, color='red', marker='o', s=5)
+        else:
+            camera_point = ax4.scatter(*camera_pos, color='blue', marker='o', s=5)
 
         # 보이는 LED는 빨간색으로, 보이지 않는 LED는 회색으로 설정합니다.
         facing_indices = [pt['idx'] for pt in facing_pts]
@@ -112,7 +111,10 @@ info_box = TextBox(info_box_ax, '', initial="")
 # 구 캡을 3D 플롯에 추가
 # ret_coords = led_position(ax1, R, UPPER_Z, LOWER_Z)
 
-cam_coords, ret_coords, UPPER_Z, LOWER_Z = find_led_blobs([ax1, ax4])
+cam_coords, ret_coords, UPPER_Z, LOWER_Z, R = find_led_blobs([ax1, ax4])
+env_info = f" R:{R} r:{r}\n UPPER_Z:{UPPER_Z} LOWER_Z:{LOWER_Z}\n" \
+           f" num_points:{num_points} num_leds:{num_leds}" \
+           f" CAM_DISTANCE:{CAM_DISTANCE} ANGLE_SPEC:{ANGLE_SPEC}"
 led_coords_o = ret_coords[1:]
 # led_colors = ['red'] * num_leds
 led_properties = [{'color': 'red', 'alpha': 1.0, 'size': 5} for _ in range(num_leds)]

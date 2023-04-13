@@ -210,12 +210,12 @@ def set_plot_option(ax, radius):
 def find_led_blobs(*args):
     ax1 = args[0][0]
     ax2 = args[0][1]     
-    cam_coords = make_camera_position(ax2, CAM_DISTANCE)
 
     TEMP_R = R
     LOOP_CNT = 0
     UPPER_Z_ANGLE = 0.2
     LOWER_Z_ANGLE = 0.1
+    cam_coords = make_camera_position(ax2, CAM_DISTANCE)
     while True:
         cnt = 0
         distance_detect = 0
@@ -223,16 +223,16 @@ def find_led_blobs(*args):
         lower_z = -TEMP_R * LOWER_Z_ANGLE
         if TEMP_R < 0:
             break
+
         led_coords_o = led_position([0, ax1, TEMP_R, upper_z, lower_z])[1:]
         if len(led_coords_o) < num_leds:
             print('led_num error')
             break
 
         distances = sequential_closest_distances(led_coords_o)
-        print(len(distances))
         for data in distances:
             temp_distance = data.copy()
-            print(temp_distance)
+            # print(temp_distance)
             if temp_distance < DISTANCE_SPEC:
                 print('distance error', temp_distance)
                 distance_detect = 1
@@ -244,10 +244,7 @@ def find_led_blobs(*args):
         for camera_pos in cam_coords:        
             facing_pts = check_facing_dot(camera_pos, led_coords_o, ANGLE_SPEC)
             if len(facing_pts) < 4:
-                print(facing_pts)
-                print('cam_pos', camera_pos)
-                print('TEMP_R', TEMP_R, 'cnt', cnt, 'pts cnt < 4 detected')
-                facing_dot_check = 1                
+                facing_dot_check = 1
                 break
             cnt += 1
             
@@ -258,16 +255,16 @@ def find_led_blobs(*args):
             break
 
         if facing_dot_check == 0:
-                TEMP_R -= 0.5
+                TEMP_R -= 0.1
         else:
             print('facing dot error')
-            # TODO
-            
             break
+
+
         LOOP_CNT += 1
 
     print('TEMP_R', TEMP_R, upper_z, lower_z)
 
     ret_coords = led_position([1, ax1, TEMP_R, upper_z, lower_z])
 
-    return cam_coords, ret_coords, upper_z, lower_z
+    return cam_coords, ret_coords, upper_z, lower_z, TEMP_R
