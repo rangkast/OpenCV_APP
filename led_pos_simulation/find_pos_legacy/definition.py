@@ -19,7 +19,7 @@ num_points = 150
 num_leds = 15
 
 ANGLE_SPEC = 70
-DISTANCE_SPEC = 1.0
+DISTANCE_SPEC = 2.0
 
 CAM_DISTANCE = 30
 CAM_ANGLE = 50

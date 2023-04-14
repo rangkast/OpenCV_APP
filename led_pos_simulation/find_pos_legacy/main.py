@@ -136,7 +136,7 @@ for i in range(0, num_leds):
     ax1.text(led_coords_o[i, 0], led_coords_o[i, 1], led_coords_o[i, 2], str(i), color='black', fontsize=7)
 
 led_quivers = [
-    ax1.quiver(coord[0], coord[1], coord[2], coord[0], coord[1], coord[2], length=5, linewidths=0.2, color='red',
+    ax1.quiver(coord[0], coord[1], coord[2], coord[0], coord[1], coord[2], length=led_r, linewidths=0.2, color='red',
                normalize=True) for coord in led_coords_o[0:]]
 
 

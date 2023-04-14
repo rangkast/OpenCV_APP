@@ -98,7 +98,7 @@ def sequential_closest_distances(coords):
 
         for idx, coord in enumerate(coords):
             if idx not in visited_indices:
-                dist = np.linalg.norm(coords[current_idx] - coord)
+                dist = np.linalg.norm(coords[current_idx] - coord) + led_r * 2
 
                 if dist < min_dist:
                     min_dist = dist
@@ -139,27 +139,32 @@ def draw_sequential_closest_lines(ax, led_coords_o):
         )
         current_idx = closest_idx
 
-def select_points(coords, num_leds):
+def select_points(coords, num_leds, min_start_distance=0):
     if num_leds > coords.shape[0]:
         raise ValueError("num_leds cannot be greater than the number of points in coords")
 
     selected_indices = [0]  # 시작점을 첫 번째로 선택
 
-    for _ in range(num_leds):
+    for _ in range(num_leds):  # 시작점이 이미 선택되었으므로 num_leds - 1
         min_dists = np.full((coords.shape[0],), np.inf)
 
         for selected_idx in selected_indices:
-            dists = np.linalg.norm(coords - coords[selected_idx], axis=1)
+            dists = np.linalg.norm(coords - coords[selected_idx], axis=1) + led_r * 2
             min_dists = np.minimum(min_dists, dists)
 
-        next_idx = np.argmax(min_dists)
+        # 시작점과의 최소 거리 조건을 적용
+        min_dists[:1] = 0  # 시작점 자체의 거리를 0으로 설정
+        valid_indices = np.where(min_dists >= min_start_distance)
+        
+        if valid_indices[0].size == 0:  # 모든 점이 거리 조건을 충족하지 않는 경우
+            # raise ValueError("No points found with a distance greater or equal to min_start_distance")
+            return ERROR
 
-        if min_dists[next_idx] == np.inf:
-            raise ValueError("Not enough points in coords to satisfy num_leds with the given minimum distance r")
-
-        selected_indices.append(next_idx)
+        next_idx = np.argmax(min_dists[valid_indices])
+        selected_indices.append(valid_indices[0][next_idx])
 
     return coords[selected_indices]
+
 
 
 def led_position(*args):
@@ -185,8 +190,10 @@ def led_position(*args):
         ax.scatter(x_masked, y_masked, z_masked, color='gray', marker='.', alpha=0.1)
     coords = np.array([x_masked, y_masked, z_masked]).T
     # 시작점을 기반으로 점 선택
-    led_coords = select_points(coords, num_leds)
-    
+    ret = select_points(coords, num_leds)
+    if ret == ERROR:
+        return ERROR, ERROR
+    led_coords = ret
     padding_mask = ((z >= lower_z - led_r) & (z <= lower_z)) | ((z >= upper_z) & (z <= upper_z + led_r))
     x_masked = x[padding_mask]
     y_masked = y[padding_mask]
@@ -254,6 +261,10 @@ def find_led_blobs(*args):
             break
         
         _, ret_data = led_position([0, ax1, TEMP_R, upper_z, lower_z])
+        if ret_data == ERROR:
+            print('not enough distance from start point')
+            TEMP_R += 0.1
+            break
         led_coords_o = ret_data[1:]
 
         if len(led_coords_o) < num_leds:
