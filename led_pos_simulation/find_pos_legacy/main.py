@@ -112,7 +112,7 @@ info_box = TextBox(info_box_ax, '', initial="")
 # ret_coords = led_position(ax1, R, UPPER_Z, LOWER_Z)
 
 coords, cam_coords, ret_coords, UPPER_Z, LOWER_Z, R = find_led_blobs([ax1, ax4])
-env_info = f" R:{R} r:{r}\n UPPER_Z:{UPPER_Z} LOWER_Z:{LOWER_Z}\n" \
+env_info = f" R:{R} r:{led_r}\n UPPER_Z:{UPPER_Z} LOWER_Z:{LOWER_Z}\n" \
            f" num_points:{num_points} num_leds:{num_leds}" \
            f" CAM_DISTANCE:{CAM_DISTANCE} ANGLE_SPEC:{ANGLE_SPEC}"
 led_coords_o = ret_coords[1:]
@@ -181,13 +181,13 @@ cid_scroll = fig.canvas.mpl_connect('scroll_event', on_scroll)
 
 # dump_file_name = ''.join(['dump_', f'{formattedDate}', '.pickle'])
 # coords, cam_coords, ret_coords,
-file = ''.join(['/home/rangkast.jeong/Downloads/blender/', 'result.pickle'])
+file = './led_pos_simulation/find_pos_legacy/result.pickle'
 data = OrderedDict()
-data['LED_INFO'] = ret_coords
+data['LED_INFO'] = ret_coords[1:]
 data['MODEL_INFO'] = coords
 data['CAM_INFO'] = cam_coords
 
 pickle_data(WRITE, file, data)
-
+print('data saved')
 
 plt.show()

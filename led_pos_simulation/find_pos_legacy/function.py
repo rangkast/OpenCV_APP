@@ -139,7 +139,7 @@ def draw_sequential_closest_lines(ax, led_coords_o):
         )
         current_idx = closest_idx
 
-def select_points(coords, num_leds, r):
+def select_points(coords, num_leds):
     if num_leds > coords.shape[0]:
         raise ValueError("num_leds cannot be greater than the number of points in coords")
 
@@ -185,9 +185,19 @@ def led_position(*args):
         ax.scatter(x_masked, y_masked, z_masked, color='gray', marker='.', alpha=0.1)
     coords = np.array([x_masked, y_masked, z_masked]).T
     # 시작점을 기반으로 점 선택
-    led_coords = select_points(coords, num_leds, r)
+    led_coords = select_points(coords, num_leds)
+    
+    padding_mask = ((z >= lower_z - led_r) & (z <= lower_z)) | ((z >= upper_z) & (z <= upper_z + led_r))
+    x_masked = x[padding_mask]
+    y_masked = y[padding_mask]
+    z_masked = z[padding_mask]
+    if draw == 1:
+        ax.scatter(x_masked, y_masked, z_masked, color='green', marker='.', alpha=0.1)
+    padding_coords = np.array([x_masked, y_masked, z_masked]).T
 
-    return coords, led_coords
+    combined_coords = np.vstack((coords, padding_coords))
+
+    return combined_coords, led_coords
 
     
 def make_camera_position(ax, radius):
@@ -228,7 +238,7 @@ def set_plot_option(ax, radius):
 
 def find_led_blobs(*args):
     ax1 = args[0][0]
-    ax2 = args[0][1]     
+    ax2 = args[0][1]
 
     TEMP_R = R
     LOOP_CNT = 0
@@ -276,7 +286,7 @@ def find_led_blobs(*args):
             break
 
         if facing_dot_check == 0:
-                TEMP_R -= 0.5
+                TEMP_R -= 0.1
         else:
             print('facing dot error')
             break

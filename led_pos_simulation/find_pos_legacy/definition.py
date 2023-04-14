@@ -13,13 +13,13 @@ from dataclasses import dataclass
 # 구 캡의 반지름 R과 높이 h
 # 단위 cm
 R = 8
-r = 0.3
+led_r = 0.3
 
-num_points = 110
+num_points = 150
 num_leds = 15
 
 ANGLE_SPEC = 70
-DISTANCE_SPEC = 1.3
+DISTANCE_SPEC = 1.0
 
 CAM_DISTANCE = 30
 CAM_ANGLE = 50
