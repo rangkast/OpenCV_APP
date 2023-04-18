@@ -19,7 +19,6 @@ from torch.utils import data
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from opencv_study.machine_learning.vectors_data import *
 
 ENABLE = 1
 DISABLE = 0
@@ -41,6 +40,9 @@ angle_spec = 70
 
 
 def read_led_pts(fname):
+    import os
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    print('PATH:', current_path)
     pts = []
     with open(f'{fname}.txt', 'r') as F:
         a = F.readlines()
@@ -282,10 +284,17 @@ def pickle_data(rw_mode, path, data):
 
 
 if __name__ == '__main__':
+    if __package__ is None:
+        import sys
+        from os import path
+        print('PATH', path.dirname( path.dirname( path.abspath(__file__) ) ))
+        sys.path.append(path.dirname( path.dirname( path.abspath(__file__) ) ))
+        from vectors_data import *
+
     USE_CUDA = torch.cuda.is_available()
     DEVICE = torch.device("cuda" if USE_CUDA else "cpu")
 
-    leds = read_led_pts('../rift_6')
+    leds = read_led_pts('./rift_6')
 
     camera_k = np.array([[714.938, 0.0, 676.234],
                          [0.0, 714.938, 495.192],
@@ -350,13 +359,6 @@ if __name__ == '__main__':
     )
     dataiter = iter(train_loader)
     images, labels = next(dataiter)
-
-    # check images
-    # img = utils.make_grid(images, padding=0)
-    # npimg = img.numpy()
-    # plt.figure(figsize=(10, 7))
-    # plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    # plt.show()
 
     model = Net(len(projection_image)).to(DEVICE)
     optimizer = optim.SGD(model.parameters(), lr=0.01)

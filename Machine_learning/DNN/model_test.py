@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 
 from model_make import *
 
-load_model = torch.load('DNN.pt')
+load_model = torch.load('./DNN/DNN.pt')
 
 file = ''.join(['data_file'])
 dump_data = pickle_data(READ, file, None)
@@ -48,8 +48,8 @@ for idx, value in enumerate(dump_data):
                 # Display the second image in the second subplot
                 axs[1].imshow(crop_img_after, cmap='gray')
                 axs[1].set_title('noise')
-                # plt.imshow(crop_img, cmap='gray')
-                # plt.imshow(crop_img_after, cmap='gray')
+                plt.imshow(crop_img, cmap='gray')
+                plt.imshow(crop_img_after, cmap='gray')
 
                 # Make a prediction on the new data
                 img_transformed = transform(crop_img_after)
