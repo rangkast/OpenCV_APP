@@ -183,11 +183,12 @@ cid_scroll = fig.canvas.mpl_connect('scroll_event', on_scroll)
 # coords, cam_coords, ret_coords,
 file = './led_pos_simulation/find_pos_legacy/result.pickle'
 data = OrderedDict()
+
 data['LED_INFO'] = ret_coords[1:]
 data['MODEL_INFO'] = coords
 data['CAM_INFO'] = cam_coords
 
+data = convert_to_meters(data)
+
 pickle_data(WRITE, file, data)
 print('data saved')
-
-plt.show()

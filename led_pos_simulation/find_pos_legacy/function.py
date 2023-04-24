@@ -310,3 +310,10 @@ def find_led_blobs(*args):
     coords, ret_coords = led_position([1, ax1, TEMP_R, upper_z, lower_z])
 
     return coords, cam_coords, ret_coords, upper_z, lower_z, TEMP_R
+
+
+
+def convert_to_meters(data):
+    for key in data:
+        data[key] = [(coord[0] * 0.01, coord[1] * 0.01, coord[2] * 0.01) for coord in data[key]]
+    return data

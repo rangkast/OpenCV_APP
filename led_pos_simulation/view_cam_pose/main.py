@@ -122,29 +122,20 @@ for rvec, tvec in zip(rvec_array, tvec_array):
     R, _ = cv2.Rodrigues(rvec)
     cam_pos = -R.T @ tvec
     X, Y, Z = cam_pos.flatten()
-    # 카메라 방향 계산
-    camera_direction = R.T @ np.array([[0, 0, -1]]).T
-    camera_direction = camera_direction.ravel()
-    
     # 카메라 optical axis 방향 벡터 계산
-    optical_axis = R.T @ np.array([0, 0, -1])
-
+    optical_axis = R.T @ np.array([0, 0, -1]).T
     # 카메라 위치에서 optical axis까지의 방향 벡터 계산
     direction_vector = -optical_axis
-    
-        # calculate roll, pitch, yaw
+    # calculate roll, pitch, yaw
     roll = math.atan2(R[2][1], R[2][2])
     pitch = math.atan2(-R[2][0], math.sqrt(R[2][1]**2 + R[2][2]**2))
     yaw = math.atan2(R[1][0], R[0][0])
-
     # convert to degrees
     roll = math.degrees(roll)
     pitch = math.degrees(pitch)
     yaw = math.degrees(yaw)
-
     # print roll, pitch, yaw
     print(f"Camera {idx}: Roll={roll:.2f}, Pitch={pitch:.2f}, Yaw={yaw:.2f}")
-        
     ax.quiver(X, Y, Z, direction_vector[0], direction_vector[1], direction_vector[2],
     color="blue", length=0.1, normalize=True)
        
