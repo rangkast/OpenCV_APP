@@ -94,7 +94,7 @@ def calculate_camera_position_direction(rvec, tvec):
     Cam_pos = -R_inv @ tvec
     X, Y, Z = Cam_pos.ravel()
 
-    unit_z = np.array([0, 0, -1])
+    unit_z = np.array([0, 0, 1])
 
     # idea 1
     # roll = math.atan2(R[2][1], R[2][2])
