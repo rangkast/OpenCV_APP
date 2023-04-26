@@ -1,4 +1,16 @@
 from vector_data import *
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import gridspec
+from matplotlib.ticker import FormatStrFormatter
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.widgets import TextBox
+import cv2
+import matplotlib as mpl
+import tkinter as tk
+from collections import OrderedDict
+from dataclasses import dataclass
+
 
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
@@ -53,12 +65,32 @@ led_positions = np.array([
     [0.03006234, 0.00378822, -0.01297127]
 ])
 
-# 이미 계산된 카메라 매개변수
-camera_calibration = {"serial": "WMTD303A5006BW", "camera_f": [714.938, 714.938], "camera_c": [676.234, 495.192], "camera_k": [0.074468, -0.024896, 0.005643, -0.000568]}
-A = np.array([[camera_calibration['camera_f'][0], 0, camera_calibration['camera_c'][0]],
-              [0, camera_calibration['camera_f'][1], camera_calibration['camera_c'][1]],
-              [0, 0, 1]])
-distCoeffs = camera_calibration['camera_k']
+# WMTD306N100AXM
+l_cam_m = np.array([[712.623, 0, 653.448],
+                    [0, 712.623, 475.572],
+                    [0, 0, 1]])
+l_dist_coeff = np.array([0.072867, -0.026286, 0.007135, -0.000997])
+# WMTD305L6003D6
+r_cam_m = np.array([[716.896, 0, 668.902],
+                    [0, 716.896, 460.618],
+                    [0, 0, 1]])
+r_dist_coeff = np.array([0.07542, -0.026874, 0.006662, -0.000775])
+
+rvec_left = np.array([0.44326239, -1.48492036, -0.37927786])
+tvec_left = np.array([-0.07625896, -0.00155683, 0.34419907])
+l_blob = np.array([[512.94886659, 491.18943589],
+                   [505.12935192, 520.63836956],
+                   [468.50093122, 532.21119389],
+                   [479.84074949, 574.78916273]])
+rvec_right = np.array([1.34109638, -0.88425646, 0.22458526])
+tvec_right = np.array([0.03042639, 0.10143083, 0.45047843])
+r_blob = np.array([[708.97113752, 661.46590266],
+                   [686.86331947, 668.79149335],
+                   [666.72478901, 650.31063749],
+                   [642.81686566, 667.3940128]])
+
+default_cameraK = np.eye(3).astype(np.float64)
+default_distCoeff = np.zeros((4, 1)).astype(np.float64)
 
 # Rotation Matrix to Euler Angles (XYZ)
 def rotation_matrix_to_euler_angles(R):
@@ -76,6 +108,7 @@ def rotation_matrix_to_euler_angles(R):
 
     return np.array([x, y, z])
 
+
 def rotation_matrix_to_quaternion(R):
     qw = np.sqrt(1 + R[0, 0] + R[1, 1] + R[2, 2]) / 2
     qx = (R[2, 1] - R[1, 2]) / (4 * qw)
@@ -83,7 +116,6 @@ def rotation_matrix_to_quaternion(R):
     qz = (R[1, 0] - R[0, 1]) / (4 * qw)
 
     return np.array([qw, qx, qy, qz])
-
 
 
 def calculate_camera_position_direction(rvec, tvec):
@@ -135,16 +167,23 @@ def calculate_camera_position_direction(rvec, tvec):
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pitch, yaw)
 
 
-default_cameraK = np.eye(3).astype(np.float64)
+def draw_projection(ax, rvec, tvec, cam_m, dist_coeff):
+    Rod, _ = cv2.Rodrigues(rvec)
+    ret = cv2.projectPoints(led_positions[0:4], Rod, tvec, cam_m, dist_coeff)
+    xx, yy = ret[0].reshape(len(led_positions[0:4]), 2).transpose()
 
-print(default_cameraK)
-# left
-rvec_left = np.array([0.436, -1.345, -0.404])
-tvec_left = np.array([-0.037, 0.004, 0.334])
+    x = [x for x in xx]
+    y = [y for y in yy]
+    ax.scatter(x, y, marker='o', s=20, color='black', alpha=0.5)
 
-# right
-rvec_right = np.array([1.422, -0.829, 0.242])
-tvec_right = np.array([0.054, 0.102, 0.435])
+    ax.set_xlim([0, 1280])
+    ax.set_ylim([0, 960])
+
+    # y축의 방향을 바꾸어 위에서 아래로 증가하도록 설정
+    ax.invert_yaxis()
+    # 차트의 가로 세로 비율을 1280:960으로 설정
+    ax.set_aspect(1280 / 960)
+
 
 pos_left, dir_left, _ = calculate_camera_position_direction(rvec_left, tvec_left)
 pos_right, dir_right, _ = calculate_camera_position_direction(rvec_right, tvec_right)
@@ -152,22 +191,23 @@ pos_right, dir_right, _ = calculate_camera_position_direction(rvec_right, tvec_r
 print('pos_left', pos_left, 'dir_left', dir_left)
 print('pos_right', pos_right, 'dir_right', dir_right)
 
-# 3D plot 생성
-fig = plt.figure(figsize=(10, 10))  # 플롯 크기 조절
-ax = fig.add_subplot(111, projection='3d')
+fig = plt.figure(figsize=(30, 10), num='Camera Simulator')
+plt.rcParams.update({'font.size': 7})
+gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1, 1])
+ax = plt.subplot(gs[0], projection='3d')
+ax1 = plt.subplot(gs[1])
+ax2 = plt.subplot(gs[2])
+
 
 # 원점 표시 (scatter plot)
 ax.scatter(0, 0, 0, c='k', marker='o', label='Origin')
-
 # LED 위치 표시
 ax.scatter(led_positions[:, 0], led_positions[:, 1], led_positions[:, 2], c='b', marker='o', label='LED Positions')
-
 # 카메라 위치 및 방향 표시 (scatter plot & quiver plot)
 ax.scatter(*pos_left, c='r', marker='o', label='Camera Left')
 ax.quiver(*pos_left, *dir_left, color='r', label='Direction Left', length=0.1)
 ax.scatter(*pos_right, c='g', marker='o', label='Camera Right')
 ax.quiver(*pos_right, *dir_right, color='g', label='Direction Right', length=0.1)
-
 ax.set_xlim([-0.5, 0.5])
 ax.set_xlabel('X')
 ax.set_ylim([-0.5, 0.5])
@@ -177,5 +217,7 @@ ax.set_zlabel('Z')
 scale = 1.5
 f = zoom_factory(ax, base_scale=scale)
 
-plt.legend()
+draw_projection(ax1, rvec_left, tvec_left, l_cam_m, l_dist_coeff)
+draw_projection(ax2, rvec_right, tvec_right, r_cam_m, r_dist_coeff)
+
 plt.show()
