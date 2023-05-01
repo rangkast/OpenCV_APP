@@ -24,12 +24,9 @@ from enum import Enum, auto
 import warnings
 from dataclasses import dataclass, field
 from typing import Dict
-import yaml
-from bleak import BleakScanner, BleakClient
 import asyncio
 import struct
 import matplotlib.pyplot as plt
-import pandas as pd
 from matplotlib.animation import FuncAnimation
 import time
 import datetime
