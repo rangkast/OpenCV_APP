@@ -1,5 +1,3 @@
-import sys
-print('source', sys.exec_prefix)
 import bpy
 import pickle
 import gzip
@@ -8,9 +6,11 @@ import bmesh
 import mathutils
 import math
 import bpy_extras
-from mathutils import Vector  # mathutils 모듈에서 Vector 클래스를 import 합니다.
+from mathutils import Vector, geometry
 import cv2
 import os
+from mathutils import Matrix
+from bpy_extras import mesh_utils
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -31,15 +31,15 @@ origin_led_data = np.array([
 ])
 
 
-#pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
-pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+# pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
 camera_calibration = {"serial": "WMTD303A5006BW", "camera_f": [714.938, 714.938], "camera_c": [676.234, 495.192], "camera_k": [0.074468, -0.024896, 0.005643, -0.000568]}
 
 with gzip.open(pickle_file, 'rb') as f:
     data = pickle.load(f)
 
 led_data = data['LED_INFO']
-print(data['LED_INFO'])
+# print(data['LED_INFO'])
 model_data = data['MODEL_INFO']
 
 bpy.context.scene.render.engine = 'CYCLES'
@@ -52,7 +52,7 @@ bpy.context.scene.unit_settings.length_unit = 'METERS'
  
 padding = 0.0  # 원하는 패딩 값을 입력하세요.
 # LED 원의 반지름을 설정합니다. 원하는 크기를 입력으로 제공할 수 있습니다.
-led_size = 0.003
+led_size = 0.002
 led_thickness = 0.001
 
 def delete_all_objects_except(exclude_object_names):
@@ -129,7 +129,7 @@ def create_mesh_object(coords, name="MeshObject", padding=0.0):
 
 def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
     led_objects = []
-    distance_to_o = led_size * 4/5
+    distance_to_o = led_size * 0
     for i, coord in enumerate(led_coords):
         # LED 오브젝트의 위치를 조정합니다.
         normalized_direction = Vector(coord).normalized()
@@ -242,8 +242,8 @@ def calculate_camera_position_direction(rvec, tvec):
     X, Y, Z = Cam_pos.ravel()
     unit_z = np.array([0, 0, 1])
 
-    euler_angles = rotation_matrix_to_euler_angles(R)
-    print("Euler angles (in degrees):", euler_angles)
+    # euler_angles = rotation_matrix_to_euler_angles(R)
+    # print("Euler angles (in degrees):", euler_angles)
 
     # idea 1
     # cosine_for_pitch = math.sqrt(R[0][0] ** 2 + R[1][0] ** 2)
@@ -293,10 +293,11 @@ def calculate_camera_position_direction(rvec, tvec):
 def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     roll = math.radians(-rot[0])
     pitch = math.radians(rot[1])
-    yaw = math.radians(90 - rot[2])
+    yaw = math.radians(90 + rot[2])
 
 
     X, Y, Z = cam_location
+    print('pos', X, Y, Z)
     # Remove existing camera
     if name in bpy.data.objects:
         bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
@@ -355,28 +356,39 @@ def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     cam.rotation_mode = 'XYZ'
     cam.rotation_euler = blender_euler
     '''  
-            
-    # Set camera properties
+    
+    fx_px, fy_px = camera_f
+    cx_px, cy_px = camera_c
+
+    # Set the camera sensor size in pixels
+    sensor_width_px = 1280.0
+    sensor_height_px = 960.0
+
+    # Calculate the sensor size in millimeters
+    sensor_width_mm = 36.0 # Assuming 35mm camera sensor size
+    sensor_height_mm = 27.0 # Assuming 35mm camera sensor size
+    scale = sensor_width_px / sensor_width_mm # Pixel per mm scale factor
+    sensor_width = sensor_width_px / scale
+    sensor_height = sensor_height_px / scale
+
+    # Calculate the focal length in millimeters
+    fx_mm = fx_px / scale
+    fy_mm = fy_px / scale
+    focal_length = (fx_mm + fy_mm) / 2.0
+
+    # Calculate the image center in pixels
+    cx = sensor_width_px / 2.0 + cx_px / scale
+    cy = sensor_height_px / 2.0 - cy_px / scale
+
+
+    # Set the camera parameters
     cam.data.type = 'PERSP'
-    cam.data.lens_unit = 'MILLIMETERS'
-
-    # Calculate focal length based on the given parameters
-    fx, fy = camera_f
-    focal_length_mm = max(fx, fy) / 1000  # Convert to millimeters
-    cam.data.lens = focal_length_mm
-    cam.data.angle = math.radians(45)  # To change FOV, modify this line.
-
-    # Calculate sensor width based on the given parameters
-    cx, cy = camera_c
-    aspect_ratio = cx / cy
-
-    cam.data.sensor_height = cam.data.lens / fy * 1000  # Convert to millimeters
-    cam.data.sensor_width = cam.data.sensor_height * aspect_ratio
-
-    # Set camera shift values
-#    cam.data.shift_x = (cam.data.sensor_width / 2 - camera_c[0]) / cam.data.sensor_width
-#    cam.data.shift_y = (cam.data.sensor_height / 2 - camera_c[1]) / cam.data.sensor_height
-
+    cam.data.lens_unit = 'FOV'
+    cam.data.angle = 2 * math.atan(sensor_width / (2 * focal_length)) # Field of view in radians
+    cam.data.sensor_width = sensor_width
+    cam.data.sensor_height = sensor_height
+    cam.data.shift_x = (cx - sensor_width_px / 2.0) / fx_px # Shift in X direction
+    cam.data.shift_y = (cy - sensor_height_px / 2.0) / fy_px # Shift in Y direction
 
     return cam
 
@@ -454,6 +466,37 @@ def make_cameras(camera_name, rvec, tvec, camera_matrix):
 #    plot_camera(position, direction, save_path='./camera_plot.png')
 
 
+def draw_line(p1, p2, name):
+    p1 = Vector(p1)
+    p2 = Vector(p2)
+    direction = p2 - p1
+    scaled_direction = direction.normalized() * direction.length * 10
+    p2 = p1 + scaled_direction
+
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.0001, depth=(p1 - p2).length, end_fill_type='NGON', location=(0,0,0), scale=(1, 1, 1))
+    line = bpy.context.object
+    line.name = name
+    line.location = (p1 + p2) / 2
+    line.rotation_mode = 'QUATERNION'
+    line.rotation_quaternion = (p1 - p2).to_track_quat('Z', 'Y')
+
+
+def create_sphere(location, radius, name):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=radius, location=location)
+    sphere = bpy.context.object
+    sphere.name = name
+
+def find_intersection(p1, p2, obj):
+    intersections = []
+    for face in obj.data.polygons:
+        vertices = [obj.matrix_world @ obj.data.vertices[v].co for v in face.vertices]
+        intersection = geometry.intersect_ray_tri(vertices[0], vertices[1], vertices[2], (p2 - p1), p1, True)
+        if intersection:
+            intersections.append(intersection)
+
+    return intersections
+
+
 # Eevee 렌더링 엔진 설정을 적용합니다.
 set_up_eevee_render_engine()
 
@@ -480,10 +523,21 @@ create_circle_leds_on_surface(led_data, led_size)
 create_circle_leds_on_surface(origin_led_data, led_size)
 
 
-# Parameters
-camera_f = [714.938, 714.938]
-camera_c = [676.234, 495.192]
+origin = np.array([0, 0, 0])
 
+# 이미 생성된 오브젝트를 이름으로 찾습니다.
+torus = bpy.data.objects.get('Oculus_L_05.002')
+
+
+for idx, led in enumerate(origin_led_data):
+    p1 = np.array(origin)
+    p2 = np.array(led)
+    draw_line(p1, p2, f"LED_Line_{idx + 1}")
+
+    # intersections = find_intersection(Vector(p1), Vector(p2), torus)
+    # if intersections:
+    #     create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
+        
 default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572]}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618]}
@@ -491,12 +545,12 @@ cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'cam
 #camera_matrix = np.array([[camera_calibration['camera_f'][0], 0, camera_calibration['camera_c'][0]], [0, camera_calibration['camera_f'][1], camera_calibration['camera_c'][1]], [0, 0, 1]])
 
 # left
-rvec_left = np.array([0.44326239, -1.48492036, -0.37927786])
-tvec_left = np.array([-0.07625896, -0.00155683, 0.34419907])
+rvec_left = np.array([ 0.92258546, -0.31966116,  1.53042547])
+tvec_left = np.array([-0.10226342,  0.21217596,  0.45900419])
 
 # right
-rvec_right = np.array([1.34109638, -0.88425646, 0.22458526])
-tvec_right = np.array([0.03042639, 0.10143083, 0.45047843])
+rvec_right = np.array([ 0.82721212, -1.71101202,  0.74346322])
+tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
 
 # 카메라 해상도 설정 (예: 1920x1080)
 bpy.context.scene.render.resolution_x = 1280
