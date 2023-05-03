@@ -1,4 +1,5 @@
 import bpy
+import bgl
 import pickle
 import gzip
 import numpy as np
@@ -11,6 +12,7 @@ import cv2
 import os
 from mathutils import Matrix
 from bpy_extras import mesh_utils
+from math import degrees
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -31,16 +33,59 @@ origin_led_data = np.array([
 ])
 
 
-pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
-# pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+# pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
 camera_calibration = {"serial": "WMTD303A5006BW", "camera_f": [714.938, 714.938], "camera_c": [676.234, 495.192], "camera_k": [0.074468, -0.024896, 0.005643, -0.000568]}
 
 with gzip.open(pickle_file, 'rb') as f:
     data = pickle.load(f)
 
 led_data = data['LED_INFO']
-# print(data['LED_INFO'])
 model_data = data['MODEL_INFO']
+
+for i, leds in enumerate(led_data):
+    print(f"{i}, led: {leds}")
+
+camera_names = ["CAMERA_0", "CAMERA_1"]
+
+for camera_name in camera_names:
+    # 카메라 객체를 선택
+    camera = bpy.data.objects[camera_name]
+
+    # 카메라의 위치와 회전 값을 가져오기
+    location = camera.location
+    rotation = camera.rotation_euler
+
+    # XYZ 오일러 각도를 degree 단위로 변환
+    rotation_degrees = tuple(degrees(angle) for angle in rotation)
+
+    # 결과 출력
+    print(f"{camera_name} 위치: ", location)
+    print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
+    print()
+
+# def get_azimuth_elevation(view_matrix):
+#     look_dir = view_matrix.inverted().to_3x3() @ Vector((0.0, 0.0, -1.0))
+#     look_dir.normalize()
+
+#     elevation = math.degrees(math.asin(look_dir.z))
+#     azimuth = math.degrees(math.atan2(look_dir.y, look_dir.x))
+
+#     return azimuth, elevation
+
+# area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
+# region = next(region for region in area.regions if region.type == 'WINDOW')
+# spaces = [space for space in area.spaces if space.type == 'VIEW_3D']
+# space_data = None
+# if spaces:
+#     space_data = spaces[0]
+
+# if space_data is not None:
+#     view_matrix = space_data.region_3d.view_matrix
+#     azimuth, elevation = get_azimuth_elevation(view_matrix)
+
+#     print("Azimuth:", azimuth)
+#     print("Elevation:", elevation)
 
 bpy.context.scene.render.engine = 'CYCLES'
 bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
