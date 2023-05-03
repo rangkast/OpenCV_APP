@@ -129,7 +129,7 @@ def create_mesh_object(coords, name="MeshObject", padding=0.0):
 
 def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
     led_objects = []
-    distance_to_o = led_size * 0
+    distance_to_o = led_size * 2/3
     for i, coord in enumerate(led_coords):
         # LED 오브젝트의 위치를 조정합니다.
         normalized_direction = Vector(coord).normalized()
@@ -152,7 +152,7 @@ def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
         emission_node = nodes.new(type='ShaderNodeEmission')
 
         # Emission 쉐이더의 강도와 색상을 설정합니다.
-        emission_node.inputs['Strength'].default_value = 0.03  # 강도 조절
+        emission_node.inputs['Strength'].default_value = 0.02  # 강도 조절
         emission_node.inputs['Color'].default_value = (255, 255, 255, 1)  # 색상 조절
 
         # Emission 쉐이더를 출력 노드에 연결합니다.
@@ -470,15 +470,16 @@ def draw_line(p1, p2, name):
     p1 = Vector(p1)
     p2 = Vector(p2)
     direction = p2 - p1
-    scaled_direction = direction.normalized() * direction.length * 10
+    scaled_direction = direction * 10
     p2 = p1 + scaled_direction
 
-    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.0001, depth=(p1 - p2).length, end_fill_type='NGON', location=(0,0,0), scale=(1, 1, 1))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.0001, depth=scaled_direction.length, end_fill_type='NGON', location=(0, 0, 0), scale=(1, 1, 1))
     line = bpy.context.object
     line.name = name
     line.location = (p1 + p2) / 2
     line.rotation_mode = 'QUATERNION'
-    line.rotation_quaternion = (p1 - p2).to_track_quat('Z', 'Y')
+    line.rotation_quaternion = scaled_direction.to_track_quat('Z', 'Y')
+
 
 
 def create_sphere(location, radius, name):
@@ -486,15 +487,20 @@ def create_sphere(location, radius, name):
     sphere = bpy.context.object
     sphere.name = name
 
-def find_intersection(p1, p2, obj):
+
+def find_intersection(p1, p2, obj, epsilon=1e-8):
     intersections = []
     for face in obj.data.polygons:
         vertices = [obj.matrix_world @ obj.data.vertices[v].co for v in face.vertices]
         intersection = geometry.intersect_ray_tri(vertices[0], vertices[1], vertices[2], (p2 - p1), p1, True)
         if intersection:
-            intersections.append(intersection)
+            dist_to_intersection = (intersection - p1).length
+            dist_p1_to_p2 = (p2 - p1).length
+            if abs(dist_to_intersection - dist_p1_to_p2) > epsilon:
+                intersections.append(intersection)
 
     return intersections
+
 
 
 # Eevee 렌더링 엔진 설정을 적용합니다.
@@ -508,7 +514,6 @@ exclude_object_names = ["Oculus_L_05.002"]
 delete_all_objects_except(exclude_object_names)
 
 # Simulator
-'''
 # numpy 배열로부터 좌표 데이터를 가져옵니다.
 model_data = np.array(model_data)
 # led_data를 numpy 배열로 변환합니다.
@@ -519,12 +524,11 @@ create_mesh_object(model_data, padding=padding)
 # 모델 오브젝트를 찾습니다.
 model_obj = bpy.data.objects['MeshObject']
 create_circle_leds_on_surface(led_data, led_size)
+
+
 '''
 create_circle_leds_on_surface(origin_led_data, led_size)
-
-
 origin = np.array([0, 0, 0])
-
 # 이미 생성된 오브젝트를 이름으로 찾습니다.
 torus = bpy.data.objects.get('Oculus_L_05.002')
 
@@ -533,11 +537,10 @@ for idx, led in enumerate(origin_led_data):
     p1 = np.array(origin)
     p2 = np.array(led)
     draw_line(p1, p2, f"LED_Line_{idx + 1}")
-
-    # intersections = find_intersection(Vector(p1), Vector(p2), torus)
-    # if intersections:
-    #     create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
-        
+    intersections = find_intersection(Vector(p1), Vector(p2), torus)
+    if intersections:
+        create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
+'''
 default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572]}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618]}

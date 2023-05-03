@@ -1,4 +1,5 @@
 from vector_data import *
+from function import *
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
@@ -10,60 +11,6 @@ import matplotlib as mpl
 import tkinter as tk
 from collections import OrderedDict
 from dataclasses import dataclass
-
-
-def zoom_factory(ax, base_scale=2.):
-    def zoom_fun(event):
-        # get the current x and y limits
-        cur_xlim = ax.get_xlim()
-        cur_ylim = ax.get_ylim()
-        cur_xrange = (cur_xlim[1] - cur_xlim[0]) * .5
-        cur_yrange = (cur_ylim[1] - cur_ylim[0]) * .5
-        xdata = event.xdata
-        ydata = event.ydata
-        if event.button == 'up':
-            # deal with zoom in
-            scale_factor = 1 / base_scale
-        elif event.button == 'down':
-            # deal with zoom out
-            scale_factor = base_scale
-        else:
-            # deal with something that should never happen
-            scale_factor = 1
-            print(event.button)
-        # set new limits
-        ax.set_xlim([xdata - cur_xrange * scale_factor,
-                     xdata + cur_xrange * scale_factor])
-        ax.set_ylim([ydata - cur_yrange * scale_factor,
-                     ydata + cur_yrange * scale_factor])
-        # force re-draw
-        plt.draw()
-
-    # get the figure of interest
-    fig = ax.get_figure()
-    # attach the call back
-    fig.canvas.mpl_connect('scroll_event', zoom_fun)
-
-    # return the function
-    return zoom_fun
-
-
-led_positions = np.array([
-    [-0.02146761, -0.00343424, -0.01381839],
-    [-0.0318701, 0.00568587, -0.01206734],
-    [-0.03692925, 0.00930785, 0.00321071],
-    [-0.04287211, 0.02691347, -0.00194137],
-    [-0.04170018, 0.03609551, 0.01989264],
-    [-0.02923584, 0.06186962, 0.0161972],
-    [-0.01456789, 0.06295633, 0.03659283],
-    [0.00766914, 0.07115411, 0.0206431],
-    [0.02992447, 0.05507271, 0.03108736],
-    [0.03724313, 0.05268665, 0.01100446],
-    [0.04265723, 0.03016438, 0.01624689],
-    [0.04222733, 0.0228845, -0.00394005],
-    [0.03300807, 0.00371497, 0.00026865],
-    [0.03006234, 0.00378822, -0.01297127]
-])
 
 # WMTD306N100AXM
 l_cam_m = np.array([[712.623, 0, 653.448],
@@ -169,8 +116,8 @@ def calculate_camera_position_direction(rvec, tvec):
 
 def draw_projection(ax, rvec, tvec, cam_m, dist_coeff):
     Rod, _ = cv2.Rodrigues(rvec)
-    ret = cv2.projectPoints(led_positions[0:4], Rod, tvec, cam_m, dist_coeff)
-    xx, yy = ret[0].reshape(len(led_positions[0:4]), 2).transpose()
+    ret = cv2.projectPoints(points[0:4], Rod, tvec, cam_m, dist_coeff)
+    xx, yy = ret[0].reshape(len(points[0:4]), 2).transpose()
 
     x = [x for x in xx]
     y = [y for y in yy]
@@ -202,7 +149,7 @@ ax2 = plt.subplot(gs[2])
 # 원점 표시 (scatter plot)
 ax.scatter(0, 0, 0, c='k', marker='o', label='Origin')
 # LED 위치 표시
-ax.scatter(led_positions[:, 0], led_positions[:, 1], led_positions[:, 2], c='b', marker='o', label='LED Positions')
+ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='b', marker='o', label='LED Positions')
 # 카메라 위치 및 방향 표시 (scatter plot & quiver plot)
 ax.scatter(*pos_left, c='r', marker='o', label='Camera Left')
 ax.quiver(*pos_left, *dir_left, color='r', label='Direction Left', length=0.1)
