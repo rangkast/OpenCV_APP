@@ -13,92 +13,12 @@ import os
 from mathutils import Matrix
 from bpy_extras import mesh_utils
 from math import degrees
-
-origin_led_data = np.array([
-    [-0.02146761, -0.00343424, -0.01381839],
-    [-0.0318701, 0.00568587, -0.01206734],
-    [-0.03692925, 0.00930785, 0.00321071],
-    [-0.04287211, 0.02691347, -0.00194137],
-    [-0.04170018, 0.03609551, 0.01989264],
-    [-0.02923584, 0.06186962, 0.0161972],
-    [-0.01456789, 0.06295633, 0.03659283],
-    [0.00766914, 0.07115411, 0.0206431],
-    [0.02992447, 0.05507271, 0.03108736],
-    [0.03724313, 0.05268665, 0.01100446],
-    [0.04265723, 0.03016438, 0.01624689],
-    [0.04222733, 0.0228845, -0.00394005],
-    [0.03300807, 0.00371497, 0.00026865],
-    [0.03006234, 0.00378822, -0.01297127],
-    [0.02000199, -0.00388647, -0.014973]
-])
+from datetime import datetime
 
 
-# pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
-pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
-camera_calibration = {"serial": "WMTD303A5006BW", "camera_f": [714.938, 714.938], "camera_c": [676.234, 495.192], "camera_k": [0.074468, -0.024896, 0.005643, -0.000568]}
-
-with gzip.open(pickle_file, 'rb') as f:
-    data = pickle.load(f)
-
-led_data = data['LED_INFO']
-model_data = data['MODEL_INFO']
-
-for i, leds in enumerate(led_data):
-    print(f"{i}, led: {leds}")
-
-camera_names = ["CAMERA_0", "CAMERA_1"]
-
-for camera_name in camera_names:
-    # 카메라 객체를 선택
-    camera = bpy.data.objects[camera_name]
-
-    # 카메라의 위치와 회전 값을 가져오기
-    location = camera.location
-    rotation = camera.rotation_euler
-
-    # XYZ 오일러 각도를 degree 단위로 변환
-    rotation_degrees = tuple(degrees(angle) for angle in rotation)
-
-    # 결과 출력
-    print(f"{camera_name} 위치: ", location)
-    print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
-    print()
-
-# def get_azimuth_elevation(view_matrix):
-#     look_dir = view_matrix.inverted().to_3x3() @ Vector((0.0, 0.0, -1.0))
-#     look_dir.normalize()
-
-#     elevation = math.degrees(math.asin(look_dir.z))
-#     azimuth = math.degrees(math.atan2(look_dir.y, look_dir.x))
-
-#     return azimuth, elevation
-
-# area = next(area for area in bpy.context.screen.areas if area.type == 'VIEW_3D')
-# region = next(region for region in area.regions if region.type == 'WINDOW')
-# spaces = [space for space in area.spaces if space.type == 'VIEW_3D']
-# space_data = None
-# if spaces:
-#     space_data = spaces[0]
-
-# if space_data is not None:
-#     view_matrix = space_data.region_3d.view_matrix
-#     azimuth, elevation = get_azimuth_elevation(view_matrix)
-
-#     print("Azimuth:", azimuth)
-#     print("Elevation:", elevation)
-
-bpy.context.scene.render.engine = 'CYCLES'
-bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
-bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
-
-bpy.context.scene.unit_settings.system = 'METRIC'
-bpy.context.scene.unit_settings.scale_length = 1.0
-bpy.context.scene.unit_settings.length_unit = 'METERS'
- 
-padding = 0.0  # 원하는 패딩 값을 입력하세요.
-# LED 원의 반지름을 설정합니다. 원하는 크기를 입력으로 제공할 수 있습니다.
-led_size = 0.002
-led_thickness = 0.001
+'''
+Functions
+'''
 
 def delete_all_objects_except(exclude_object_names):
     for obj in bpy.data.objects:
@@ -175,6 +95,7 @@ def create_mesh_object(coords, name="MeshObject", padding=0.0):
 def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
     led_objects = []
     distance_to_o = led_size * 2/3
+    text_distance = led_size * -3
     for i, coord in enumerate(led_coords):
         # LED 오브젝트의 위치를 조정합니다.
         normalized_direction = Vector(coord).normalized()
@@ -204,12 +125,10 @@ def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
         links.new(emission_node.outputs['Emission'], output_node.inputs['Surface'])
 
         led_obj.data.materials.append(led_material)
-        
+
         led_objects.append(led_obj)
 
     return led_objects
-
-
 
 def create_circle_leds_with_light_on_surface(led_coords, led_size, mesh_obj, led_power=100, name_prefix="LED"):
     led_objects = create_circle_leds_on_surface(led_coords, led_size, name_prefix)
@@ -548,49 +467,49 @@ def find_intersection(p1, p2, obj, epsilon=1e-8):
 
 
 
-# Eevee 렌더링 엔진 설정을 적용합니다.
-set_up_eevee_render_engine()
-
-# 월드 배경을 어둡게 설정합니다.
-set_up_dark_world_background()
-
-# delte objects
-exclude_object_names = ["Oculus_L_05.002"]
-delete_all_objects_except(exclude_object_names)
-
-# Simulator
-# numpy 배열로부터 좌표 데이터를 가져옵니다.
-model_data = np.array(model_data)
-# led_data를 numpy 배열로 변환합니다.
-led_data = np.array(led_data)
-
-# 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
-create_mesh_object(model_data, padding=padding)
-# 모델 오브젝트를 찾습니다.
-model_obj = bpy.data.objects['MeshObject']
-create_circle_leds_on_surface(led_data, led_size)
-
 
 '''
-create_circle_leds_on_surface(origin_led_data, led_size)
-origin = np.array([0, 0, 0])
-# 이미 생성된 오브젝트를 이름으로 찾습니다.
-torus = bpy.data.objects.get('Oculus_L_05.002')
-
-
-for idx, led in enumerate(origin_led_data):
-    p1 = np.array(origin)
-    p2 = np.array(led)
-    draw_line(p1, p2, f"LED_Line_{idx + 1}")
-    intersections = find_intersection(Vector(p1), Vector(p2), torus)
-    if intersections:
-        create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
+TEST START
 '''
+print('\n\n\n')
+print('TEST START')
+
+origin_led_data = np.array([
+    [-0.02146761, -0.00343424, -0.01381839],
+    [-0.0318701, 0.00568587, -0.01206734],
+    [-0.03692925, 0.00930785, 0.00321071],
+    [-0.04287211, 0.02691347, -0.00194137],
+    [-0.04170018, 0.03609551, 0.01989264],
+    [-0.02923584, 0.06186962, 0.0161972],
+    [-0.01456789, 0.06295633, 0.03659283],
+    [0.00766914, 0.07115411, 0.0206431],
+    [0.02992447, 0.05507271, 0.03108736],
+    [0.03724313, 0.05268665, 0.01100446],
+    [0.04265723, 0.03016438, 0.01624689],
+    [0.04222733, 0.0228845, -0.00394005],
+    [0.03300807, 0.00371497, 0.00026865],
+    [0.03006234, 0.00378822, -0.01297127],
+    [0.02000199, -0.00388647, -0.014973]
+])
+
+pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+# pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+
+with gzip.open(pickle_file, 'rb') as f:
+    data = pickle.load(f)
+
+led_data = data['LED_INFO']
+model_data = data['MODEL_INFO']
+camera_names = ["CAMERA_0", "CAMERA_1"]
+
+padding = 0.0  # 원하는 패딩 값을 입력하세요.
+# LED 원의 반지름을 설정합니다. 원하는 크기를 입력으로 제공할 수 있습니다.
+led_size = 0.002
+led_thickness = 0.001
+
 default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572]}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618]}
-
-#camera_matrix = np.array([[camera_calibration['camera_f'][0], 0, camera_calibration['camera_c'][0]], [0, camera_calibration['camera_f'][1], camera_calibration['camera_c'][1]], [0, 0, 1]])
 
 # left
 rvec_left = np.array([ 0.92258546, -0.31966116,  1.53042547])
@@ -603,9 +522,60 @@ tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
 # 카메라 해상도 설정 (예: 1920x1080)
 bpy.context.scene.render.resolution_x = 1280
 bpy.context.scene.render.resolution_y = 960
-
 # 렌더링 결과의 픽셀 밀도를 100%로 설정 (기본값은 50%)
 bpy.context.scene.render.resolution_percentage = 100
+bpy.context.scene.render.engine = 'CYCLES'
+bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
+bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
+bpy.context.scene.unit_settings.system = 'METRIC'
+bpy.context.scene.unit_settings.scale_length = 1.0
+bpy.context.scene.unit_settings.length_unit = 'METERS'
+
+# Eevee 렌더링 엔진 설정을 적용합니다.
+set_up_eevee_render_engine()
+# 월드 배경을 어둡게 설정합니다.
+set_up_dark_world_background()
+
+# delte objects
+exclude_object_names = ["Oculus_L_05.002"]
+delete_all_objects_except(exclude_object_names)
+
+
+# Simulator
+#########################
+# numpy 배열로부터 좌표 데이터를 가져옵니다.
+model_data = np.array(model_data)
+# led_data를 numpy 배열로 변환합니다.
+led_data = np.array(led_data)
+# 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
+create_mesh_object(model_data, padding=padding)
+# 모델 오브젝트를 찾습니다.
+model_obj = bpy.data.objects['MeshObject']
+create_circle_leds_on_surface(led_data, led_size)
+
+#########################
+
+
+'''
+# Real Controller
+#########################
+create_circle_leds_on_surface(origin_led_data, led_size)
+origin = np.array([0, 0, 0])
+# 이미 생성된 오브젝트를 이름으로 찾습니다.
+torus = bpy.data.objects.get('Oculus_L_05.002')
+for idx, led in enumerate(origin_led_data):
+    p1 = np.array(origin)
+    p2 = np.array(led)
+    draw_line(p1, p2, f"LED_Line_{idx + 1}")
+    intersections = find_intersection(Vector(p1), Vector(p2), torus)
+    if intersections:
+        create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
+#########################
+'''
 
 make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
 make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+
+for i, leds in enumerate(led_data):
+    print(f"{i}, led: {leds}")
+

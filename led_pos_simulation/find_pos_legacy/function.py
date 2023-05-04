@@ -110,6 +110,7 @@ def zoom_factory(ax, base_scale=2.):
 def pickle_data(rw_mode, path, data):
     import pickle
     import gzip
+    print('path', path)
     try:
         if rw_mode == READ:
             with gzip.open(path, 'rb') as f:
