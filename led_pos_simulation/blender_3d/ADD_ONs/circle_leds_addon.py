@@ -8,6 +8,7 @@ import bpy
 import pickle
 import gzip
 from mathutils import Vector, geometry
+import platform
 
 text_objects_hidden = True
 
@@ -47,7 +48,17 @@ class CircleLEDsOperator(bpy.types.Operator):
     def execute(self, context):
         global text_objects_hidden
 
-        pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+        pickle_file = None
+        os_name = platform.system()
+        if os_name == 'Windows':
+            print("This is Windows")
+            pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+        elif os_name == 'Linux':
+            print("This is Linux")
+            pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+        else:
+            print("Unknown OS")
+
 
         with gzip.open(pickle_file, 'rb') as f:
             data = pickle.load(f)

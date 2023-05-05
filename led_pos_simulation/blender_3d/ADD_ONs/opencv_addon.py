@@ -34,7 +34,7 @@ class OpenCVPanel(bpy.types.Panel):
     bl_idname = "OBJECT_PT_opencv_example"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "OpenCV"
+    bl_category = "Tools"
 
     def draw(self, context):
         layout = self.layout

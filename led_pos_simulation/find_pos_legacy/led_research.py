@@ -6,6 +6,8 @@ import os
 import numpy as np
 from enum import Enum, auto
 import math
+import platform
+from scipy.spatial.transform import Rotation as Rot
 
 DONE = 'DONE'
 NOT_SET = 'NOT_SET'
@@ -23,6 +25,7 @@ camera_matrix = [
                [0.0, 0.0, 1.0]], dtype=np.float64),
      np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)]
 ]
+default_dist_coeffs = np.zeros((4, 1))
 
 
 class POSE_ESTIMATION_METHOD(Enum):
@@ -125,7 +128,8 @@ SOLVE_PNP_FUNCTION = {
 
 
 def detect_led_lights(image, threshold=240, padding=5):
-    _, binary_image = cv2.threshold(image, threshold, 255, cv2.THRESH_BINARY)
+    gray_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    _, binary_image = cv2.threshold(gray_img, threshold, 255, cv2.THRESH_BINARY)
     # 이진화된 이미지에서 윤곽선을 찾음
     contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
@@ -137,19 +141,20 @@ def detect_led_lights(image, threshold=240, padding=5):
         w += padding * 2
         h += padding * 2
         # 박스 그리기
-        cv2.rectangle(image, (x, y), (x + w, y + h), (255, 255, 255), 1)
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 1)
         cv2.putText(image, str(idx), (x, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), lineType=cv2.LINE_AA)
 
         blob_info.append([x, y, w, h])
 
-    return image, blob_info
+    return image, binary_image, blob_info
 
 
-def load_images(path):
+def load_data(path):
     image_files = glob.glob(os.path.join(path, "*.png"))
-    images = [cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY) for img in image_files]
-    return images, image_files
+    data_files = glob.glob(os.path.join(path, "*.txt"))
+    images = [cv2.imread(img) for img in image_files]
+    return images, image_files, data_files
 
 
 def find_center(frame, SPEC_AREA):
@@ -179,52 +184,37 @@ def find_center(frame, SPEC_AREA):
     if g_c_x == 0 or g_c_y == 0:
         return 0, 0
     #
-    # result_data_str = ' x ' + f'{g_c_x}' + ' y ' + f'{g_c_y}'
-    # print(result_data_str)
+    result_data_str = ' x ' + f'{g_c_x}' + ' y ' + f'{g_c_y}'
+    print(result_data_str)
 
     return g_c_x, g_c_y
 
-def rotation_matrix_to_euler_angles_degrees(R):
-    sy = np.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
-    singular = sy < 1e-6
 
-    if not singular:
-        x = np.arctan2(R[2, 1], R[2, 2])
-        y = np.arctan2(-R[2, 0], sy)
-        z = np.arctan2(R[1, 0], R[0, 0])
-    else:
-        x = np.arctan2(-R[1, 2], R[1, 1])
-        y = np.arctan2(-R[2, 0], sy)
-        z = 0
+blob_info = [
+    ['CAMERA_0_x90_y0_z90', [5, 14, 6, 12, 7, 8], [1, 3, -1, 2, -1, 0]],
+    ['CAMERA_0_x90_y15_z90', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]],
+    ['CAMERA_0_x75_y14_z85', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]]
 
-    # 각도 단위를 라디안에서 도로 변환
-    x = np.degrees(x)
-    y = np.degrees(y)
-    z = np.degrees(z)
+]
 
-    return np.array([x, y, z])
-
-
-blob_info = [['CAMERA_0_x90_y0_z90_20230504_150458.png', [5, 14, 6, 12, 7, 8], [1, 3, -1, 2, -1, 0]]]
-
-
-def display_images(images, image_files):
+def display_images(images, image_files, data_files):
     index = 0
+    print('data_files\n', data_files)
     while True:
-        blob_img, blob_area = detect_led_lights(images[index], 100, 5)
+        draw_img, blob_img, blob_area = detect_led_lights(images[index], 100, 5)
         # 파일 이름을 이미지 상단에 표시
-        file_name = os.path.basename(image_files[index])
-        cv2.putText(blob_img, file_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-        cv2.imshow("Image Viewer", blob_img)
+        img_name = os.path.basename(image_files[index])
+        cv2.putText(draw_img, img_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
         METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
         for blobs in blob_info:
-            if blobs[0] == file_name:
+            if blobs[0] in img_name:
                 print('START TEST')
                 image_points = []
                 object_points = []
                 for idx, area in enumerate(blob_area):
                     cx, cy = find_center(blob_img, (area[0], area[1], area[2], area[3]))
+                    cv2.circle(draw_img, (int(cx), int(cy)), 1, (0, 0, 0), -1)
                     image_points.append([cx, cy])
                     object_points.append(led_data[blobs[1][idx]])
 
@@ -243,10 +233,11 @@ def display_images(images, image_files):
                 print('point_3d\n', points3D)
                 print('point_2d\n', points2D)
 
-                parsed_array = file_name.split('_')
+                parsed_array = img_name.split('_')
                 cam_id = int(parsed_array[1])
                 camera_k = camera_matrix[cam_id][0]
-                dist_coeff = camera_matrix[cam_id][1]
+                # blender에서 왜곡계수 처리방법 확인중
+                dist_coeff = default_dist_coeffs
                 INPUT_ARRAY = [
                     cam_id,
                     points3D,
@@ -257,8 +248,18 @@ def display_images(images, image_files):
 
                 ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
 
-                print('rvecs\n', rvec)
-                print('tvecs\n', tvec)
+                print('rvecs\n', rvec.ravel())
+                print('tvecs\n', tvec.ravel())
+
+                # 3D 점들을 2D 이미지 평면에 투영
+                image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
+                image_points = np.squeeze(image_points)
+
+                # 투영된 2D 이미지 점 출력
+                print("Projected 2D image points:")
+                print(image_points)
+                for repr_blob in image_points:
+                    cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (0, 0, 255), -1)
 
                 # Extract rotation matrix
                 R, _ = cv2.Rodrigues(rvec)
@@ -290,22 +291,32 @@ def display_images(images, image_files):
                 pan = math.degrees(pan)
                 tilt = math.degrees(tilt)
 
+                roll = -roll
+                pitch = pan
+                yaw = 90 + tilt
+
                 print('world coord info')
                 print('pos', X, Y, Z)
-                print('degrees', 'roll', roll, 'pan', pan, 'tilt', tilt)
-                print('camera coord info')
+                print('degrees', 'roll', -roll, 'pan', pan, 'tilt', tilt)
+                print('Blender XYZ', yaw, roll, pitch)
+                for data_path in data_files:
+                    if blobs[0] in data_path:
+                        projectionMatrix = np.loadtxt(data_path)
+                        intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+                            projectionMatrix)[:3]
+                        camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+                        camR = Rot.from_matrix(rotationMatrix)
+                        blender_tvec = camR.apply(camT.ravel())
+                        blender_rvec = camR.as_rotvec()
+                        print(blender_rvec, blender_tvec)
+                        blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k, dist_coeff)
+                        blender_image_points = np.squeeze(blender_image_points)
+                        print(blender_image_points)
+                        for repr_blob in blender_image_points:
+                            cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (255, 0, 0), -1)
 
-                R_blender = np.array([
-                    [1, 0, 0],
-                    [0, 0, 1],
-                    [0, 1, 0],
-                ])
-                tvec_blender = np.matmul(R_blender, tvec)
-                R_blender = np.matmul(R_blender, np.matmul(R, R_blender.T))
-                euler_angles_degrees = rotation_matrix_to_euler_angles_degrees(R_blender)
-
-                print("Blender Camera Location:", tvec_blender)
-                print("Blender Camera Euler angles (degrees):", euler_angles_degrees)
+        cv2.namedWindow("Image")
+        cv2.imshow("Image", draw_img)
 
         key = cv2.waitKey(0)
         if key == ord('n'):
@@ -321,6 +332,8 @@ def display_images(images, image_files):
 
 
 if __name__ == "__main__":
-    image_path = '/home/rangkast.jeong/render_output/'
-    images, image_files = load_images(image_path)
-    display_images(images, image_files)
+    os_name = platform.system()
+    image_path = '../blender_3d/render_output'
+
+    images, image_files, data_files = load_data(image_path)
+    display_images(images, image_files, data_files)

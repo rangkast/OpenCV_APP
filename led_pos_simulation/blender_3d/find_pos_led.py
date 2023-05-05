@@ -14,6 +14,7 @@ from mathutils import Matrix
 from bpy_extras import mesh_utils
 from math import degrees
 from datetime import datetime
+import platform
 
 
 '''
@@ -197,6 +198,25 @@ def rotation_matrix_to_quaternion(R):
     return np.array([qw, qx, qy, qz])
 
 
+
+def blender_location_rotation_from_opencv(R_OpenCV, T_OpenCV):
+    R, _ = cv2.Rodrigues(R_OpenCV)
+    isCamera = True
+    R_OpenCV_to_BlenderView = np.diag([1 if isCamera else -1, -1, -1])
+
+    R_BlenderView = R_OpenCV_to_BlenderView @ R
+    T_BlenderView = R_OpenCV_to_BlenderView @ T_OpenCV
+
+    # Convert the 3x3 rotation matrix to a quaternion
+    R_BlenderView_np = np.array(R_BlenderView)
+    R_BlenderView_matrix = Matrix(R_BlenderView_np.tolist())
+    rotation = R_BlenderView_matrix.to_quaternion()
+
+    # Calculate the location vector
+    location = -1.0 * R_BlenderView_np.T @ T_BlenderView
+
+    return location, rotation
+
 def calculate_camera_position_direction(rvec, tvec):
     # Extract rotation matrix
     R, _ = cv2.Rodrigues(rvec)
@@ -254,6 +274,16 @@ def calculate_camera_position_direction(rvec, tvec):
 
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pan, tilt)
 
+def get_sensor_fit(sensor_fit, size_x, size_y):
+    if sensor_fit == 'AUTO':
+        if size_x >= size_y:
+            return 'HORIZONTAL'
+        else:
+            return 'VERTICAL'
+    return sensor_fit
+
+
+
 def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     roll = math.radians(-rot[0])
     pitch = math.radians(rot[1])
@@ -266,7 +296,11 @@ def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     if name in bpy.data.objects:
         bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
     
+    # MAKE DEFAULT CAM
+    # bpy.ops.object.camera_add(location=(0.2, 0, 0))
     bpy.ops.object.camera_add(location=(X, Y, Z))
+
+
     cam = bpy.context.active_object
     cam.name = name
     
@@ -279,6 +313,8 @@ def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     cam.rotation_euler = rot_quat.to_euler()
     '''
     # idea 2    
+    # MAKE DEFAULT CAM
+    # cam.rotation_euler = (math.radians(90), math.radians(0), math.radians(90))
     cam.rotation_euler = (yaw, roll, pitch)
         
     # idea 3
@@ -344,16 +380,27 @@ def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     cx = sensor_width_px / 2.0 + cx_px / scale
     cy = sensor_height_px / 2.0 - cy_px / scale
 
-
     # Set the camera parameters
     cam.data.type = 'PERSP'
     cam.data.lens_unit = 'FOV'
     cam.data.angle = 2 * math.atan(sensor_width / (2 * focal_length)) # Field of view in radians
     cam.data.sensor_width = sensor_width
     cam.data.sensor_height = sensor_height
-    cam.data.shift_x = (cx - sensor_width_px / 2.0) / fx_px # Shift in X direction
-    cam.data.shift_y = (cy - sensor_height_px / 2.0) / fy_px # Shift in Y direction
+    
+    scene = bpy.context.scene
+    
+    pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
 
+    view_fac_in_px = sensor_width_px
+
+    
+    # cam.data.shift_x = (cx - sensor_width_px / 2.0) / fx_px # Shift in X direction
+    # cam.data.shift_y = (cy - sensor_height_px / 2.0) / fy_px # Shift in Y direction
+    
+    cam.data.shift_x = (sensor_width_px / 2 - cx_px) / view_fac_in_px    
+    cam.data.shift_y = (cy_px - sensor_height_px / 2) * pixel_aspect_ratio / view_fac_in_px
+ 
+    print('shift_x, shift_y', cam.data.shift_x, cam.data.shift_y)
     return cam
 
 
@@ -492,8 +539,17 @@ origin_led_data = np.array([
     [0.02000199, -0.00388647, -0.014973]
 ])
 
-pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
-# pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+pickle_file = None
+os_name = platform.system()
+if os_name == 'Windows':
+    print("This is Windows")
+    pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+elif os_name == 'Linux':
+    print("This is Linux")
+    pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+else:
+    print("Unknown OS")
+
 
 with gzip.open(pickle_file, 'rb') as f:
     data = pickle.load(f)
@@ -574,7 +630,53 @@ for idx, led in enumerate(origin_led_data):
 '''
 
 make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
-make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+# make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+
+# R_OpenCV_matrix = np.array([[ 0.00999889,  0.99989903,  0.01010004],
+#                             [ 0.01009992,  0.00999907, -0.99989903],
+#                             [-0.99989903,  0.01009992, -0.00999889]])
+
+# T_OpenCV = np.array([-0.00199978, -0.00201998, 0.19997981])
+
+# # Convert R_OpenCV_matrix to Rodrigues representation
+# R_OpenCV, _ = cv2.Rodrigues(R_OpenCV_matrix)
+
+
+cam_o = bpy.data.objects["CAMERA_0"]
+o_loc, o_rot = cam_o.matrix_world.decompose()[:2]
+rotation = cam_o.rotation_quaternion
+location = cam_o.location
+rotation_euler = cam_o.rotation_euler
+# Rad to degrees conversion
+euler_deg = tuple(math.degrees(angle) for angle in rotation_euler)
+quaternion = rotation_euler.to_quaternion()
+print("Euler degrees:", euler_deg)
+print('cam_o')
+print('location', o_loc, location, 'rotation', o_rot, rotation, euler_deg, quaternion)
+
+location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
+print('cam_r')
+print('location:', location)
+print('rotation:', rotation)
+dot_product = quaternion.dot(rotation)
+print('dot_product', dot_product)
+
+# # Create an empty object
+# bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
+# empty_obj = bpy.context.active_object
+
+# # Set the empty object as the parent of the camera
+# camera = bpy.data.objects['CAMERA_0']
+# camera.select_set(True)
+# empty_obj.select_set(True)
+# bpy.context.view_layer.objects.active = empty_obj
+
+# # Add the 'Track To' constraint to the camera
+# track_to_constraint = camera.constraints.new(type='TRACK_TO')
+# track_to_constraint.target = empty_obj
+# track_to_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+# track_to_constraint.up_axis = 'UP_Y'
+
 
 for i, leds in enumerate(led_data):
     print(f"{i}, led: {leds}")
