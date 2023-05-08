@@ -1,8 +1,9 @@
 bl_info = {
-    "name": "Camera Rendering Addon",
+    "name": "Camera Render Addon",
     "blender": (2, 80, 0),
     "category": "Object",
 }
+
 
 import bpy
 import os
@@ -10,6 +11,7 @@ from datetime import datetime
 from math import degrees
 from mathutils import Matrix, Vector
 import numpy as np
+import cv2
 
 camera_matrix = [
     # cam 0
@@ -43,12 +45,6 @@ def get_sensor_fit(sensor_fit, size_x, size_y):
             return 'VERTICAL'
     return sensor_fit
 
-# Build intrinsic camera parameters from Blender camera data
-#
-# See notes on this in 
-# blender.stackexchange.com/questions/15102/what-is-blenders-camera-projection-matrix-model
-# as well as
-# https://blender.stackexchange.com/a/120063/3581
 def get_calibration_matrix_K_from_blender(camd):
     if camd.type != 'PERSP':
         raise ValueError('Non-perspective cameras not supported')
@@ -98,25 +94,27 @@ def get_calibration_matrix_K_from_blender(camd):
     print('K', K)
     return K
 
-# TEST
-def get_3x4_RT_matrix_from_opencv(R_OpenCV, T_OpenCV):
-    R_OpenCV_to_BlenderView = np.diag([1, -1, -1])
+def blender_location_rotation_from_opencv(rvec, tvec, obj):
+    isCamera = (obj.type == 'CAMERA')
+    R_BlenderView_to_OpenCVView = Matrix([
+        [1 if isCamera else -1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+    ])
+    # Convert rvec to rotation matrix
+    R_OpenCV, _ = cv2.Rodrigues(rvec)
+    # Convert OpenCV R|T to Blender R|T
+    R_BlenderView = R_BlenderView_to_OpenCVView @ Matrix(R_OpenCV.tolist())
+    T_BlenderView = R_BlenderView_to_OpenCVView @ Vector(tvec)
 
-    R_BlenderView = R_OpenCV_to_BlenderView @ R_OpenCV
-    T_BlenderView = R_OpenCV_to_BlenderView @ T_OpenCV
+    # Invert rotation matrix
+    R_BlenderView_inv = R_BlenderView.transposed()
+    # Calculate location
+    location = -1.0 * R_BlenderView_inv @ T_BlenderView
+    # Convert rotation matrix to quaternion
+    rotation = R_BlenderView_inv.to_quaternion()
 
-    # Decompose the 3x3 rotation matrix into a quaternion
-    R_BlenderView = Matrix(R_BlenderView.tolist())
-    rotation = R_BlenderView.to_quaternion()
-
-    # Calculate the location vector
-    location = -1.0 * R_BlenderView.transposed() @ T_BlenderView
-
-    print('R_BlenderView', R_BlenderView)
-    print('location', location)
-
-    RT_BlenderView = Matrix(np.column_stack((R_BlenderView, location)))
-    return RT_BlenderView, R_BlenderView, location
+    return location, rotation
 
 def get_3x4_RT_matrix_from_blender(obj):
     isCamera = (obj.type == 'CAMERA')
@@ -135,7 +133,9 @@ def get_3x4_RT_matrix_from_blender(obj):
     R_OpenCV = R_BlenderView_to_OpenCVView @ R_BlenderView
     T_OpenCV = R_BlenderView_to_OpenCVView @ T_BlenderView
     
+    R, _ = cv2.Rodrigues(R_OpenCV)
     print('R_OpenCV', R_OpenCV)
+    print('R_OpenCV(Rod)', R)
     print('T_OpenCV', T_OpenCV)
     
     RT_OpenCV = Matrix(np.column_stack((R_OpenCV, T_OpenCV)))
@@ -167,14 +167,43 @@ def export_object_location_to_opencv(obj_name):
     np.savetxt(file, nT)
     print(f"Saved to: \"{file}\".")
 
-class CameraRenderingOperator(bpy.types.Operator):
-    bl_idname = "object.camera_rendering"
-    bl_label = "Render from Cameras"
+
+def set_mesh_objects_opaque():
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH':
+            for slot in obj.material_slots:
+                if slot.material:
+                    if slot.material.use_nodes:
+                        nodes = slot.material.node_tree.nodes
+                        principled_bsdf = None
+                        for node in nodes:
+                            if node.type == 'BSDF_PRINCIPLED':
+                                principled_bsdf = node
+                                break
+                        if principled_bsdf:
+                            principled_bsdf.inputs['Alpha'].default_value = 1
+
+
+
+def save_viewport_render(context, filepath):
+    # 뷰포트 렌더링 설정
+    render = context.scene.render
+    render.image_settings.file_format = 'PNG'
+    render.use_file_extension = True
+    render.filepath = filepath
+
+    # 뷰포트 렌더링 및 저장
+    bpy.ops.render.opengl(write_still=True)
+
+
+class ButtonAOperator(bpy.types.Operator):
+    bl_idname = "object.button_a"
+    bl_label = "Button A"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     def execute(self, context):
         camera_names = ["CAMERA_0", "CAMERA_1"]
-
+        print('camera render view') 
         for cam_id, camera_name in enumerate(camera_names):
             # 카메라 객체를 선택
             try:
@@ -193,7 +222,9 @@ class CameraRenderingOperator(bpy.types.Operator):
 
                 # 렌더링 설정
                 scene = bpy.context.scene
+                scene.render.engine = 'BLENDER_EEVEE'  # 'CYCLES' 또는 'BLENDER_EEVEE'로 변경 가능
                 scene.camera = camera  # 현재 씬의 카메라로 설정
+
                 # 렌더링 결과를 저장할 경로 지정
                 output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
                 os.makedirs(output_path, exist_ok=True)
@@ -217,24 +248,81 @@ class CameraRenderingOperator(bpy.types.Operator):
 
         return {'FINISHED'}
 
-class CameraRenderingPanel(bpy.types.Panel):
-    bl_label = "Camera Rendering"
-    bl_idname = "OBJECT_PT_camera_rendering"
+
+class ButtonBOperator(bpy.types.Operator):
+    bl_idname = "object.button_b"
+    bl_label = "Button B"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    
+    def execute(self, context):
+            camera_names = ["CAMERA_0", "CAMERA_1"]
+            print('material preview') 
+            for cam_id, camera_name in enumerate(camera_names):
+                # 카메라 객체를 선택
+                try:
+                    camera = bpy.data.objects[camera_name]
+                    print('camera', camera)
+                    # 카메라의 위치와 회전 값을 가져오기
+                    location = camera.location
+                    rotation = camera.rotation_euler
+                    quat = camera.rotation_quaternion
+                    # XYZ 오일러 각도를 degree 단위로 변환
+                    rotation_degrees = tuple(degrees(angle) for angle in rotation)
+                    # 결과 출력
+                    print(f"{camera_name} 위치: ", location)
+                    print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
+                    print(f"{camera_name} XYZ 쿼너티온: ", quat)
+
+                    # 현재 씬의 카메라로 설정
+                    context.scene.camera = camera  
+
+                    # 뷰포트 쉐이딩 설정
+                    shading = context.space_data.shading
+                    shading.type = 'MATERIAL'  # 머티리얼 프리뷰 모드로 설정
+
+                    # 렌더링 결과를 저장할 경로 지정
+                    output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
+                    os.makedirs(output_path, exist_ok=True)
+
+                    # 현재 시간에 대한 타임스탬프 생성
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    # 렌더링 결과 이미지 파일명 설정
+                    filename = f"{camera_name}_MATERIAL_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
+                    filepath = os.path.join(output_path, filename + ".png")
+
+                    # 뷰포트 렌더링 및 저장
+                    save_viewport_render(context, filepath)
+                    # export_camera_to_opencv(camera_name, output_path, filename)
+                    # export_object_location_to_opencv('MeshObject')
+                except KeyError:
+                    print('camera not found', camera_name)            
+
+            return {'FINISHED'}
+
+
+
+class OpenCVPanel(bpy.types.Panel):
+    bl_label = "Camera Render"
+    bl_idname = "OBJECT_PT_opencv_example"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "Tools"
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("object.camera_rendering", text="Render from Cameras")
+        layout.operator("object.button_a", text="render view")
+        layout.operator("object.button_b", text="material view")
 
 def register():
-    bpy.utils.register_class(CameraRenderingOperator)
-    bpy.utils.register_class(CameraRenderingPanel)
+    bpy.utils.register_class(ButtonAOperator)
+    bpy.utils.register_class(ButtonBOperator)
+    bpy.utils.register_class(OpenCVPanel)
 
 def unregister():
-    bpy.utils.unregister_class(CameraRenderingOperator)
-    bpy.utils.unregister_class(CameraRenderingPanel)
+    bpy.utils.unregister_class(ButtonAOperator)
+    bpy.utils.unregister_class(ButtonBOperator)
+    bpy.utils.unregister_class(OpenCVPanel)
 
 if __name__ == "__main__":
     register()

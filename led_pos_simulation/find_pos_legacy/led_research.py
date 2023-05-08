@@ -193,140 +193,119 @@ def find_center(frame, SPEC_AREA):
 blob_info = [
     ['CAMERA_0_x90_y0_z90', [5, 14, 6, 12, 7, 8], [1, 3, -1, 2, -1, 0]],
     ['CAMERA_0_x90_y15_z90', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]],
-    ['CAMERA_0_x75_y14_z85', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]]
+    ['CAMERA_0_x74_y15_z84', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]]
 
 ]
-
 def display_images(images, image_files, data_files):
     index = 0
     print('data_files\n', data_files)
+    print('image_files\n', image_files)
     while True:
-        draw_img, blob_img, blob_area = detect_led_lights(images[index], 100, 5)
+        # draw_img, blob_img, blob_area = detect_led_lights(images[index], 100, 5)
         # 파일 이름을 이미지 상단에 표시
         img_name = os.path.basename(image_files[index])
-        cv2.putText(draw_img, img_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-
-        for blobs in blob_info:
-            if blobs[0] in img_name:
-                print('START TEST')
-                image_points = []
-                object_points = []
-                for idx, area in enumerate(blob_area):
-                    cx, cy = find_center(blob_img, (area[0], area[1], area[2], area[3]))
-                    cv2.circle(draw_img, (int(cx), int(cy)), 1, (0, 0, 0), -1)
-                    image_points.append([cx, cy])
-                    object_points.append(led_data[blobs[1][idx]])
-
-                points2D = [None] * (len(blobs[2]) - blobs[2].count(-1))
-                for idx, val in enumerate(blobs[2]):
-                    if val != -1:
-                        points2D[val] = image_points[idx]
-
-                points3D = [None] * (len(blobs[2]) - blobs[2].count(-1))
-                for idx, val in enumerate(blobs[2]):
-                    if val != -1:
-                        points3D[val] = object_points[idx]
-
-                points2D = np.array(points2D, dtype=np.float64)
-                points3D = np.array(points3D, dtype=np.float64)
-                print('point_3d\n', points3D)
-                print('point_2d\n', points2D)
-
-                parsed_array = img_name.split('_')
-                cam_id = int(parsed_array[1])
-                camera_k = camera_matrix[cam_id][0]
-                # blender에서 왜곡계수 처리방법 확인중
-                dist_coeff = default_dist_coeffs
-                INPUT_ARRAY = [
-                    cam_id,
-                    points3D,
-                    points2D,
-                    camera_k,
-                    dist_coeff
-                ]
-
-                ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-
-                print('rvecs\n', rvec.ravel())
-                print('tvecs\n', tvec.ravel())
-
-                # 3D 점들을 2D 이미지 평면에 투영
-                image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
-                image_points = np.squeeze(image_points)
-
-                # 투영된 2D 이미지 점 출력
-                print("Projected 2D image points:")
-                print(image_points)
-                for repr_blob in image_points:
-                    cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (0, 0, 255), -1)
-
-                # Extract rotation matrix
-                R, _ = cv2.Rodrigues(rvec)
-                R_inv = np.linalg.inv(R)
-                # Camera position (X, Y, Z)
-                Cam_pos = -R_inv @ tvec
-                X, Y, Z = Cam_pos.ravel()
-                unit_z = np.array([0, 0, 1])
-
-                Zc = np.reshape(unit_z, (3, 1))
-                Zw = np.dot(R_inv, Zc)  # world coordinate of optical axis
-                zw = Zw.ravel()
-
-                pan = np.arctan2(zw[1], zw[0]) - np.pi / 2
-                tilt = np.arctan2(zw[2], np.sqrt(zw[0] * zw[0] + zw[1] * zw[1]))
-
-                # roll
-                unit_x = np.array([1, 0, 0])
-                Xc = np.reshape(unit_x, (3, 1))
-                Xw = np.dot(R_inv, Xc)  # world coordinate of camera X axis
-                xw = Xw.ravel()
-                xpan = np.array([np.cos(pan), np.sin(pan), 0])
-
-                roll = np.arccos(np.dot(xw, xpan))  # inner product
-                if xw[2] < 0:
-                    roll = -roll
-
-                roll = math.degrees(roll)
-                pan = math.degrees(pan)
-                tilt = math.degrees(tilt)
-
-                roll = -roll
-                pitch = pan
-                yaw = 90 + tilt
-
-                print('world coord info')
-                print('pos', X, Y, Z)
-                print('degrees', 'roll', -roll, 'pan', pan, 'tilt', tilt)
-                print('Blender XYZ', yaw, roll, pitch)
-                for data_path in data_files:
-                    if blobs[0] in data_path:
-                        projectionMatrix = np.loadtxt(data_path)
-                        intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
-                            projectionMatrix)[:3]
-                        camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
-                        camR = Rot.from_matrix(rotationMatrix)
-                        blender_tvec = camR.apply(camT.ravel())
-                        blender_rvec = camR.as_rotvec()
-                        print(blender_rvec, blender_tvec)
-                        blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k, dist_coeff)
-                        blender_image_points = np.squeeze(blender_image_points)
-                        print(blender_image_points)
-                        for repr_blob in blender_image_points:
-                            cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (255, 0, 0), -1)
-
-        cv2.namedWindow("Image")
-        cv2.imshow("Image", draw_img)
-
         key = cv2.waitKey(0)
+
         if key == ord('n'):
             index += 1
             if index >= len(images):
                 print('end of files')
                 break
+        elif key == ord('c'):
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+            draw_img = images[index].copy()
+            draw_img, blob_img, blob_area = detect_led_lights(draw_img, 100, 5)
+            cv2.putText(draw_img, img_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+            for blobs in blob_info:
+                if blobs[0] in img_name:
+                    print('START TEST')
+                    image_points = []
+                    object_points = []
+                    for idx, area in enumerate(blob_area):
+                        cx, cy = find_center(blob_img, (area[0], area[1], area[2], area[3]))
+                        cv2.circle(draw_img, (int(cx), int(cy)), 1, (0, 0, 0), -1)
+                        image_points.append([cx, cy])
+                        object_points.append(led_data[blobs[1][idx]])
+
+                    points2D = [None] * (len(blobs[2]) - blobs[2].count(-1))
+                    for idx, val in enumerate(blobs[2]):
+                        if val != -1:
+                            points2D[val] = image_points[idx]
+
+                    points3D = [None] * (len(blobs[2]) - blobs[2].count(-1))
+                    for idx, val in enumerate(blobs[2]):
+                        if val != -1:
+                            points3D[val] = object_points[idx]
+
+                    points2D = np.array(points2D, dtype=np.float64)
+                    points3D = np.array(points3D, dtype=np.float64)
+                    print('point_3d\n', points3D)
+                    print('point_2d\n', points2D)
+
+                    parsed_array = img_name.split('_')
+                    cam_id = int(parsed_array[1])
+                    camera_k = camera_matrix[cam_id][0]
+
+                    # blender에서 왜곡계수 처리방법 확인중
+                    dist_coeff = default_dist_coeffs
+
+                    INPUT_ARRAY = [
+                        cam_id,
+                        points3D,
+                        points2D,
+                        camera_k,
+                        dist_coeff
+                    ]
+
+                    ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+
+                    print('RT from OpenCV SolvePnP')
+                    print('rvecs\n', rvec.ravel())
+                    print('tvecs\n', tvec.ravel())
+
+                    # 3D 점들을 2D 이미지 평면에 투영
+                    image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
+                    image_points = np.squeeze(image_points)
+
+                    # 투영된 2D 이미지 점 출력
+                    print("Projected 2D image points:")
+                    print(image_points)
+
+                    # 빨간색점은 opencv pose-estimation 투영 결과
+                    for repr_blob in image_points:
+                        cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (0, 0, 255), -1)
+
+                    # data load from add on
+                    for data_path in data_files:
+                        if blobs[0] in data_path:
+                            projectionMatrix = np.loadtxt(data_path)
+                            intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+                                projectionMatrix)[:3]
+                            camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+                            camR = Rot.from_matrix(rotationMatrix)
+                            blender_tvec = camR.apply(camT.ravel())
+                            blender_rvec = camR.as_rotvec()
+                            print('RT from Blender to Opencv')
+                            print('rvecs\n', blender_rvec)
+                            print('tvecs\n', blender_tvec)
+                            blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
+                                                                        dist_coeff)
+                            blender_image_points = np.squeeze(blender_image_points)
+                            print("Projected 2D image points:")
+                            print(blender_image_points)
+                            for repr_blob in blender_image_points:
+                                cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (255, 0, 0), -1)
+
+                    cv2.namedWindow("Processed Image")
+                    cv2.imshow("Processed Image", draw_img)
+
         elif key & 0xFF == 27:
             print('ESC pressed')
             break
+
+        cv2.namedWindow("Image")
+        cv2.imshow("Image", images[index])
 
     cv2.destroyAllWindows()
 

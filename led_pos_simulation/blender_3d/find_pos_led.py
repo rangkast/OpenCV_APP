@@ -72,8 +72,8 @@ def create_mesh_object(coords, name="MeshObject", padding=0.0):
 
   # 기존 Principled BSDF 노드의 설정을 변경합니다.
     principled_node.inputs["Base Color"].default_value = (0.1, 0.1, 0.1, 1)  # 짙은 회색
-    principled_node.inputs["Alpha"].default_value = 0.5  # 알파 값 변경 (1.0로 설정)
-    principled_node.inputs["Transmission"].default_value = 0.5  # 빛 투과값 설정 (1.0로 설정)
+    principled_node.inputs["Alpha"].default_value = 1.0  # 알파 값 변경 (1.0로 설정)
+    principled_node.inputs["Transmission"].default_value = 1.0  # 빛 투과값 설정 (1.0로 설정)
     principled_node.inputs["IOR"].default_value = 1.0  # 굴절률 설정 (1.0로 설정)
 
     # 블렌드 모드 설정
@@ -199,23 +199,51 @@ def rotation_matrix_to_quaternion(R):
 
 
 
-def blender_location_rotation_from_opencv(R_OpenCV, T_OpenCV):
-    R, _ = cv2.Rodrigues(R_OpenCV)
-    isCamera = True
-    R_OpenCV_to_BlenderView = np.diag([1 if isCamera else -1, -1, -1])
+# def blender_location_rotation_from_opencv(R_OpenCV, T_OpenCV):
+#     R, _ = cv2.Rodrigues(R_OpenCV)
+#     isCamera = True
+#     R_OpenCV_to_BlenderView = np.diag([1 if isCamera else -1, -1, -1])
 
-    R_BlenderView = R_OpenCV_to_BlenderView @ R
-    T_BlenderView = R_OpenCV_to_BlenderView @ T_OpenCV
+#     print('R_OpenCV_to_BlenderView', R_OpenCV_to_BlenderView)
+#     R_BlenderView = R_OpenCV_to_BlenderView @ R
+#     T_BlenderView = R_OpenCV_to_BlenderView @ T_OpenCV
 
-    # Convert the 3x3 rotation matrix to a quaternion
-    R_BlenderView_np = np.array(R_BlenderView)
-    R_BlenderView_matrix = Matrix(R_BlenderView_np.tolist())
-    rotation = R_BlenderView_matrix.to_quaternion()
+#     # Convert the 3x3 rotation matrix to a quaternion
+#     R_BlenderView_np = np.array(R_BlenderView)
+#     R_BlenderView_matrix = Matrix(R_BlenderView_np.tolist())
+#     rotation = R_BlenderView_matrix.to_quaternion()
 
-    # Calculate the location vector
-    location = -1.0 * R_BlenderView_np.T @ T_BlenderView
+#     # Calculate the location vector
+#     location = -1.0 * R_BlenderView_np.T @ T_BlenderView
+
+#     return location, rotation
+
+
+def blender_location_rotation_from_opencv(rvec, tvec, isCamera=True):
+    R_BlenderView_to_OpenCVView = Matrix([
+        [1 if isCamera else -1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+    ])
+
+    # Convert rvec to rotation matrix
+    R_OpenCV, _ = cv2.Rodrigues(rvec)
+
+    # Convert OpenCV R|T to Blender R|T
+    R_BlenderView = R_BlenderView_to_OpenCVView @ Matrix(R_OpenCV.tolist())
+    T_BlenderView = R_BlenderView_to_OpenCVView @ Vector(tvec)
+
+    # Invert rotation matrix
+    R_BlenderView_inv = R_BlenderView.transposed()
+
+    # Calculate location
+    location = -1.0 * R_BlenderView_inv @ T_BlenderView
+
+    # Convert rotation matrix to quaternion
+    rotation = R_BlenderView_inv.to_quaternion()
 
     return location, rotation
+
 
 def calculate_camera_position_direction(rvec, tvec):
     # Extract rotation matrix
@@ -284,14 +312,15 @@ def get_sensor_fit(sensor_fit, size_x, size_y):
 
 
 
-def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
-    roll = math.radians(-rot[0])
-    pitch = math.radians(rot[1])
-    yaw = math.radians(90 + rot[2])
-
+def create_camera(camera_f, camera_c, cam_location, name, rot):
+    # roll = math.radians(-rot[0])
+    # pitch = math.radians(rot[1])
+    # yaw = math.radians(90 + rot[2])
+    rotation = quaternion_to_euler_degree(rot)
+    print('euler(degree)', rotation)
 
     X, Y, Z = cam_location
-    print('pos', X, Y, Z)
+    print('position', X, Y, Z)
     # Remove existing camera
     if name in bpy.data.objects:
         bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
@@ -314,8 +343,8 @@ def create_camera(camera_f, camera_c, cam_location, direction, name, rot):
     '''
     # idea 2    
     # MAKE DEFAULT CAM
-    # cam.rotation_euler = (math.radians(90), math.radians(0), math.radians(90))
-    cam.rotation_euler = (yaw, roll, pitch)
+    cam.rotation_euler = (math.radians(rotation[0]), math.radians(rotation[1]), math.radians(rotation[2]))
+    # cam.rotation_euler = (yaw, roll, pitch)
         
     # idea 3
     '''
@@ -466,14 +495,12 @@ def create_direction_point(start_location, direction, point_name="DirectionPoint
 
 
 def make_cameras(camera_name, rvec, tvec, camera_matrix):
-    position, direction, rot = calculate_camera_position_direction(rvec, tvec)
-
+    # position, direction, rot = calculate_camera_position_direction(rvec, tvec)
+    position, rotation = blender_location_rotation_from_opencv(rvec, tvec)
     # print(position, direction)
-
-    point_obj = create_point(position)
-    direction_point_obj = create_direction_point(position, direction, scale=2.0)
-
-    camera = create_camera(camera_matrix['camera_f'], camera_matrix['camera_c'], position, direction, camera_name, rot)    
+    # point_obj = create_point(position)
+    # direction_point_obj = create_direction_point(position, direction, scale=2.0)
+    camera = create_camera(camera_matrix['camera_f'], camera_matrix['camera_c'], position, camera_name, rotation)    
 #    plot_camera(position, direction, save_path='./camera_plot.png')
 
 
@@ -512,7 +539,14 @@ def find_intersection(p1, p2, obj, epsilon=1e-8):
 
     return intersections
 
+def quaternion_to_euler_degree(quaternion):
+    # Convert quaternion to Euler rotation (radians)
+    euler_rad = quaternion.to_euler()
 
+    # Convert radians to degrees
+    euler_deg = Vector([math.degrees(axis) for axis in euler_rad])
+
+    return euler_deg
 
 
 '''
@@ -567,21 +601,15 @@ default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572]}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618]}
 
-# left
-rvec_left = np.array([ 0.92258546, -0.31966116,  1.53042547])
-tvec_left = np.array([-0.10226342,  0.21217596,  0.45900419])
-
-# right
-rvec_right = np.array([ 0.82721212, -1.71101202,  0.74346322])
-tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
-
 # 카메라 해상도 설정 (예: 1920x1080)
 bpy.context.scene.render.resolution_x = 1280
 bpy.context.scene.render.resolution_y = 960
 # 렌더링 결과의 픽셀 밀도를 100%로 설정 (기본값은 50%)
 bpy.context.scene.render.resolution_percentage = 100
-bpy.context.scene.render.engine = 'CYCLES'
-bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
+bpy.context.scene.render.film_transparent = False  # 렌더링 배경을 불투명하게 설정
+
+# bpy.context.scene.render.engine = 'CYCLES'
+# bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
 bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
 bpy.context.scene.unit_settings.system = 'METRIC'
 bpy.context.scene.unit_settings.scale_length = 1.0
@@ -608,7 +636,6 @@ create_mesh_object(model_data, padding=padding)
 # 모델 오브젝트를 찾습니다.
 model_obj = bpy.data.objects['MeshObject']
 create_circle_leds_on_surface(led_data, led_size)
-
 #########################
 
 
@@ -623,43 +650,63 @@ for idx, led in enumerate(origin_led_data):
     p1 = np.array(origin)
     p2 = np.array(led)
     draw_line(p1, p2, f"LED_Line_{idx + 1}")
-    intersections = find_intersection(Vector(p1), Vector(p2), torus)
-    if intersections:
-        create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
+    # intersections = find_intersection(Vector(p1), Vector(p2), torus)
+    # if intersections:
+    #     create_sphere(intersections[0], 0.002, f"Intersection_Sphere_{idx + 1}")
 #########################
 '''
 
+################### TESTTESTEST
+
+# # left
+# rvec_left = np.array([ 0.92258546, -0.31966116,  1.53042547])
+# tvec_left = np.array([-0.10226342,  0.21217596,  0.45900419])
+
+# # right
+# rvec_right = np.array([ 0.82721212, -1.71101202,  0.74346322])
+# tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
+
+
+# rvec_left = np.array([ 1.20919984, 1.20919951, -1.20919951])
+# tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
+
+
+# rvec_left = np.array([ 0.86169575,  1.24800253,-0.60853284])
+# tvec_left = np.array([-0.04647554, -0.01131148,  0.19419597])
+
+rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
+tvec_left = np.array([-0.111,  0.052,  0.337])
+
+# location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
+
 make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
 # make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+# euler_deg = quaternion_to_euler_degree(rotation)
 
-# R_OpenCV_matrix = np.array([[ 0.00999889,  0.99989903,  0.01010004],
-#                             [ 0.01009992,  0.00999907, -0.99989903],
-#                             [-0.99989903,  0.01009992, -0.00999889]])
+# print('cam_remake')
+# print('location:', location)
+# print('rotation:', rotation, 'quat', euler_deg)
 
-# T_OpenCV = np.array([-0.00199978, -0.00201998, 0.19997981])
+# cam_o = bpy.data.objects["CAMERA_0"]
+# o_loc, o_rot = cam_o.matrix_world.decompose()[:2]
+# rotation = cam_o.rotation_quaternion
+# location = cam_o.location
+# rotation_euler = cam_o.rotation_euler
+# # Rad to degrees conversion
+# euler_deg = tuple(math.degrees(angle) for angle in rotation_euler)
+# quaternion = rotation_euler.to_quaternion()
+# print("Euler degrees:", euler_deg)
+# print('cam_origin')
+# print('location', o_loc, location, 'rotation', o_rot, rotation, euler_deg, quaternion)
 
-# # Convert R_OpenCV_matrix to Rodrigues representation
-# R_OpenCV, _ = cv2.Rodrigues(R_OpenCV_matrix)
+# 변환: Quaternion -> Euler degrees
+# euler_deg = quaternion_to_euler_degree(rotation)
+# print('cam_remake')
+# print('location:', location)
+# print('rotation:', rotation, 'quat', euler_deg)
+# dot_product = quaternion.dot(rotation)
+# print('dot_product', dot_product)
 
-
-cam_o = bpy.data.objects["CAMERA_0"]
-o_loc, o_rot = cam_o.matrix_world.decompose()[:2]
-rotation = cam_o.rotation_quaternion
-location = cam_o.location
-rotation_euler = cam_o.rotation_euler
-# Rad to degrees conversion
-euler_deg = tuple(math.degrees(angle) for angle in rotation_euler)
-quaternion = rotation_euler.to_quaternion()
-print("Euler degrees:", euler_deg)
-print('cam_o')
-print('location', o_loc, location, 'rotation', o_rot, rotation, euler_deg, quaternion)
-
-location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
-print('cam_r')
-print('location:', location)
-print('rotation:', rotation)
-dot_product = quaternion.dot(rotation)
-print('dot_product', dot_product)
 
 # # Create an empty object
 # bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
