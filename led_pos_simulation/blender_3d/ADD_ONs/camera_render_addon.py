@@ -135,7 +135,7 @@ def get_3x4_RT_matrix_from_blender(obj):
     
     R, _ = cv2.Rodrigues(R_OpenCV)
     print('R_OpenCV', R_OpenCV)
-    print('R_OpenCV(Rod)', R)
+    print('R_OpenCV(Rod)', R.ravel())
     print('T_OpenCV', T_OpenCV)
     
     RT_OpenCV = Matrix(np.column_stack((R_OpenCV, T_OpenCV)))
@@ -195,6 +195,21 @@ def save_viewport_render(context, filepath):
     # 뷰포트 렌더링 및 저장
     bpy.ops.render.opengl(write_still=True)
 
+def get_objects_with_name(name_pattern):
+    
+    for obj in bpy.data.objects:
+        if name_pattern in obj.name:
+            return obj.name
+            
+    return None
+
+
+def get_suffix_from_name(name, delimiter='_'):
+    if delimiter not in name:
+        raise ValueError(f"The delimiter '{delimiter}' is not present in the name '{name}'")
+    
+    return name.split(delimiter)[-1]
+
 
 class ButtonAOperator(bpy.types.Operator):
     bl_idname = "object.button_a"
@@ -203,7 +218,13 @@ class ButtonAOperator(bpy.types.Operator):
 
     def execute(self, context):
         camera_names = ["CAMERA_0", "CAMERA_1"]
-        print('camera render view') 
+        print('camera render view')
+
+        name_pattern = "MeshObject"
+        matched_objects = get_objects_with_name(name_pattern)
+        suffix = get_suffix_from_name(matched_objects)
+        print('suffix', suffix)
+
         for cam_id, camera_name in enumerate(camera_names):
             # 카메라 객체를 선택
             try:
@@ -232,7 +253,7 @@ class ButtonAOperator(bpy.types.Operator):
                 # 현재 시간에 대한 타임스탬프 생성
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 # 렌더링 결과 이미지 파일명 설정
-                filename = f"{camera_name}_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
+                filename = f"{camera_name}_{suffix}_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
                 scene.render.filepath = os.path.join(output_path, filename + ".png")
 
                 # path = bpy.path.abspath("//")
@@ -258,6 +279,11 @@ class ButtonBOperator(bpy.types.Operator):
     def execute(self, context):
             camera_names = ["CAMERA_0", "CAMERA_1"]
             print('material preview') 
+            name_pattern = "MeshObject"
+            matched_objects = get_objects_with_name(name_pattern)
+            suffix = get_suffix_from_name(matched_objects)
+            print('suffix', suffix)
+
             for cam_id, camera_name in enumerate(camera_names):
                 # 카메라 객체를 선택
                 try:
@@ -288,7 +314,7 @@ class ButtonBOperator(bpy.types.Operator):
                     # 현재 시간에 대한 타임스탬프 생성
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     # 렌더링 결과 이미지 파일명 설정
-                    filename = f"{camera_name}_MATERIAL_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
+                    filename = f"{camera_name}_{suffix}_MATERIAL_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
                     filepath = os.path.join(output_path, filename + ".png")
 
                     # 뷰포트 렌더링 및 저장

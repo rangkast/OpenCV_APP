@@ -192,7 +192,6 @@ def check_facing_dot(camera_pos, leds_coords, angle_spec):
 
 
 
-
 def sequential_closest_distances(coords):
     visited_indices = [0]
     current_idx = 0
@@ -244,6 +243,7 @@ def draw_sequential_closest_lines(ax, led_coords_o):
             linestyle='--'
         )
         current_idx = closest_idx
+
 
 def select_points(coords, num_leds, min_start_distance=0):
     if num_leds > coords.shape[0]:

@@ -8,6 +8,8 @@ from enum import Enum, auto
 import math
 import platform
 from scipy.spatial.transform import Rotation as Rot
+from function import *
+from definition import *
 
 DONE = 'DONE'
 NOT_SET = 'NOT_SET'
@@ -184,7 +186,8 @@ def find_center(frame, SPEC_AREA):
     if g_c_x == 0 or g_c_y == 0:
         return 0, 0
     #
-    result_data_str = ' x ' + f'{g_c_x}' + ' y ' + f'{g_c_y}'
+
+    result_data_str = f'{g_c_x}' + f'{g_c_y}'
     print(result_data_str)
 
     return g_c_x, g_c_y
@@ -193,8 +196,8 @@ def find_center(frame, SPEC_AREA):
 blob_info = [
     ['CAMERA_0_x90_y0_z90', [5, 14, 6, 12, 7, 8], [1, 3, -1, 2, -1, 0]],
     ['CAMERA_0_x90_y15_z90', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]],
-    ['CAMERA_0_x74_y15_z84', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]]
-
+    ['CAMERA_0_x74_y15_z84', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]],
+    ['CAMERA_0_cylinder_x89_y0_z89', [0, 11, 9, -1, -1, 10, 5, 4], [0, -1, 3, -1, -1, 1, -1, 2]]
 ]
 def display_images(images, image_files, data_files):
     index = 0
@@ -212,7 +215,7 @@ def display_images(images, image_files, data_files):
                 print('end of files')
                 break
         elif key == ord('c'):
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
             draw_img = images[index].copy()
             draw_img, blob_img, blob_area = detect_led_lights(draw_img, 100, 5)
             cv2.putText(draw_img, img_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
@@ -267,7 +270,7 @@ def display_images(images, image_files, data_files):
                     # 3D 점들을 2D 이미지 평면에 투영
                     image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
                     image_points = np.squeeze(image_points)
-
+                    plt.scatter(image_points[:, 0], image_points[:, 1], c='red', label='OpenCV')
                     # 투영된 2D 이미지 점 출력
                     print("Projected 2D image points:")
                     print(image_points)
@@ -292,13 +295,38 @@ def display_images(images, image_files, data_files):
                             blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
                                                                         dist_coeff)
                             blender_image_points = np.squeeze(blender_image_points)
+                            plt.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue', label='Blender')
+
                             print("Projected 2D image points:")
                             print(blender_image_points)
                             for repr_blob in blender_image_points:
                                 cv2.circle(draw_img, (int(repr_blob[0]), int(repr_blob[1])), 1, (255, 0, 0), -1)
+                    # 각 점에 레이블 표시
+                    for i, (x, y) in enumerate(image_points):
+                        plt.text(x, y, f'{i}', fontsize=12, ha='right', va='bottom')
 
-                    cv2.namedWindow("Processed Image")
-                    cv2.imshow("Processed Image", draw_img)
+                    for i, (x, y) in enumerate(blender_image_points):
+                        plt.text(x, y, f'{i}', fontsize=12, ha='right', va='bottom')
+
+                    # 좌표 사이의 거리를 직선으로 표시
+                    for a, b in zip(image_points, blender_image_points):
+                        plt.plot([a[0], b[0]], [a[1], b[1]], linestyle=':', color='green', alpha=0.6)
+                        distance = np.linalg.norm(a - b)
+                        midpoint = (a + b) / 2
+                        plt.text(midpoint[0], midpoint[1], f"{distance:.2f}", fontsize=12, ha='right', va='bottom',
+                                 color='green', alpha=0.6)
+
+                    plt.xlabel('X-axis')
+                    plt.ylabel('Y-axis')
+                    plt.title('Plot of Coordinate Groups A and B')
+                    plt.legend()
+                    plt.grid()
+                    # Y축 방향 반전
+                    plt.gca().invert_yaxis()
+
+                cv2.namedWindow("Processed Image")
+                cv2.imshow("Processed Image", draw_img)
+                plt.show()
 
         elif key & 0xFF == 27:
             print('ESC pressed')

@@ -26,7 +26,7 @@ def delete_all_objects_except(exclude_object_names):
         if obj.name not in exclude_object_names:
             bpy.data.objects.remove(obj, do_unlink=True)
 
-def create_mesh_object(coords, name="MeshObject", padding=0.0):
+def create_mesh_object(coords, name, padding=0.0):
     # 새로운 메시를 생성하고 이름을 설정합니다.
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
@@ -93,16 +93,23 @@ def create_mesh_object(coords, name="MeshObject", padding=0.0):
     return obj
 
 
-def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
+def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"):
     led_objects = []
-    distance_to_o = led_size * 2/3
-    text_distance = led_size * -3
+
     for i, coord in enumerate(led_coords):
         # LED 오브젝트의 위치를 조정합니다.
         normalized_direction = Vector(coord).normalized()
-        location = [coord[0] - distance_to_o * normalized_direction.x,
-                    coord[1] - distance_to_o * normalized_direction.y,
-                    coord[2] - distance_to_o * normalized_direction.z]
+        if shape == 'sphere':
+            distance_to_o = led_size * 2/3
+            location = [coord[0] - distance_to_o * normalized_direction.x,
+                        coord[1] - distance_to_o * normalized_direction.y,
+                        coord[2] - distance_to_o * normalized_direction.z]
+        elif shape == 'cylinder':
+            distance_to_o = led_size * 1/2
+            location = [coord[0] - distance_to_o * normalized_direction.x,
+                        coord[1] - distance_to_o * normalized_direction.y,
+                        coord[2]]
+
         bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=led_size, location=location)
         led_obj = bpy.context.active_object
         led_obj.name = f"{name_prefix}_{i}"
@@ -131,25 +138,25 @@ def create_circle_leds_on_surface(led_coords, led_size, name_prefix="LED"):
 
     return led_objects
 
-def create_circle_leds_with_light_on_surface(led_coords, led_size, mesh_obj, led_power=100, name_prefix="LED"):
-    led_objects = create_circle_leds_on_surface(led_coords, led_size, name_prefix)
+# def create_circle_leds_with_light_on_surface(led_coords, led_size, mesh_obj, led_power=100, name_prefix="LED"):
+#     led_objects = create_circle_leds_on_surface(led_coords, led_size, name_prefix)
     
-    for i, led_obj in enumerate(led_objects):
-        # 빛을 생성합니다.
-        light_data = bpy.data.lights.new(name=f"Light_{i}", type='POINT')
-        light_data.energy = led_power
+#     for i, led_obj in enumerate(led_objects):
+#         # 빛을 생성합니다.
+#         light_data = bpy.data.lights.new(name=f"Light_{i}", type='POINT')
+#         light_data.energy = led_power
 
-        # 빛을 LED 오브젝트에 넣습니다.
-        light_obj = bpy.data.objects.new(name=f"Light_{i}", object_data=light_data)
-        bpy.context.collection.objects.link(light_obj)
+#         # 빛을 LED 오브젝트에 넣습니다.
+#         light_obj = bpy.data.objects.new(name=f"Light_{i}", object_data=light_data)
+#         bpy.context.collection.objects.link(light_obj)
         
-        # 빛을 LED 위치로 이동합니다.
-        light_obj.location = led_obj.location
+#         # 빛을 LED 위치로 이동합니다.
+#         light_obj.location = led_obj.location
 
-        # 빛을 메시 오브젝트 표면의 조금 안쪽으로 옮깁니다.
-        light_obj.location -= (mesh_obj.location - led_obj.location).normalized() * 0.01
+#         # 빛을 메시 오브젝트 표면의 조금 안쪽으로 옮깁니다.
+#         light_obj.location -= (mesh_obj.location - led_obj.location).normalized() * 0.01
 
-    return led_objects
+#     return led_objects
 
 
 
@@ -573,14 +580,24 @@ origin_led_data = np.array([
     [0.02000199, -0.00388647, -0.014973]
 ])
 
+# shape = 'plane'
+# shape = 'sphere'
+shape = 'cylinder'
+
 pickle_file = None
 os_name = platform.system()
 if os_name == 'Windows':
     print("This is Windows")
-    pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+    if shape == 'sphere':
+        pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+    elif shape == 'cylinder':
+        pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
 elif os_name == 'Linux':
     print("This is Linux")
-    pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+    if shape == 'sphere':
+        pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+    elif shape == 'cylinder':
+        pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
 else:
     print("Unknown OS")
 
@@ -624,6 +641,7 @@ set_up_dark_world_background()
 exclude_object_names = ["Oculus_L_05.002"]
 delete_all_objects_except(exclude_object_names)
 
+MESH_OBJ_NAME = 'MeshObject_' + f'{shape}'
 
 # Simulator
 #########################
@@ -632,10 +650,10 @@ model_data = np.array(model_data)
 # led_data를 numpy 배열로 변환합니다.
 led_data = np.array(led_data)
 # 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
-create_mesh_object(model_data, padding=padding)
+create_mesh_object(model_data, name=MESH_OBJ_NAME,  padding=padding)
 # 모델 오브젝트를 찾습니다.
-model_obj = bpy.data.objects['MeshObject']
-create_circle_leds_on_surface(led_data, led_size)
+model_obj = bpy.data.objects[MESH_OBJ_NAME]
+create_circle_leds_on_surface(led_data, led_size, shape)
 #########################
 
 
@@ -666,16 +684,17 @@ for idx, led in enumerate(origin_led_data):
 # rvec_right = np.array([ 0.82721212, -1.71101202,  0.74346322])
 # tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
 
-
-# rvec_left = np.array([ 1.20919984, 1.20919951, -1.20919951])
-# tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
+# 0.2, 0, 0
+# 90, 0, 90
+rvec_left = np.array([ 1.20919984, 1.20919951, -1.20919951])
+tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
 
 
 # rvec_left = np.array([ 0.86169575,  1.24800253,-0.60853284])
 # tvec_left = np.array([-0.04647554, -0.01131148,  0.19419597])
 
-rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
-tvec_left = np.array([-0.111,  0.052,  0.337])
+# rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
+# tvec_left = np.array([-0.111,  0.052,  0.337])
 
 # location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
 
