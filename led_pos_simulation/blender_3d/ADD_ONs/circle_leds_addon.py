@@ -12,8 +12,8 @@ import platform
 
 text_objects_hidden = True
 
-def create_text_objects(led_data, led_size):
-    text_distance = led_size * -3
+def create_text_objects(led_data, led_size, shape):
+    text_distance = led_size
     for i, coord in enumerate(led_data):
         normalized_direction = Vector(coord).normalized()
 
@@ -22,9 +22,14 @@ def create_text_objects(led_data, led_size):
         text_obj.name = f"LED_Number_{i}"
         text_obj.data.body = str(i)
 
-        text_location = [coord[0] - text_distance * normalized_direction.x,
-                        coord[1] - text_distance * normalized_direction.y,
-                        coord[2] - text_distance * normalized_direction.z]
+        if 'cylinder' in shape:
+            text_location = [coord[0] + text_distance * normalized_direction.x,
+                            coord[1] + text_distance * normalized_direction.y,
+                            coord[2]]
+        else:
+            text_location = [coord[0] + text_distance * normalized_direction.x,
+                            coord[1] + text_distance * normalized_direction.y,
+                            coord[2] + text_distance * normalized_direction.z]
         text_obj.location = text_location
         text_obj.rotation_euler = (0, 0, 0)
         text_obj.rotation_mode = 'QUATERNION'
@@ -40,34 +45,52 @@ def create_text_objects(led_data, led_size):
         text_obj.hide_viewport = False
         text_obj.hide_render = True
 
+
+
 class CircleLEDsOperator(bpy.types.Operator):
     bl_idname = "object.create_circle_leds"
     bl_label = "Create Circle LEDs"
     bl_options = {'REGISTER', 'UNDO'}
+
+    shape: bpy.props.StringProperty(
+        name="Shape",
+        description="Enter the shape",
+        default="cylinder_base"
+    )
 
     def execute(self, context):
         global text_objects_hidden
 
         pickle_file = None
         os_name = platform.system()
+        print('shape', self.shape)
         if os_name == 'Windows':
             print("This is Windows")
-            pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+            if self.shape == 'sphere':
+                pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+            elif self.shape == 'cylinder':
+                pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
         elif os_name == 'Linux':
-            print("This is Linux")
-            pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+            print("This is Linux")            
+            if self.shape == 'sphere':
+                pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
+            elif self.shape == 'cylinder':
+                pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
+            elif self.shape == 'cylinder_base':
+                pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
         else:
             print("Unknown OS")
+
 
 
         with gzip.open(pickle_file, 'rb') as f:
             data = pickle.load(f)
 
         led_data = data['LED_INFO']
-        led_size = 0.002
+        led_size = 0.003
 
         if not any(obj.type == 'FONT' and obj.name.startswith("LED_Number_") for obj in bpy.data.objects):
-            create_text_objects(led_data, led_size)
+            create_text_objects(led_data, led_size, self.shape)
 
         text_objects_hidden = not text_objects_hidden
 
@@ -88,15 +111,30 @@ class CircleLEDsPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("object.create_circle_leds", text="Show LEDs Number")
+
+        # 입력창 추가
+        shape_row = layout.row()
+        shape_row.prop(context.scene, "circle_leds_shape", text="Shape")
+
+        # 버튼 추가
+        create_circle_leds_op = layout.operator("object.create_circle_leds", text="Show LEDs Number")
+        create_circle_leds_op.shape = context.scene.circle_leds_shape
 
 def register():
     bpy.utils.register_class(CircleLEDsOperator)
     bpy.utils.register_class(CircleLEDsPanel)
 
+    bpy.types.Scene.circle_leds_shape = bpy.props.StringProperty(
+        name="Shape",
+        description="Enter the shape",
+        default="cylinder_base"
+    )
+
 def unregister():
     bpy.utils.unregister_class(CircleLEDsOperator)
     bpy.utils.unregister_class(CircleLEDsPanel)
+
+    del bpy.types.Scene.circle_leds_shape
 
 if __name__ == "__main__":
     import sys

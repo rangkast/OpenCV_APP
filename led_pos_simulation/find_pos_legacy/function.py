@@ -67,6 +67,26 @@ points = np.array([
 #     [-0.0172944, -0.0247583, 0.0168933]
 # ])
 
+
+class Vector:
+    def __init__(self, *coords):
+        if len(coords) == 1 and isinstance(coords[0], (list, tuple, np.ndarray)):
+            coords = coords[0]
+        self.coords = np.array(coords)
+        self.x = coords[0] if len(coords) > 0 else 0
+        self.y = coords[1] if len(coords) > 1 else 0
+        self.z = coords[2] if len(coords) > 2 else 0
+
+    def __repr__(self):
+        return f"Vector({', '.join(map(str, self.coords))})"
+
+    def __getitem__(self, index):
+        return self.coords[index]
+
+    def normalized(self):
+        norm = np.linalg.norm(self.coords)
+        return Vector(*(self.coords / norm))
+
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
         # get the current x and y limits

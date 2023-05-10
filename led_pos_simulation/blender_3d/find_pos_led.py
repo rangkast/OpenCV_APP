@@ -104,11 +104,9 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
             location = [coord[0] - distance_to_o * normalized_direction.x,
                         coord[1] - distance_to_o * normalized_direction.y,
                         coord[2] - distance_to_o * normalized_direction.z]
-        elif shape == 'cylinder':
-            distance_to_o = led_size * 1/2
-            location = [coord[0] - distance_to_o * normalized_direction.x,
-                        coord[1] - distance_to_o * normalized_direction.y,
-                        coord[2]]
+        else:
+            location = coord
+
 
         bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=led_size, location=location)
         led_obj = bpy.context.active_object
@@ -126,7 +124,7 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
         emission_node = nodes.new(type='ShaderNodeEmission')
 
         # Emission 쉐이더의 강도와 색상을 설정합니다.
-        emission_node.inputs['Strength'].default_value = 0.02  # 강도 조절
+        emission_node.inputs['Strength'].default_value = 0.01  # 강도 조절
         emission_node.inputs['Color'].default_value = (255, 255, 255, 1)  # 색상 조절
 
         # Emission 쉐이더를 출력 노드에 연결합니다.
@@ -555,6 +553,30 @@ def quaternion_to_euler_degree(quaternion):
 
     return euler_deg
 
+def apply_boolean_modifier(target_obj, cutter_obj, operation='DIFFERENCE'):
+    boolean_mod = target_obj.modifiers.new('Boolean', 'BOOLEAN')
+    boolean_mod.operation = operation
+    boolean_mod.use_self = True
+    boolean_mod.object = cutter_obj
+
+    # 모디파이어를 적용합니다.
+    target_obj.select_set(True)
+    cutter_obj.select_set(True)
+    bpy.context.view_layer.objects.active = target_obj
+    bpy.ops.object.modifier_apply({"object": target_obj}, modifier=boolean_mod.name)
+
+    # 자른 LED 오브젝트를 삭제합니다.
+    bpy.ops.object.select_all(action='DESELECT')
+    cutter_obj.select_set(True)
+    bpy.ops.object.delete()
+
+def update_viewport_display(obj, color=(1, 1, 1, 1), display_as='TEXTURED', show_wireframe=False):
+    obj.show_wire = show_wireframe
+    obj.display_type = display_as
+    obj.color = color
+
+
+
 
 '''
 TEST START
@@ -582,7 +604,8 @@ origin_led_data = np.array([
 
 # shape = 'plane'
 # shape = 'sphere'
-shape = 'cylinder'
+# shape = 'cylinder'
+shape = 'cylinder_base'
 
 pickle_file = None
 os_name = platform.system()
@@ -598,6 +621,8 @@ elif os_name == 'Linux':
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
     elif shape == 'cylinder':
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
+    elif shape == 'cylinder_base':
+        pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
 else:
     print("Unknown OS")
 
@@ -611,7 +636,7 @@ camera_names = ["CAMERA_0", "CAMERA_1"]
 
 padding = 0.0  # 원하는 패딩 값을 입력하세요.
 # LED 원의 반지름을 설정합니다. 원하는 크기를 입력으로 제공할 수 있습니다.
-led_size = 0.002
+led_size = 0.003
 led_thickness = 0.001
 
 default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
@@ -642,7 +667,6 @@ exclude_object_names = ["Oculus_L_05.002"]
 delete_all_objects_except(exclude_object_names)
 
 MESH_OBJ_NAME = 'MeshObject_' + f'{shape}'
-
 # Simulator
 #########################
 # numpy 배열로부터 좌표 데이터를 가져옵니다.
@@ -653,7 +677,15 @@ led_data = np.array(led_data)
 create_mesh_object(model_data, name=MESH_OBJ_NAME,  padding=padding)
 # 모델 오브젝트를 찾습니다.
 model_obj = bpy.data.objects[MESH_OBJ_NAME]
-create_circle_leds_on_surface(led_data, led_size, shape)
+led_objects = create_circle_leds_on_surface(led_data, led_size, shape)
+
+for led_obj in led_objects:
+    apply_boolean_modifier(model_obj, led_obj)
+# # 원본 메쉬 오브젝트의 뷰포트 디스플레이 옵션을 업데이트합니다.
+# update_viewport_display(model_obj, display_as='SOLID')
+# # LED 오브젝트의 뷰포트 디스플레이 옵션을 업데이트합니다.
+# for led_obj in led_objects:
+#     update_viewport_display(led_obj, display_as='SOLID', color=(1, 1, 1, 1), show_wireframe=True)
 #########################
 
 
@@ -727,21 +759,21 @@ make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
 # print('dot_product', dot_product)
 
 
-# # Create an empty object
-# bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
-# empty_obj = bpy.context.active_object
+# Create an empty object
+bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
+empty_obj = bpy.context.active_object
 
-# # Set the empty object as the parent of the camera
-# camera = bpy.data.objects['CAMERA_0']
-# camera.select_set(True)
-# empty_obj.select_set(True)
-# bpy.context.view_layer.objects.active = empty_obj
+# Set the empty object as the parent of the camera
+camera = bpy.data.objects['CAMERA_0']
+camera.select_set(True)
+empty_obj.select_set(True)
+bpy.context.view_layer.objects.active = empty_obj
 
-# # Add the 'Track To' constraint to the camera
-# track_to_constraint = camera.constraints.new(type='TRACK_TO')
-# track_to_constraint.target = empty_obj
-# track_to_constraint.track_axis = 'TRACK_NEGATIVE_Z'
-# track_to_constraint.up_axis = 'UP_Y'
+# Add the 'Track To' constraint to the camera
+track_to_constraint = camera.constraints.new(type='TRACK_TO')
+track_to_constraint.target = empty_obj
+track_to_constraint.track_axis = 'TRACK_NEGATIVE_Z'
+track_to_constraint.up_axis = 'UP_Y'
 
 
 for i, leds in enumerate(led_data):

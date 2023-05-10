@@ -253,7 +253,7 @@ class ButtonAOperator(bpy.types.Operator):
                 # 현재 시간에 대한 타임스탬프 생성
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 # 렌더링 결과 이미지 파일명 설정
-                filename = f"{camera_name}_{suffix}_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
+                filename = f"{camera_name}_{suffix}_x{round(rotation_degrees[0], 1)}_y{round(rotation_degrees[1], 1)}_z{round(rotation_degrees[2], 1)}_{timestamp}"
                 scene.render.filepath = os.path.join(output_path, filename + ".png")
 
                 # path = bpy.path.abspath("//")

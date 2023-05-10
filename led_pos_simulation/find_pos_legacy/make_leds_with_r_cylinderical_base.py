@@ -1,34 +1,10 @@
-import numpy as np
-# 사용 예시
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+from collections import deque
+from itertools import product
+from scipy.spatial.distance import pdist, squareform
 from function import *
-
-
-def cylinder_select_points(coords, num_leds, led_r,  min_start_distance=0):
-    if num_leds > coords.shape[0]:
-        raise ValueError("num_leds cannot be greater than the number of points in coords")
-
-    selected_indices = [0]  # 시작점을 첫 번째로 선택
-
-    for _ in range(num_leds - 1):  # 시작점이 이미 선택되었으므로 num_leds - 1
-        min_dists = np.full((coords.shape[0],), np.inf)
-
-        for selected_idx in selected_indices:
-            dists = np.linalg.norm(coords - coords[selected_idx], axis=1) + led_r * 2
-            min_dists = np.minimum(min_dists, dists)
-
-        # 시작점과의 최소 거리 조건을 적용
-        min_dists[:1] = 0  # 시작점 자체의 거리를 0으로 설정
-        valid_indices = np.where(min_dists >= min_start_distance)
-
-        if valid_indices[0].size == 0:  # 모든 점이 거리 조건을 충족하지 않는 경우
-            return ERROR
-
-        next_idx = np.argmax(min_dists[valid_indices])
-        selected_indices.append(valid_indices[0][next_idx])
-
-    return coords[selected_indices]
 
 
 def create_cylindrical_surface_coords(radius, center, lower_z, upper_z, padding, num_points=100, draw=False, ax=None):
@@ -75,29 +51,34 @@ padding = led_r * 2 + 0.005
 
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-combined_coords, coords = create_cylindrical_surface_coords(radius, center, lower_z, upper_z, padding,  num_points=100, draw=True, ax=ax)
 
-ret_coords = cylinder_select_points(coords, num_leds, led_r)
+combined_coords, coords = create_cylindrical_surface_coords(radius, center, lower_z, upper_z, padding, num_points=100,
+                                                            draw=True, ax=ax)
 
-print('ret_coords', ret_coords)
-# ax.scatter(ret_coords[0][0], ret_coords[0][1], ret_coords[0][2], color='black',
-#            marker='o', s=5)
-# ax.text(ret_coords[0][0], ret_coords[0][1], ret_coords[0][2], 'S', color='black', fontsize=10)
+spacing = 0.015
+theta = np.arange(0, 2 * np.pi, spacing / radius)
+z = np.arange(lower_z, upper_z, spacing)
 
-# 그 외 점
-for i in range(0, num_leds):
-    ax.scatter(ret_coords[i, 0], ret_coords[i, 1], ret_coords[i, 2], color='red',
-               marker='o', s=5)
-    ax.text(ret_coords[i, 0], ret_coords[i, 1], ret_coords[i, 2], str(i), color='black', fontsize=7)
+p_coords = []
 
+for i, t in enumerate(theta):
+    for j, z_val in enumerate(z):
+        x = center[0] + radius * np.cos(t)
+        y = center[1] + radius * np.sin(t)
 
+        if x > 0 and (i + j) % 2 == 0:
+            p_coords.append([x, y, z_val])
+
+p_coords = np.array(p_coords)
+
+ax.scatter(p_coords[:, 0], p_coords[:, 1], p_coords[:, 2], marker="o", color="r", alpha=0.7)
 # 원점
 ax.scatter(0, 0, 0, marker='o', color='k', s=10)
-ax.set_xlim([-0.3, 0.3])
+ax.set_xlim([-0.2, 0.2])
 ax.set_xlabel('X')
-ax.set_ylim([-0.3, 0.3])
+ax.set_ylim([-0.2, 0.2])
 ax.set_ylabel('Y')
-ax.set_zlim([-0.3, 0.3])
+ax.set_zlim([-0.2, 0.2])
 ax.set_zlabel('Z')
 scale = 1.5
 
@@ -105,15 +86,16 @@ f = zoom_factory(ax, base_scale=scale)
 
 plt.show()
 
-file = './result_cylinder.pickle'
+file = './result_cylinder_base.pickle'
 data = OrderedDict()
+
 
 p_coords_changed = []
 
-for i, coord in enumerate(ret_coords):
+for i, coord in enumerate(p_coords):
     # LED 오브젝트의 위치를 조정합니다.
     normalized_direction = Vector(coord).normalized()
-    distance_to_o = led_r * 3 / 4
+    distance_to_o = led_r * 0
     p_coords_changed.append([round(coord[0] - distance_to_o * normalized_direction[0], 9),
                              round(coord[1] - distance_to_o * normalized_direction[1], 9),
                              round(coord[2], 8)])
@@ -123,4 +105,3 @@ data['MODEL_INFO'] = combined_coords
 ret = pickle_data(WRITE, file, data)
 if ret != ERROR:
     print('data saved')
-
