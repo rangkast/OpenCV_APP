@@ -10,11 +10,12 @@ import platform
 from scipy.spatial.transform import Rotation as Rot
 from function import *
 from definition import *
+import json
 
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-CV_MIN_THRESHOLD = 100
+CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 DONE = 'DONE'
 NOT_SET = 'NOT_SET'
@@ -138,6 +139,22 @@ def view_camera_infos(frame, text, x, y):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
 
 
+def rw_json_data(rw_mode, path, data):
+    try:
+        if rw_mode == READ:
+            with open(path, 'r', encoding="utf-8") as rdata:
+                json_data = json.load(rdata)
+            return json_data
+        elif rw_mode == WRITE:
+            with open(path, 'w', encoding="utf-8") as wdata:
+                json.dump(data, wdata, ensure_ascii=False, indent="\t")
+        else:
+            print('not support mode')
+    except:
+        # print('file r/w error')
+        return ERROR
+
+
 def createTrackerByName(trackerType):
     # Create a tracker based on tracker name
     if trackerType == trackerTypes[0]:
@@ -211,10 +228,20 @@ def display_tracker(images, image_files, data_files):
 
     # 1st Step
     # make blob box area
+
     bboxes = []
     while True:
         # 파일 이름을 이미지 상단에 표시
         img_name = os.path.basename(image_files[index])
+        # print('image_name', img_name)
+        parsed_array = img_name.split('.png')
+        name_key = parsed_array[0]
+
+        json_file = ''.join(['../jsons/' f'{name_key}.json'])
+        json_data = rw_json_data(READ, json_file, None)
+        if json_data != ERROR:
+            bboxes = json_data['bboxes']
+
         ret, img_contour_binary = cv2.threshold(images[index], CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
         img_gray = cv2.cvtColor(img_contour_binary, cv2.COLOR_BGR2GRAY)
         img_draw = images[index].copy()
@@ -223,6 +250,7 @@ def display_tracker(images, image_files, data_files):
         key = cv2.waitKey(1)
 
         if key == ord('n'):
+            bboxes.clear()
             index += 1
             if index >= len(images):
                 print('end of files')
@@ -234,7 +262,7 @@ def display_tracker(images, image_files, data_files):
                 inputs = input('input led number: ')
                 if inputs.isdigit():
                     input_number = int(inputs)
-                    if input_number in range(0, 25):
+                    if input_number in range(0, 1000):
                         print('label number ', input_number)
                         print('bbox ', bbox)
                         bboxes.append({'idx': input_number, 'bbox': bbox})
@@ -242,6 +270,16 @@ def display_tracker(images, image_files, data_files):
                 elif cv2.waitKey(1) == ord('q'):
                     bboxes.clear()
                     break
+        elif key == ord('c'):
+            print('clear area')
+            bboxes.clear()
+
+        elif key == ord('s'):
+            print('save blob area')
+            json_data = OrderedDict()
+            json_data['bboxes'] = bboxes
+            # Write json data
+            rw_json_data(WRITE, json_file, json_data)
 
         elif key & 0xFF == 27:
             print('ESC pressed')
@@ -262,8 +300,6 @@ def display_tracker(images, image_files, data_files):
                                                         , f' {x}'
                                                         , f' {y}']), 30, 70 + i * 30)
 
-        cv2.circle(img_draw, (int(CAP_PROP_FRAME_WIDTH / 2), int(CAP_PROP_FRAME_HEIGHT / 2)), 2, color=(0, 0, 255),
-                   thickness=-1)
         cv2.namedWindow("Image")
         cv2.imshow("Image", img_draw)
     cv2.destroyAllWindows()
@@ -281,6 +317,9 @@ def display_tracker(images, image_files, data_files):
 
     while True:
         # 파일 이름을 이미지 상단에 표시
+        if index >= len(images):
+            print('end of files')
+            break
         img_name = os.path.basename(image_files[index])
 
         ret, img_contour_binary = cv2.threshold(images[index], CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
@@ -341,6 +380,11 @@ def display_tracker(images, image_files, data_files):
                 print('point_3d\n', points3D)
                 print('point_2d\n', points2D)
 
+                greysum_points = np.squeeze(points2D)
+                plt.scatter(greysum_points[:, 0], greysum_points[:, 1], c='black', alpha=0.5, label='GreySum')
+                for g_point in greysum_points:
+                    cv2.circle(img_draw, (int(g_point[0]), int(g_point[1])), 1, (0, 0, 0), -1)
+
                 parsed_array = img_name.split('_')
                 cam_id = int(parsed_array[1])
                 camera_k = camera_matrix[cam_id][0]
@@ -365,7 +409,8 @@ def display_tracker(images, image_files, data_files):
                 # 3D 점들을 2D 이미지 평면에 투영
                 image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
                 image_points = np.squeeze(image_points)
-                plt.scatter(image_points[:, 0], image_points[:, 1], c='red', label='OpenCV')
+                plt.scatter(image_points[:, 0], image_points[:, 1], c='red', alpha=0.5, label='OpenCV')
+
                 # 투영된 2D 이미지 점 출력
                 print("Projected 2D image points:")
                 print(image_points)
@@ -374,7 +419,7 @@ def display_tracker(images, image_files, data_files):
                 for repr_blob in image_points:
                     cv2.circle(img_draw, (int(repr_blob[0]), int(repr_blob[1])), 1, (0, 0, 255), -1)
 
-                parsed_array = img_name.split('.')
+                parsed_array = img_name.split('.png')
                 name_key = parsed_array[0]
 
                 for data_path in data_files:
@@ -392,7 +437,7 @@ def display_tracker(images, image_files, data_files):
                         blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
                                                                     dist_coeff)
                         blender_image_points = np.squeeze(blender_image_points)
-                        plt.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue',
+                        plt.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue', alpha=0.5,
                                     label='Blender')
 
                         print("Projected 2D image points:")
@@ -403,15 +448,12 @@ def display_tracker(images, image_files, data_files):
                             for i, (x, y) in enumerate(image_points):
                                 plt.text(x, y, f'{i}', fontsize=12, ha='right', va='bottom')
 
-                            for i, (x, y) in enumerate(blender_image_points):
-                                plt.text(x, y, f'{i}', fontsize=12, ha='right', va='bottom')
-
                             # 좌표 사이의 거리를 직선으로 표시
                             for a, b in zip(image_points, blender_image_points):
                                 plt.plot([a[0], b[0]], [a[1], b[1]], linestyle=':', color='green', alpha=0.6)
                                 distance = np.linalg.norm(a - b)
                                 midpoint = (a + b) / 2
-                                plt.text(midpoint[0], midpoint[1], f"{distance:.2f}", fontsize=12, ha='right',
+                                plt.text(midpoint[0], midpoint[1], f"{distance:.2f}", fontsize=12, ha='left',
                                          va='bottom',
                                          color='green', alpha=0.6)
 
@@ -423,6 +465,7 @@ def display_tracker(images, image_files, data_files):
                             # Y축 방향 반전
                             plt.gca().invert_yaxis()
                 cv2.imshow('Result', img_draw)
+                plt.show()
 
         cv2.imshow('Image', img_draw)
 

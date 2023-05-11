@@ -55,7 +55,7 @@ ax = fig.add_subplot(111, projection='3d')
 combined_coords, coords = create_cylindrical_surface_coords(radius, center, lower_z, upper_z, padding, num_points=100,
                                                             draw=True, ax=ax)
 
-spacing = 0.015
+spacing = 0.01
 theta = np.arange(0, 2 * np.pi, spacing / radius)
 z = np.arange(lower_z, upper_z, spacing)
 
@@ -96,8 +96,8 @@ for i, coord in enumerate(p_coords):
     # LED 오브젝트의 위치를 조정합니다.
     normalized_direction = Vector(coord).normalized()
     distance_to_o = led_r * 0
-    p_coords_changed.append([round(coord[0] - distance_to_o * normalized_direction[0], 9),
-                             round(coord[1] - distance_to_o * normalized_direction[1], 9),
+    p_coords_changed.append([round(coord[0] - distance_to_o * normalized_direction[0], 8),
+                             round(coord[1] - distance_to_o * normalized_direction[1], 8),
                              round(coord[2], 8)])
 
 data['LED_INFO'] = p_coords_changed

@@ -158,16 +158,6 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
 
 
 
-def set_up_eevee_render_engine():
-    # 렌더링 엔진을 Eevee로 설정합니다.
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
-
-    # Eevee 렌더링 설정을 조절합니다.
-    bpy.context.scene.eevee.use_bloom = True
-    bpy.context.scene.eevee.bloom_threshold = 0.8
-    bpy.context.scene.eevee.bloom_radius = 6.5
-    bpy.context.scene.eevee.bloom_intensity = 0.1
-
 def set_up_dark_world_background():
     # 월드 배경을 어둡게 설정합니다.
     world = bpy.context.scene.world
@@ -652,13 +642,20 @@ bpy.context.scene.render.film_transparent = False  # 렌더링 배경을 불투�
 
 # bpy.context.scene.render.engine = 'CYCLES'
 # bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
-bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
+# bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
 bpy.context.scene.unit_settings.system = 'METRIC'
 bpy.context.scene.unit_settings.scale_length = 1.0
 bpy.context.scene.unit_settings.length_unit = 'METERS'
 
-# Eevee 렌더링 엔진 설정을 적용합니다.
-set_up_eevee_render_engine()
+
+# 렌더링 엔진을 Eevee로 설정합니다.
+bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+# Eevee 렌더링 설정을 조절합니다.
+bpy.context.scene.eevee.use_bloom = True
+bpy.context.scene.eevee.bloom_threshold = 0.8
+bpy.context.scene.eevee.bloom_radius = 6.5
+bpy.context.scene.eevee.bloom_intensity = 0.1
+
 # 월드 배경을 어둡게 설정합니다.
 set_up_dark_world_background()
 
@@ -675,17 +672,16 @@ model_data = np.array(model_data)
 led_data = np.array(led_data)
 # 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
 create_mesh_object(model_data, name=MESH_OBJ_NAME,  padding=padding)
-# 모델 오브젝트를 찾습니다.
+
+
+# # 모델 오브젝트를 찾습니다.
 model_obj = bpy.data.objects[MESH_OBJ_NAME]
 led_objects = create_circle_leds_on_surface(led_data, led_size, shape)
 
+# 여기서 오브젝트 깎음
 for led_obj in led_objects:
     apply_boolean_modifier(model_obj, led_obj)
-# # 원본 메쉬 오브젝트의 뷰포트 디스플레이 옵션을 업데이트합니다.
-# update_viewport_display(model_obj, display_as='SOLID')
-# # LED 오브젝트의 뷰포트 디스플레이 옵션을 업데이트합니다.
-# for led_obj in led_objects:
-#     update_viewport_display(led_obj, display_as='SOLID', color=(1, 1, 1, 1), show_wireframe=True)
+
 #########################
 
 
@@ -722,8 +718,8 @@ rvec_left = np.array([ 1.20919984, 1.20919951, -1.20919951])
 tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
 
 
-# rvec_left = np.array([ 0.86169575,  1.24800253,-0.60853284])
-# tvec_left = np.array([-0.04647554, -0.01131148,  0.19419597])
+rvec_right = np.array([0.86044094,  1.63833498, -1.63833511])
+tvec_right = np.array([-8.19563866e-08,  2.92450419e-08,  2.00000092e-01])
 
 # rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
 # tvec_left = np.array([-0.111,  0.052,  0.337])
@@ -731,7 +727,7 @@ tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
 # location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
 
 make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
-# make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
 # euler_deg = quaternion_to_euler_degree(rotation)
 
 # print('cam_remake')
@@ -759,22 +755,29 @@ make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
 # print('dot_product', dot_product)
 
 
-# Create an empty object
-bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
-empty_obj = bpy.context.active_object
+# List of camera names
 
-# Set the empty object as the parent of the camera
-camera = bpy.data.objects['CAMERA_0']
-camera.select_set(True)
-empty_obj.select_set(True)
-bpy.context.view_layer.objects.active = empty_obj
+set_track_to = 1
 
-# Add the 'Track To' constraint to the camera
-track_to_constraint = camera.constraints.new(type='TRACK_TO')
-track_to_constraint.target = empty_obj
-track_to_constraint.track_axis = 'TRACK_NEGATIVE_Z'
-track_to_constraint.up_axis = 'UP_Y'
+if set_track_to == 1:
+# List of camera names
+    for camera_name in camera_names:
+        # Get the camera object
+        camera = bpy.data.objects[camera_name]
 
+        # Create an empty object at the origin
+        bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
+        empty_obj = bpy.context.active_object
+        empty_obj.name = f"EMPTY_{camera_name}"
+
+        # Make the empty object the parent of the camera
+        camera.parent = empty_obj
+
+        # Add a 'Track To' constraint to the camera to keep it pointed at the origin
+        constraint = camera.constraints.new(type='TRACK_TO')
+        constraint.target = empty_obj
+        constraint.track_axis = 'TRACK_NEGATIVE_Z'
+        constraint.up_axis = 'UP_Y'
 
 for i, leds in enumerate(led_data):
     print(f"{i}, led: {leds}")

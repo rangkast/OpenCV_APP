@@ -217,7 +217,12 @@ class ButtonAOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        camera_names = ["CAMERA_0", "CAMERA_1"]
+        camera_name = context.scene.camera_input  # 사용자 입력으로 카메라 이름 가져오기
+        if camera_name not in bpy.data.objects or bpy.data.objects[camera_name].type != 'CAMERA':
+            self.report({'ERROR'}, f"No camera found with name {camera_name}")
+            return {'CANCELLED'}
+
+        # camera_names = ["CAMERA_0", "CAMERA_1"]
         print('camera render view')
 
         name_pattern = "MeshObject"
@@ -225,7 +230,73 @@ class ButtonAOperator(bpy.types.Operator):
         suffix = get_suffix_from_name(matched_objects)
         print('suffix', suffix)
 
-        for cam_id, camera_name in enumerate(camera_names):
+        # for cam_id, camera_name in enumerate(camera_names):
+        # 카메라 객체를 선택
+        try:
+            camera = bpy.data.objects[camera_name]
+            print('camera', camera)
+            # 카메라의 위치와 회전 값을 가져오기
+            location = camera.location
+            rotation = camera.rotation_euler
+            quat = camera.rotation_quaternion
+            # XYZ 오일러 각도를 degree 단위로 변환
+            rotation_degrees = tuple(degrees(angle) for angle in rotation)
+            # 결과 출력
+            print(f"{camera_name} 위치: ", location)
+            print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
+            print(f"{camera_name} XYZ 쿼너티온: ", quat)
+
+            # 렌더링 설정
+            scene = bpy.context.scene
+            scene.render.engine = 'BLENDER_EEVEE'  # 'CYCLES' 또는 'BLENDER_EEVEE'로 변경 가능
+            scene.camera = camera  # 현재 씬의 카메라로 설정
+
+            print(f"Current camera for rendering is {scene.camera.name}")  # 현재 렌더링 카메라 출력
+
+
+            # 렌더링 결과를 저장할 경로 지정
+            output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
+            os.makedirs(output_path, exist_ok=True)
+
+            # 현재 시간에 대한 타임스탬프 생성
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # 렌더링 결과 이미지 파일명 설정
+            filename = f"{camera_name}_{suffix}_x{round(rotation_degrees[0], 1)}_y{round(rotation_degrees[1], 1)}_z{round(rotation_degrees[2], 1)}_{timestamp}"
+            scene.render.filepath = os.path.join(output_path, filename + ".png")
+
+            # path = bpy.path.abspath("//")
+            # file = path + filename
+            
+            # 렌더링 수행
+            bpy.ops.render.render(write_still=True)
+            
+            export_camera_to_opencv(camera_name, output_path, filename)
+            # export_object_location_to_opencv('MeshObject')
+        except KeyError:
+            print('camera not found', camera_name)            
+
+        return {'FINISHED'}
+
+
+class ButtonBOperator(bpy.types.Operator):
+    bl_idname = "object.button_b"
+    bl_label = "Button B"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    
+    def execute(self, context):
+            camera_name = context.scene.camera_input  # 사용자 입력으로 카메라 이름 가져오기
+            if camera_name not in bpy.data.objects or bpy.data.objects[camera_name].type != 'CAMERA':
+                self.report({'ERROR'}, f"No camera found with name {camera_name}")
+                return {'CANCELLED'}
+            # camera_names = ["CAMERA_0", "CAMERA_1"]
+            print('material preview') 
+            name_pattern = "MeshObject"
+            matched_objects = get_objects_with_name(name_pattern)
+            suffix = get_suffix_from_name(matched_objects)
+            print('suffix', suffix)
+
+            # for cam_id, camera_name in enumerate(camera_names):
             # 카메라 객체를 선택
             try:
                 camera = bpy.data.objects[camera_name]
@@ -241,10 +312,12 @@ class ButtonAOperator(bpy.types.Operator):
                 print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
                 print(f"{camera_name} XYZ 쿼너티온: ", quat)
 
-                # 렌더링 설정
-                scene = bpy.context.scene
-                scene.render.engine = 'BLENDER_EEVEE'  # 'CYCLES' 또는 'BLENDER_EEVEE'로 변경 가능
-                scene.camera = camera  # 현재 씬의 카메라로 설정
+                # 현재 씬의 카메라로 설정
+                context.scene.camera = camera  
+
+                # 뷰포트 쉐이딩 설정
+                shading = context.space_data.shading
+                shading.type = 'MATERIAL'  # 머티리얼 프리뷰 모드로 설정
 
                 # 렌더링 결과를 저장할 경로 지정
                 output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
@@ -253,76 +326,15 @@ class ButtonAOperator(bpy.types.Operator):
                 # 현재 시간에 대한 타임스탬프 생성
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 # 렌더링 결과 이미지 파일명 설정
-                filename = f"{camera_name}_{suffix}_x{round(rotation_degrees[0], 1)}_y{round(rotation_degrees[1], 1)}_z{round(rotation_degrees[2], 1)}_{timestamp}"
-                scene.render.filepath = os.path.join(output_path, filename + ".png")
+                filename = f"{camera_name}_{suffix}_MATERIAL_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
+                filepath = os.path.join(output_path, filename + ".png")
 
-                # path = bpy.path.abspath("//")
-                # file = path + filename
-                
-                # 렌더링 수행
-                bpy.ops.render.render(write_still=True)
-                
-                export_camera_to_opencv(camera_name, output_path, filename)
+                # 뷰포트 렌더링 및 저장
+                save_viewport_render(context, filepath)
+                # export_camera_to_opencv(camera_name, output_path, filename)
                 # export_object_location_to_opencv('MeshObject')
             except KeyError:
                 print('camera not found', camera_name)            
-
-        return {'FINISHED'}
-
-
-class ButtonBOperator(bpy.types.Operator):
-    bl_idname = "object.button_b"
-    bl_label = "Button B"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    
-    def execute(self, context):
-            camera_names = ["CAMERA_0", "CAMERA_1"]
-            print('material preview') 
-            name_pattern = "MeshObject"
-            matched_objects = get_objects_with_name(name_pattern)
-            suffix = get_suffix_from_name(matched_objects)
-            print('suffix', suffix)
-
-            for cam_id, camera_name in enumerate(camera_names):
-                # 카메라 객체를 선택
-                try:
-                    camera = bpy.data.objects[camera_name]
-                    print('camera', camera)
-                    # 카메라의 위치와 회전 값을 가져오기
-                    location = camera.location
-                    rotation = camera.rotation_euler
-                    quat = camera.rotation_quaternion
-                    # XYZ 오일러 각도를 degree 단위로 변환
-                    rotation_degrees = tuple(degrees(angle) for angle in rotation)
-                    # 결과 출력
-                    print(f"{camera_name} 위치: ", location)
-                    print(f"{camera_name} XYZ 오일러 회전 (도): ", rotation_degrees)
-                    print(f"{camera_name} XYZ 쿼너티온: ", quat)
-
-                    # 현재 씬의 카메라로 설정
-                    context.scene.camera = camera  
-
-                    # 뷰포트 쉐이딩 설정
-                    shading = context.space_data.shading
-                    shading.type = 'MATERIAL'  # 머티리얼 프리뷰 모드로 설정
-
-                    # 렌더링 결과를 저장할 경로 지정
-                    output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
-                    os.makedirs(output_path, exist_ok=True)
-
-                    # 현재 시간에 대한 타임스탬프 생성
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    # 렌더링 결과 이미지 파일명 설정
-                    filename = f"{camera_name}_{suffix}_MATERIAL_x{int(rotation_degrees[0])}_y{int(rotation_degrees[1])}_z{int(rotation_degrees[2])}_{timestamp}"
-                    filepath = os.path.join(output_path, filename + ".png")
-
-                    # 뷰포트 렌더링 및 저장
-                    save_viewport_render(context, filepath)
-                    # export_camera_to_opencv(camera_name, output_path, filename)
-                    # export_object_location_to_opencv('MeshObject')
-                except KeyError:
-                    print('camera not found', camera_name)            
 
             return {'FINISHED'}
 
@@ -337,6 +349,7 @@ class OpenCVPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.prop(context.scene, "camera_input")  # 사용자 입력 필드를 패널에 추가
         layout.operator("object.button_a", text="render view")
         layout.operator("object.button_b", text="material view")
 
@@ -344,11 +357,13 @@ def register():
     bpy.utils.register_class(ButtonAOperator)
     bpy.utils.register_class(ButtonBOperator)
     bpy.utils.register_class(OpenCVPanel)
+    bpy.types.Scene.camera_input = bpy.props.StringProperty(name="Camera Name")  # 새로운 속성 추가
 
 def unregister():
     bpy.utils.unregister_class(ButtonAOperator)
     bpy.utils.unregister_class(ButtonBOperator)
     bpy.utils.unregister_class(OpenCVPanel)
+    del bpy.types.Scene.camera_input  # 속성 제거
 
 if __name__ == "__main__":
     register()
