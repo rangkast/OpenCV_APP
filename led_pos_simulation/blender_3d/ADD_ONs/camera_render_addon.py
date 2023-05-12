@@ -255,7 +255,7 @@ class ButtonAOperator(bpy.types.Operator):
 
 
             # 렌더링 결과를 저장할 경로 지정
-            output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
+            output_path = os.path.join(bpy.path.abspath("//"), 'image_output')
             os.makedirs(output_path, exist_ok=True)
 
             # 현재 시간에 대한 타임스탬프 생성
@@ -320,7 +320,7 @@ class ButtonBOperator(bpy.types.Operator):
                 shading.type = 'MATERIAL'  # 머티리얼 프리뷰 모드로 설정
 
                 # 렌더링 결과를 저장할 경로 지정
-                output_path = os.path.join(bpy.path.abspath("//"), 'render_output')
+                output_path = os.path.join(bpy.path.abspath("//"), 'image_output')
                 os.makedirs(output_path, exist_ok=True)
 
                 # 현재 시간에 대한 타임스탬프 생성

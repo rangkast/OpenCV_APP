@@ -1,6 +1,6 @@
-import numpy as np
 from definition import *
 
+# rift s data
 points = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
@@ -17,75 +17,7 @@ points = np.array([
     [0.03300807, 0.00371497, 0.00026865],
     [0.03006234, 0.00378822, -0.01297127]
 ])
-#
-#
-# points_1 = np.array([
-#     [-0.03692925, 0.00930785, 0.00321071],
-#     [-0.04170018, 0.03609551, 0.01989264],
-#     [-0.01456789, 0.06295633, 0.03659283],
-#     [0.02992447, 0.05507271, 0.03108736],
-#     [0.04265723, 0.03016438, 0.01624689],
-#     [0.03300807, 0.00371497, 0.00026865],
-# ])
-#
-# points_2 = np.array([
-#     [-0.02146761, -0.00343424, -0.01381839],
-#     [-0.0318701, 0.00568587, -0.01206734],
-#     [-0.04287211, 0.02691347, -0.00194137],
-#     [-0.02923584, 0.06186962, 0.0161972],
-#     [0.00766914, 0.07115411, 0.0206431],
-#     [0.03724313, 0.05268665, 0.01100446],
-#     [0.04222733, 0.0228845, -0.00394005],
-#     [0.03006234, 0.00378822, -0.01297127]
-# ])
-#
-#
-# points = np.array([
-#     [-0.00528225, 0.0366059, 0.00451083],
-#     [0.00974598, 0.0472809, 0.00426303],
-#     [0.029932, 0.051415, 0.0039068],
-#     [0.0516873, 0.0454725, 0.00347272],
-#     [0.0696064, 0.0294595, 0.00309645],
-#     [0.0774698, 0.0129741, 0.00295799],
-#     [0.0783658, -0.00933334, 0.00294223],
-#     [0.0717354, -0.0261962, 0.00305024],
-#     [0.053283, -0.0445682, 0.00343601],
-#     [0.0344388, -0.0510703, 0.00382741],
-#     [0.0124534, -0.0484432, 0.00423956],
-#     [-0.00528225, -0.0366059, 0.00451083],
-#     [-0.0172553, 0.0248263, 0.0168957],
-#     [-0.00733024, 0.0363881, 0.0171509],
-#     [0.0245455, 0.0508898, 0.0179013],
-#     [0.0445366, 0.0472811, 0.0184052],
-#     [0.0612489, 0.0358151, 0.0188228],
-#     [0.073585, 0.0147213, 0.0191252],
-#     [0.0714617, -0.0204929, 0.0190769],
-#     [0.0545824, -0.0416286, 0.0186546],
-#     [0.0342966, -0.0502636, 0.0181346],
-#     [0.0123831, -0.0487058, 0.0175963],
-#     [-0.00732576, -0.0363831, 0.0171499],
-#     [-0.0172944, -0.0247583, 0.0168933]
-# ])
 
-
-class Vector:
-    def __init__(self, *coords):
-        if len(coords) == 1 and isinstance(coords[0], (list, tuple, np.ndarray)):
-            coords = coords[0]
-        self.coords = np.array(coords)
-        self.x = coords[0] if len(coords) > 0 else 0
-        self.y = coords[1] if len(coords) > 1 else 0
-        self.z = coords[2] if len(coords) > 2 else 0
-
-    def __repr__(self):
-        return f"Vector({', '.join(map(str, self.coords))})"
-
-    def __getitem__(self, index):
-        return self.coords[index]
-
-    def normalized(self):
-        norm = np.linalg.norm(self.coords)
-        return Vector(*(self.coords / norm))
 
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
@@ -125,6 +57,26 @@ def zoom_factory(ax, base_scale=2.):
 
     # return the function
     return zoom_fun
+
+
+class Vector:
+    def __init__(self, *coords):
+        if len(coords) == 1 and isinstance(coords[0], (list, tuple, np.ndarray)):
+            coords = coords[0]
+        self.coords = np.array(coords)
+        self.x = coords[0] if len(coords) > 0 else 0
+        self.y = coords[1] if len(coords) > 1 else 0
+        self.z = coords[2] if len(coords) > 2 else 0
+
+    def __repr__(self):
+        return f"Vector({', '.join(map(str, self.coords))})"
+
+    def __getitem__(self, index):
+        return self.coords[index]
+
+    def normalized(self):
+        norm = np.linalg.norm(self.coords)
+        return Vector(*(self.coords / norm))
 
 
 def pickle_data(rw_mode, path, data):
@@ -211,7 +163,6 @@ def check_facing_dot(camera_pos, leds_coords, angle_spec):
     return pts_facing
 
 
-
 def sequential_closest_distances(coords):
     visited_indices = [0]
     current_idx = 0
@@ -281,7 +232,7 @@ def select_points(coords, num_leds, min_start_distance=0):
         # 시작점과의 최소 거리 조건을 적용
         min_dists[:1] = 0  # 시작점 자체의 거리를 0으로 설정
         valid_indices = np.where(min_dists >= min_start_distance)
-        
+
         if valid_indices[0].size == 0:  # 모든 점이 거리 조건을 충족하지 않는 경우
             # raise ValueError("No points found with a distance greater or equal to min_start_distance")
             return ERROR
@@ -290,7 +241,6 @@ def select_points(coords, num_leds, min_start_distance=0):
         selected_indices.append(valid_indices[0][next_idx])
 
     return coords[selected_indices]
-
 
 
 def led_position(*args):
@@ -332,7 +282,7 @@ def led_position(*args):
 
     return combined_coords, led_coords
 
-    
+
 def make_camera_position(ax, radius):
     # 구 캡 위의 점들을 계산
     theta = np.linspace(0, 2 * np.pi, num_points)
@@ -351,6 +301,7 @@ def make_camera_position(ax, radius):
     coords = np.array([x_masked, y_masked, z_masked]).T
 
     return coords
+
 
 def set_plot_option(ax, radius):
     # 플롯 옵션 설정
@@ -385,7 +336,7 @@ def find_led_blobs(*args):
         lower_z = -TEMP_R * LOWER_Z_ANGLE
         if TEMP_R < 0:
             break
-        
+
         _, ret_data = led_position([0, ax1, TEMP_R, upper_z, lower_z])
         if ret_data == ERROR:
             print('not enough distance from start point')
@@ -408,14 +359,14 @@ def find_led_blobs(*args):
         if distance_detect == 1:
             print('distance_detect')
 
-        facing_dot_check = 0    
-        for camera_pos in cam_coords:        
+        facing_dot_check = 0
+        for camera_pos in cam_coords:
             facing_pts = check_facing_dot(camera_pos, led_coords_o, ANGLE_SPEC)
             if len(facing_pts) < 4:
                 facing_dot_check = 1
                 break
             cnt += 1
-            
+
         print('loop', LOOP_CNT, 'R', TEMP_R)
 
         if cnt == len(cam_coords) and distance_detect == 1:
@@ -423,11 +374,10 @@ def find_led_blobs(*args):
             break
 
         if facing_dot_check == 0:
-                TEMP_R -= 0.1
+            TEMP_R -= 0.1
         else:
             print('facing dot error')
             break
-
 
         LOOP_CNT += 1
 
@@ -438,8 +388,220 @@ def find_led_blobs(*args):
     return coords, cam_coords, ret_coords, upper_z, lower_z, TEMP_R
 
 
-
 def convert_to_meters(data):
     for key in data:
         data[key] = [(coord[0] * 0.01, coord[1] * 0.01, coord[2] * 0.01) for coord in data[key]]
     return data
+
+
+trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
+
+
+class POSE_ESTIMATION_METHOD(Enum):
+    # Opencv legacy
+    SOLVE_PNP_RANSAC = auto()
+    SOLVE_PNP_REFINE_LM = auto()
+    SOLVE_PNP_AP3P = auto()
+    SOLVE_PNP = auto()
+    SOLVE_PNP_RESERVED = auto()
+
+
+# Default solvePnPRansac
+def solvepnp_ransac(*args):
+    cam_id = args[0][0]
+    points3D = args[0][1]
+    points2D = args[0][2]
+    camera_k = args[0][3]
+    dist_coeff = args[0][4]
+    # check assertion
+    if len(points3D) != len(points2D):
+        print("assertion len is not equal")
+        return ERROR, NOT_SET, NOT_SET, NOT_SET
+
+    if len(points2D) < 4:
+        print("assertion < 4: ")
+        return ERROR, NOT_SET, NOT_SET, NOT_SET
+
+    ret, rvecs, tvecs, inliers = cv2.solvePnPRansac(points3D, points2D,
+                                                    camera_k,
+                                                    dist_coeff)
+
+    return SUCCESS if ret == True else ERROR, rvecs, tvecs, inliers
+
+
+# solvePnPRansac + RefineLM
+def solvepnp_ransac_refineLM(*args):
+    cam_id = args[0][0]
+    points3D = args[0][1]
+    points2D = args[0][2]
+    camera_k = args[0][3]
+    dist_coeff = args[0][4]
+    ret, rvecs, tvecs, inliers = solvepnp_ransac(points3D, points2D, camera_k, dist_coeff)
+    # Do refineLM with inliers
+    if ret == SUCCESS:
+        if not hasattr(cv2, 'solvePnPRefineLM'):
+            print('solvePnPRefineLM requires OpenCV >= 4.1.1, skipping refinement')
+        else:
+            assert len(inliers) >= 3, 'LM refinement requires at least 3 inlier points'
+            # refine r_t vector and maybe changed
+            cv2.solvePnPRefineLM(points3D[inliers],
+                                 points2D[inliers], camera_k, dist_coeff,
+                                 rvecs, tvecs)
+
+    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
+
+
+# solvePnP_AP3P, 3 or 4 points need
+def solvepnp_AP3P(*args):
+    cam_id = args[0][0]
+    points3D = args[0][1]
+    points2D = args[0][2]
+    camera_k = args[0][3]
+    dist_coeff = args[0][4]
+
+    # check assertion
+    if len(points3D) != len(points2D):
+        print("assertion len is not equal")
+        return ERROR, NOT_SET, NOT_SET, NOT_SET
+
+    if len(points2D) < 3 or len(points2D) > 4:
+        print("assertion ", len(points2D))
+        return ERROR, NOT_SET, NOT_SET, NOT_SET
+
+    ret, rvecs, tvecs = cv2.solvePnP(points3D, points2D,
+                                     camera_k,
+                                     dist_coeff,
+                                     flags=cv2.SOLVEPNP_AP3P)
+
+    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
+
+
+SOLVE_PNP_FUNCTION = {
+    POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC: solvepnp_ransac,
+    POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
+    POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
+}
+
+
+def view_camera_infos(frame, text, x, y):
+    cv2.putText(frame, text,
+                (x, y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
+
+
+def rw_json_data(rw_mode, path, data):
+    try:
+        if rw_mode == READ:
+            with open(path, 'r', encoding="utf-8") as rdata:
+                json_data = json.load(rdata)
+            return json_data
+        elif rw_mode == WRITE:
+            with open(path, 'w', encoding="utf-8") as wdata:
+                json.dump(data, wdata, ensure_ascii=False, indent="\t")
+        else:
+            print('not support mode')
+    except:
+        # print('file r/w error')
+        return ERROR
+
+
+def createTrackerByName(trackerType):
+    # Create a tracker based on tracker name
+    if trackerType == trackerTypes[0]:
+        tracker = cv2.legacy.TrackerBoosting_create()
+    elif trackerType == trackerTypes[1]:
+        tracker = cv2.legacy.TrackerMIL_create()
+    elif trackerType == trackerTypes[2]:
+        tracker = cv2.legacy.TrackerKCF_create()
+    elif trackerType == trackerTypes[3]:
+        tracker = cv2.legacy.TrackerTLD_create()
+    elif trackerType == trackerTypes[4]:
+        tracker = cv2.legacy.TrackerMedianFlow_create()
+    elif trackerType == trackerTypes[5]:
+        tracker = cv2.legacy.TrackerGOTURN_create()
+    elif trackerType == trackerTypes[6]:
+        tracker = cv2.TrackerMOSSE_create()
+    elif trackerType == trackerTypes[7]:
+        tracker = cv2.legacy.TrackerCSRT_create()
+    else:
+        tracker = None
+        print('Incorrect tracker name')
+        print('Available trackers are:')
+        for t in trackerTypes:
+            print(t)
+
+    return tracker
+
+
+def find_center(frame, SPEC_AREA):
+    x_sum = 0
+    t_sum = 0
+    y_sum = 0
+    g_c_x = 0
+    g_c_y = 0
+    m_count = 0
+
+    (X, Y, W, H) = SPEC_AREA
+
+    for y in range(Y, Y + H):
+        for x in range(X, X + W):
+            x_sum += x * frame[y][x]
+            t_sum += frame[y][x]
+            m_count += 1
+
+    for x in range(X, X + W):
+        for y in range(Y, Y + H):
+            y_sum += y * frame[y][x]
+
+    if t_sum != 0:
+        g_c_x = x_sum / t_sum
+        g_c_y = y_sum / t_sum
+
+    if g_c_x == 0 or g_c_y == 0:
+        return 0, 0
+    #
+
+    result_data_str = f'{g_c_x}' + f'{g_c_y}'
+    print(result_data_str)
+
+    return g_c_x, g_c_y
+
+
+def load_data(path):
+    image_files = glob.glob(os.path.join(path, "*.png"))
+    data_files = glob.glob(os.path.join(path, "*.txt"))
+    images = [cv2.imread(img) for img in image_files]
+    return images, image_files, data_files
+
+
+def pickle_data(rw_mode, path, data):
+    import pickle
+    import gzip
+    try:
+        if rw_mode == READ:
+            with gzip.open(path, 'rb') as f:
+                data = pickle.load(f)
+            return data
+        elif rw_mode == WRITE:
+            with gzip.open(path, 'wb') as f:
+                pickle.dump(data, f)
+        else:
+            print('not support mode')
+    except:
+        print('file r/w error')
+        return ERROR
+
+
+def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
+    l_rotation, _ = cv2.Rodrigues(RT_0['rvec'])
+    r_rotation, _ = cv2.Rodrigues(RT_1['rvec'])
+    l_projection = np.dot(camera_k_0, np.hstack((l_rotation, RT_0['tvec'])))
+    r_projection = np.dot(camera_k_1, np.hstack((r_rotation, RT_1['tvec'])))
+    l_blob = np.reshape(BLOB_0, (1, len(BLOB_0), 2))
+    r_blob = np.reshape(BLOB_1, (1, len(BLOB_1), 2))
+    triangulation = cv2.triangulatePoints(l_projection, r_projection,
+                                          l_blob, r_blob)
+    homog_points = triangulation.transpose()
+    get_points = cv2.convertPointsFromHomogeneous(homog_points)
+
+    return get_points

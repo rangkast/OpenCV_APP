@@ -16,15 +16,16 @@ from math import degrees
 from datetime import datetime
 import platform
 
-
 '''
 Functions
 '''
+
 
 def delete_all_objects_except(exclude_object_names):
     for obj in bpy.data.objects:
         if obj.name not in exclude_object_names:
             bpy.data.objects.remove(obj, do_unlink=True)
+
 
 def create_mesh_object(coords, name, padding=0.0):
     # 새로운 메시를 생성하고 이름을 설정합니다.
@@ -70,15 +71,15 @@ def create_mesh_object(coords, name, padding=0.0):
     principled_node = nodes.get("Principled BSDF")
     output_node = nodes.get("Material Output")
 
-  # 기존 Principled BSDF 노드의 설정을 변경합니다.
+    # 기존 Principled BSDF 노드의 설정을 변경합니다.
     principled_node.inputs["Base Color"].default_value = (0.1, 0.1, 0.1, 1)  # 짙은 회색
     principled_node.inputs["Alpha"].default_value = 1.0  # 알파 값 변경 (1.0로 설정)
     principled_node.inputs["Transmission"].default_value = 1.0  # 빛 투과값 설정 (1.0로 설정)
     principled_node.inputs["IOR"].default_value = 1.0  # 굴절률 설정 (1.0로 설정)
 
     # 블렌드 모드 설정
-#    mesh_material.blend_method = 'BLEND'  # 블렌드 모드 설정
-#    mesh_material.shadow_method = 'NONE'  # 그림자 방법 설정
+    #    mesh_material.blend_method = 'BLEND'  # 블렌드 모드 설정
+    #    mesh_material.shadow_method = 'NONE'  # 그림자 방법 설정
 
     # 이제 수정한 Principled BSDF 노드와 Material Output 노드를 연결합니다.
     links.new(principled_node.outputs["BSDF"], output_node.inputs["Surface"])
@@ -100,13 +101,12 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
         # LED 오브젝트의 위치를 조정합니다.
         normalized_direction = Vector(coord).normalized()
         if shape == 'sphere':
-            distance_to_o = led_size * 2/3
+            distance_to_o = led_size * 2 / 3
             location = [coord[0] - distance_to_o * normalized_direction.x,
                         coord[1] - distance_to_o * normalized_direction.y,
                         coord[2] - distance_to_o * normalized_direction.z]
         else:
             location = coord
-
 
         bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=led_size, location=location)
         led_obj = bpy.context.active_object
@@ -136,9 +136,10 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
 
     return led_objects
 
+
 # def create_circle_leds_with_light_on_surface(led_coords, led_size, mesh_obj, led_power=100, name_prefix="LED"):
 #     led_objects = create_circle_leds_on_surface(led_coords, led_size, name_prefix)
-    
+
 #     for i, led_obj in enumerate(led_objects):
 #         # 빛을 생성합니다.
 #         light_data = bpy.data.lights.new(name=f"Light_{i}", type='POINT')
@@ -147,7 +148,7 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
 #         # 빛을 LED 오브젝트에 넣습니다.
 #         light_obj = bpy.data.objects.new(name=f"Light_{i}", object_data=light_data)
 #         bpy.context.collection.objects.link(light_obj)
-        
+
 #         # 빛을 LED 위치로 이동합니다.
 #         light_obj.location = led_obj.location
 
@@ -155,7 +156,6 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
 #         light_obj.location -= (mesh_obj.location - led_obj.location).normalized() * 0.01
 
 #     return led_objects
-
 
 
 def set_up_dark_world_background():
@@ -191,7 +191,6 @@ def rotation_matrix_to_quaternion(R):
     qz = (R[1, 0] - R[0, 1]) / (4 * qw)
 
     return np.array([qw, qx, qy, qz])
-
 
 
 # def blender_location_rotation_from_opencv(R_OpenCV, T_OpenCV):
@@ -297,6 +296,7 @@ def calculate_camera_position_direction(rvec, tvec):
 
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pan, tilt)
 
+
 def get_sensor_fit(sensor_fit, size_x, size_y):
     if sensor_fit == 'AUTO':
         if size_x >= size_y:
@@ -304,7 +304,6 @@ def get_sensor_fit(sensor_fit, size_x, size_y):
         else:
             return 'VERTICAL'
     return sensor_fit
-
 
 
 def create_camera(camera_f, camera_c, cam_location, name, rot):
@@ -319,15 +318,14 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     # Remove existing camera
     if name in bpy.data.objects:
         bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
-    
+
     # MAKE DEFAULT CAM
     # bpy.ops.object.camera_add(location=(0.2, 0, 0))
     bpy.ops.object.camera_add(location=(X, Y, Z))
 
-
     cam = bpy.context.active_object
     cam.name = name
-    
+
     # idea 1    
     # Create a new camera object
     '''
@@ -340,7 +338,7 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     # MAKE DEFAULT CAM
     cam.rotation_euler = (math.radians(rotation[0]), math.radians(rotation[1]), math.radians(rotation[2]))
     # cam.rotation_euler = (yaw, roll, pitch)
-        
+
     # idea 3
     '''
     X, Y, Z = cam_location
@@ -379,8 +377,8 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     # 카메라 방향 설정
     cam.rotation_mode = 'XYZ'
     cam.rotation_euler = blender_euler
-    '''  
-    
+    '''
+
     fx_px, fy_px = camera_f
     cx_px, cy_px = camera_c
 
@@ -389,9 +387,9 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     sensor_height_px = 960.0
 
     # Calculate the sensor size in millimeters
-    sensor_width_mm = 36.0 # Assuming 35mm camera sensor size
-    sensor_height_mm = 27.0 # Assuming 35mm camera sensor size
-    scale = sensor_width_px / sensor_width_mm # Pixel per mm scale factor
+    sensor_width_mm = 36.0  # Assuming 35mm camera sensor size
+    sensor_height_mm = 27.0  # Assuming 35mm camera sensor size
+    scale = sensor_width_px / sensor_width_mm  # Pixel per mm scale factor
     sensor_width = sensor_width_px / scale
     sensor_height = sensor_height_px / scale
 
@@ -407,23 +405,22 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     # Set the camera parameters
     cam.data.type = 'PERSP'
     cam.data.lens_unit = 'FOV'
-    cam.data.angle = 2 * math.atan(sensor_width / (2 * focal_length)) # Field of view in radians
+    cam.data.angle = 2 * math.atan(sensor_width / (2 * focal_length))  # Field of view in radians
     cam.data.sensor_width = sensor_width
     cam.data.sensor_height = sensor_height
-    
+
     scene = bpy.context.scene
-    
+
     pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
 
     view_fac_in_px = sensor_width_px
 
-    
     # cam.data.shift_x = (cx - sensor_width_px / 2.0) / fx_px # Shift in X direction
     # cam.data.shift_y = (cy - sensor_height_px / 2.0) / fy_px # Shift in Y direction
-    
-    cam.data.shift_x = (sensor_width_px / 2 - cx_px) / view_fac_in_px    
+
+    cam.data.shift_x = (sensor_width_px / 2 - cx_px) / view_fac_in_px
     cam.data.shift_y = (cy_px - sensor_height_px / 2) * pixel_aspect_ratio / view_fac_in_px
- 
+
     print('shift_x, shift_y', cam.data.shift_x, cam.data.shift_y)
     return cam
 
@@ -451,6 +448,7 @@ def plot_camera(position, direction, axis_length=1.0, save_path='./camera_plot.p
     plt.close(fig)
     print(f"Saved plot to {os.path.abspath(save_path)}")
 
+
 def create_point(location, point_name="Point"):
     mesh = bpy.data.meshes.new(point_name)
     obj = bpy.data.objects.new(point_name, mesh)
@@ -465,6 +463,7 @@ def create_point(location, point_name="Point"):
     bm.free()
 
     return obj
+
 
 def create_direction_point(start_location, direction, point_name="DirectionPoint", scale=1.0, color=(1, 0, 0, 1)):
     mesh = bpy.data.meshes.new(point_name)
@@ -488,14 +487,15 @@ def create_direction_point(start_location, direction, point_name="DirectionPoint
     return obj
 
 
-
 def make_cameras(camera_name, rvec, tvec, camera_matrix):
     # position, direction, rot = calculate_camera_position_direction(rvec, tvec)
     position, rotation = blender_location_rotation_from_opencv(rvec, tvec)
     # print(position, direction)
     # point_obj = create_point(position)
     # direction_point_obj = create_direction_point(position, direction, scale=2.0)
-    camera = create_camera(camera_matrix['camera_f'], camera_matrix['camera_c'], position, camera_name, rotation)    
+    camera = create_camera(camera_matrix['camera_f'], camera_matrix['camera_c'], position, camera_name, rotation)
+
+
 #    plot_camera(position, direction, save_path='./camera_plot.png')
 
 
@@ -506,13 +506,13 @@ def draw_line(p1, p2, name):
     scaled_direction = direction * 10
     p2 = p1 + scaled_direction
 
-    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.0001, depth=scaled_direction.length, end_fill_type='NGON', location=(0, 0, 0), scale=(1, 1, 1))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=0.0001, depth=scaled_direction.length, end_fill_type='NGON',
+                                        location=(0, 0, 0), scale=(1, 1, 1))
     line = bpy.context.object
     line.name = name
     line.location = (p1 + p2) / 2
     line.rotation_mode = 'QUATERNION'
     line.rotation_quaternion = scaled_direction.to_track_quat('Z', 'Y')
-
 
 
 def create_sphere(location, radius, name):
@@ -534,6 +534,7 @@ def find_intersection(p1, p2, obj, epsilon=1e-8):
 
     return intersections
 
+
 def quaternion_to_euler_degree(quaternion):
     # Convert quaternion to Euler rotation (radians)
     euler_rad = quaternion.to_euler()
@@ -542,6 +543,7 @@ def quaternion_to_euler_degree(quaternion):
     euler_deg = Vector([math.degrees(axis) for axis in euler_rad])
 
     return euler_deg
+
 
 def apply_boolean_modifier(target_obj, cutter_obj, operation='DIFFERENCE'):
     boolean_mod = target_obj.modifiers.new('Boolean', 'BOOLEAN')
@@ -559,13 +561,6 @@ def apply_boolean_modifier(target_obj, cutter_obj, operation='DIFFERENCE'):
     bpy.ops.object.select_all(action='DESELECT')
     cutter_obj.select_set(True)
     bpy.ops.object.delete()
-
-def update_viewport_display(obj, color=(1, 1, 1, 1), display_as='TEXTURED', show_wireframe=False):
-    obj.show_wire = show_wireframe
-    obj.display_type = display_as
-    obj.color = color
-
-
 
 
 '''
@@ -616,7 +611,6 @@ elif os_name == 'Linux':
 else:
     print("Unknown OS")
 
-
 with gzip.open(pickle_file, 'rb') as f:
     data = pickle.load(f)
 
@@ -647,7 +641,6 @@ bpy.context.scene.unit_settings.system = 'METRIC'
 bpy.context.scene.unit_settings.scale_length = 1.0
 bpy.context.scene.unit_settings.length_unit = 'METERS'
 
-
 # 렌더링 엔진을 Eevee로 설정합니다.
 bpy.context.scene.render.engine = 'BLENDER_EEVEE'
 # Eevee 렌더링 설정을 조절합니다.
@@ -671,8 +664,7 @@ model_data = np.array(model_data)
 # led_data를 numpy 배열로 변환합니다.
 led_data = np.array(led_data)
 # 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
-create_mesh_object(model_data, name=MESH_OBJ_NAME,  padding=padding)
-
+create_mesh_object(model_data, name=MESH_OBJ_NAME, padding=padding)
 
 # # 모델 오브젝트를 찾습니다.
 model_obj = bpy.data.objects[MESH_OBJ_NAME]
@@ -714,12 +706,11 @@ for idx, led in enumerate(origin_led_data):
 
 # 0.2, 0, 0
 # 90, 0, 90
-rvec_left = np.array([ 1.20919984, 1.20919951, -1.20919951])
-tvec_left = np.array([-4.17232506e-08, -1.19209291e-08,  2.00000048e-01])
+rvec_left = np.array([1.20919984, 1.20919951, -1.20919951])
+tvec_left = np.array([-4.17232506e-08, -1.19209291e-08, 2.00000048e-01])
 
-
-rvec_right = np.array([0.86044094,  1.63833498, -1.63833511])
-tvec_right = np.array([-8.19563866e-08,  2.92450419e-08,  2.00000092e-01])
+rvec_right = np.array([0.86044094, 1.63833498, -1.63833511])
+tvec_right = np.array([-8.19563866e-08, 2.92450419e-08, 2.00000092e-01])
 
 # rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
 # tvec_left = np.array([-0.111,  0.052,  0.337])
@@ -727,7 +718,7 @@ tvec_right = np.array([-8.19563866e-08,  2.92450419e-08,  2.00000092e-01])
 # location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
 
 make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
-make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
+make_cameras("CAMERA_1", rvec_right, tvec_right, cam_0_matrix)
 # euler_deg = quaternion_to_euler_degree(rotation)
 
 # print('cam_remake')
@@ -760,7 +751,7 @@ make_cameras("CAMERA_1", rvec_right, tvec_right, cam_1_matrix)
 set_track_to = 1
 
 if set_track_to == 1:
-# List of camera names
+    # List of camera names
     for camera_name in camera_names:
         # Get the camera object
         camera = bpy.data.objects[camera_name]
@@ -781,4 +772,3 @@ if set_track_to == 1:
 
 for i, leds in enumerate(led_data):
     print(f"{i}, led: {leds}")
-

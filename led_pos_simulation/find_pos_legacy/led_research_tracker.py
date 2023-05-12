@@ -1,220 +1,19 @@
-import pickle
-import gzip
-import cv2
-import glob
-import os
-import numpy as np
-from enum import Enum, auto
-import math
-import platform
-from scipy.spatial.transform import Rotation as Rot
 from function import *
 from definition import *
-import json
 
-trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
-DONE = 'DONE'
-NOT_SET = 'NOT_SET'
-ERROR = 'ERROR'
-SUCCESS = 'SUCCESS'
+
 pickle_file = './result_cylinder_base.pickle'
 
-with gzip.open(pickle_file, 'rb') as f:
-    data = pickle.load(f)
+data = pickle_data(READ, pickle_file, None)
 
 led_data = data['LED_INFO']
 
 for i, leds in enumerate(led_data):
     print(f"{i}, {leds}")
-
-
-class POSE_ESTIMATION_METHOD(Enum):
-    # Opencv legacy
-    SOLVE_PNP_RANSAC = auto()
-    SOLVE_PNP_REFINE_LM = auto()
-    SOLVE_PNP_AP3P = auto()
-    SOLVE_PNP = auto()
-    SOLVE_PNP_RESERVED = auto()
-
-
-# Default solvePnPRansac
-def solvepnp_ransac(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-    # check assertion
-    if len(points3D) != len(points2D):
-        print("assertion len is not equal")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    if len(points2D) < 4:
-        print("assertion < 4: ")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    ret, rvecs, tvecs, inliers = cv2.solvePnPRansac(points3D, points2D,
-                                                    camera_k,
-                                                    dist_coeff)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, inliers
-
-
-# solvePnPRansac + RefineLM
-def solvepnp_ransac_refineLM(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-    ret, rvecs, tvecs, inliers = solvepnp_ransac(points3D, points2D, camera_k, dist_coeff)
-    # Do refineLM with inliers
-    if ret == SUCCESS:
-        if not hasattr(cv2, 'solvePnPRefineLM'):
-            print('solvePnPRefineLM requires OpenCV >= 4.1.1, skipping refinement')
-        else:
-            assert len(inliers) >= 3, 'LM refinement requires at least 3 inlier points'
-            # refine r_t vector and maybe changed
-            cv2.solvePnPRefineLM(points3D[inliers],
-                                 points2D[inliers], camera_k, dist_coeff,
-                                 rvecs, tvecs)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-
-
-# solvePnP_AP3P, 3 or 4 points need
-def solvepnp_AP3P(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-
-    # check assertion
-    if len(points3D) != len(points2D):
-        print("assertion len is not equal")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    if len(points2D) < 3 or len(points2D) > 4:
-        print("assertion ", len(points2D))
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    ret, rvecs, tvecs = cv2.solvePnP(points3D, points2D,
-                                     camera_k,
-                                     dist_coeff,
-                                     flags=cv2.SOLVEPNP_AP3P)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-
-
-SOLVE_PNP_FUNCTION = {
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC: solvepnp_ransac,
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
-}
-
-camera_matrix = [
-    # cam 0
-    [np.array([[712.623, 0.0, 653.448],
-               [0.0, 712.623, 475.572],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
-
-    # cam 1
-    [np.array([[716.896, 0.0, 668.902],
-               [0.0, 716.896, 460.618],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)]
-]
-default_dist_coeffs = np.zeros((4, 1))
-
-
-def view_camera_infos(frame, text, x, y):
-    cv2.putText(frame, text,
-                (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
-
-
-def rw_json_data(rw_mode, path, data):
-    try:
-        if rw_mode == READ:
-            with open(path, 'r', encoding="utf-8") as rdata:
-                json_data = json.load(rdata)
-            return json_data
-        elif rw_mode == WRITE:
-            with open(path, 'w', encoding="utf-8") as wdata:
-                json.dump(data, wdata, ensure_ascii=False, indent="\t")
-        else:
-            print('not support mode')
-    except:
-        # print('file r/w error')
-        return ERROR
-
-
-def createTrackerByName(trackerType):
-    # Create a tracker based on tracker name
-    if trackerType == trackerTypes[0]:
-        tracker = cv2.legacy.TrackerBoosting_create()
-    elif trackerType == trackerTypes[1]:
-        tracker = cv2.legacy.TrackerMIL_create()
-    elif trackerType == trackerTypes[2]:
-        tracker = cv2.legacy.TrackerKCF_create()
-    elif trackerType == trackerTypes[3]:
-        tracker = cv2.legacy.TrackerTLD_create()
-    elif trackerType == trackerTypes[4]:
-        tracker = cv2.legacy.TrackerMedianFlow_create()
-    elif trackerType == trackerTypes[5]:
-        tracker = cv2.legacy.TrackerGOTURN_create()
-    elif trackerType == trackerTypes[6]:
-        tracker = cv2.TrackerMOSSE_create()
-    elif trackerType == trackerTypes[7]:
-        tracker = cv2.legacy.TrackerCSRT_create()
-    else:
-        tracker = None
-        print('Incorrect tracker name')
-        print('Available trackers are:')
-        for t in trackerTypes:
-            print(t)
-
-    return tracker
-
-
-def find_center(frame, SPEC_AREA):
-    x_sum = 0
-    t_sum = 0
-    y_sum = 0
-    g_c_x = 0
-    g_c_y = 0
-    m_count = 0
-
-    (X, Y, W, H) = SPEC_AREA
-
-    for y in range(Y, Y + H):
-        for x in range(X, X + W):
-            x_sum += x * frame[y][x]
-            t_sum += frame[y][x]
-            m_count += 1
-
-    for x in range(X, X + W):
-        for y in range(Y, Y + H):
-            y_sum += y * frame[y][x]
-
-    if t_sum != 0:
-        g_c_x = x_sum / t_sum
-        g_c_y = y_sum / t_sum
-
-    if g_c_x == 0 or g_c_y == 0:
-        return 0, 0
-    #
-
-    result_data_str = f'{g_c_x}' + f'{g_c_y}'
-    print(result_data_str)
-
-    return g_c_x, g_c_y
 
 
 def display_tracker(images, image_files, data_files):
@@ -471,13 +270,6 @@ def display_tracker(images, image_files, data_files):
 
     cv2.destroyAllWindows()
     bboxes.clear()
-
-
-def load_data(path):
-    image_files = glob.glob(os.path.join(path, "*.png"))
-    data_files = glob.glob(os.path.join(path, "*.txt"))
-    images = [cv2.imread(img) for img in image_files]
-    return images, image_files, data_files
 
 
 if __name__ == "__main__":
