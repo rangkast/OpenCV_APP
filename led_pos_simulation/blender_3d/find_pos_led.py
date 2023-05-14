@@ -600,6 +600,8 @@ if os_name == 'Windows':
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result.pickle'
     elif shape == 'cylinder':
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
+    elif shape == 'cylinder_base':
+        pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
 elif os_name == 'Linux':
     print("This is Linux")
     if shape == 'sphere':

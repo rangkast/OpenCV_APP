@@ -55,16 +55,22 @@ ax = fig.add_subplot(111, projection='3d')
 combined_coords, coords = create_cylindrical_surface_coords(radius, center, lower_z, upper_z, padding, num_points=100,
                                                             draw=True, ax=ax)
 
-spacing = 0.01
+spacing = 0.02
 theta = np.arange(0, 2 * np.pi, spacing / radius)
 z = np.arange(lower_z, upper_z, spacing)
 
 p_coords = []
 
+# Define standard deviation of noise
+std_dev = 0.1  # Adjust this to change the amount of noise
+
 for i, t in enumerate(theta):
     for j, z_val in enumerate(z):
-        x = center[0] + radius * np.cos(t)
-        y = center[1] + radius * np.sin(t)
+        # Add noise to the angle
+        t_noisy = t + np.random.normal(0, std_dev)
+
+        x = center[0] + radius * np.cos(t_noisy)
+        y = center[1] + radius * np.sin(t_noisy)
 
         if x > 0 and (i + j) % 2 == 0:
             p_coords.append([x, y, z_val])

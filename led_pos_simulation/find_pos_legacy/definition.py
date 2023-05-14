@@ -19,7 +19,7 @@ import math
 import platform
 from scipy.spatial.transform import Rotation as Rot
 import json
-
+import matplotlib.ticker as ticker
 # 구 캡의 반지름 R과 높이 h
 # 단위 cm
 R = 8

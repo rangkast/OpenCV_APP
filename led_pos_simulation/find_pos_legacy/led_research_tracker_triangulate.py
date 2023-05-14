@@ -117,6 +117,13 @@ def display_tracker_research(images, image_files, data_files):
 
     print('Selected bounding boxes {}'.format(bboxes))
     # Specify the tracker type
+    '''
+    특정 버전 에서만 됨
+    pip uninstall opencv-python
+    pip uninstall opencv-contrib-python
+    pip uninstall opencv-contrib-python-headless
+    pip3 install opencv-contrib-python==4.5.5.62
+    '''
     trackerType = "CSRT"
     # Create MultiTracker object
     multiTracker = cv2.legacy.MultiTracker_create()
@@ -163,7 +170,7 @@ def display_tracker_research(images, image_files, data_files):
             break
         elif key == ord('c'):
             print('capture start')
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
 
             root = tk.Tk()
             width_px = root.winfo_screenwidth()
@@ -190,7 +197,7 @@ def display_tracker_research(images, image_files, data_files):
             ax3 = plt.subplot(gs_sub[0, 1])
             ax4 = plt.subplot(gs_sub[1, 0])
             ax5 = plt.subplot(gs_sub[1, 1])
-
+            LED_NUMBER = []
             if len(bboxes) > 0:
                 for i, data in enumerate(bboxes):
                     (x, y, w, h) = data['bbox']
@@ -200,6 +207,7 @@ def display_tracker_research(images, image_files, data_files):
                     if cx >= CAP_PROP_FRAME_WIDTH:
                         cx -= CAP_PROP_FRAME_WIDTH
                         cam_id = 1
+                        LED_NUMBER.append(IDX)
                     CAMERA_INFO[f'{cam_id}']['points2D']['greysum'].append([cx, cy])
                     CAMERA_INFO[f'{cam_id}']['points3D'].append(led_data[IDX])
 
@@ -210,6 +218,9 @@ def display_tracker_research(images, image_files, data_files):
                         ax = ax2
                     else:
                         ax = ax3
+
+                    # Y축 방향 반전
+                    ax.invert_yaxis()
 
                     print('CAM id', cam_id, 'ax', ax)
 
@@ -285,24 +296,32 @@ def display_tracker_research(images, image_files, data_files):
                                            -1)
                                 # 각 점에 레이블 표시
                                 for i, (x, y) in enumerate(image_points):
-                                    ax.text(x, y, f'{i}', fontsize=12, ha='right', va='bottom')
+                                    ax.text(x, y, f'{LED_NUMBER[i]}', fontsize=12, ha='right', va='bottom')
 
                                 # 좌표 사이의 거리를 직선으로 표시
                                 for a, b in zip(image_points, blender_image_points):
-                                    ax.plot([a[0], b[0]], [a[1], b[1]], linestyle=':', color='green', alpha=0.6)
+                                    ax.plot([a[0], b[0]], [a[1], b[1]], linestyle=':', color='blue', alpha=0.6)
                                     distance = np.linalg.norm(a - b)
                                     midpoint = (a + b) / 2
-                                    ax.text(midpoint[0], midpoint[1], f"{distance:.2f}", fontsize=12, ha='left',
+                                    ax.text(midpoint[0] + 30, midpoint[1], f"{distance:.2f}", fontsize=12, ha='left',
                                             va='bottom',
-                                            color='green', alpha=0.6)
+                                            color='blue', alpha=0.6)
+
+                                for a, b in zip(image_points, greysum_points):
+                                    ax.plot([a[0], b[0]], [a[1], b[1]], linestyle=':', color='red', alpha=0.6)
+                                    distance = np.linalg.norm(a - b)
+                                    midpoint = (a + b) / 2
+                                    ax.text(midpoint[0] + 10, midpoint[1], f"{distance:.2f}", fontsize=12, ha='left',
+                                            va='bottom',
+                                            color='red', alpha=0.6)
 
                                 ax.set_xlabel('X-axis')
                                 ax.set_ylabel('Y-axis')
+
                                 ax.set_title('2D-Point distance CAM ' + str(cam_id))
                                 ax.legend()
                                 ax.grid()
-                                # Y축 방향 반전
-                                ax.invert_yaxis()
+
                     cv2.imshow(f"{cam_id}_result", cam_data['image'])
 
                 # Try to remake 3D point and compare
@@ -326,9 +345,15 @@ def display_tracker_research(images, image_files, data_files):
                 print('blender_remake\n', blender_remake)
                 origin_pts = np.array(led_data).reshape(-1, 3)
                 print('origin_pts\n', points3D.reshape(-1, 3))
-                ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o', s=10)
-                ax1.scatter(opencv_remake[:, 0], opencv_remake[:, 1], opencv_remake[:, 2], color='red', alpha=0.5, marker='o', s=10)
-                ax1.scatter(blender_remake[:, 0], blender_remake[:, 1], blender_remake[:, 2], color='blue', alpha=0.5, marker='o', s=10)
+                ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o',
+                            s=10)
+                ax1.scatter(opencv_remake[:, 0], opencv_remake[:, 1], opencv_remake[:, 2], color='red', alpha=0.5,
+                            marker='o', s=10)
+                ax1.scatter(blender_remake[:, 0], blender_remake[:, 1], blender_remake[:, 2], color='blue', alpha=0.5,
+                            marker='o', s=10)
+                for index in range(blender_remake.shape[0]):
+                    ax1.text(blender_remake[index, 0], blender_remake[index, 1], blender_remake[index, 2],
+                             f'{LED_NUMBER[index]}', size=5)
 
                 ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
                 ax1.set_xlim([-0.1, 0.1])
@@ -342,19 +367,28 @@ def display_tracker_research(images, image_files, data_files):
 
                 # Compute Euclidean distance
                 dist_opencv = np.linalg.norm(points3D.reshape(-1, 3) - opencv_remake, axis=1)
+                print('dist_opencv\n', dist_opencv)
                 dist_blender = np.linalg.norm(points3D.reshape(-1, 3) - blender_remake, axis=1)
-
-                ax4.bar(range(len(dist_opencv)), dist_opencv)
+                print('dist_blender\n', dist_blender)
+                # Find max values
+                max_opencv = np.max(dist_opencv)
+                max_blender = np.max(dist_blender)
+                ax4.bar(range(len(dist_opencv)), dist_opencv, width=0.4)
                 ax4.set_title('Distance between origin_pts and opencv_remake')
-                ax4.set_xlabel('Index')
+                ax4.set_xlabel('LEDS')
                 ax4.set_ylabel('Distance')
-
-                ax5.bar(range(len(dist_blender)), dist_blender)
+                ax4.set_xticks(range(len(dist_opencv)))
+                ax4.set_xticklabels(LED_NUMBER)
+                ax4.set_yscale('log')
+                ax5.bar(range(len(dist_blender)), dist_blender, width=0.4)
                 ax5.set_title('Distance between origin_pts and blender_remake')
-                ax5.set_xlabel('Index')
+                ax5.set_xlabel('LEDS')
                 ax5.set_ylabel('Distance')
+                ax5.set_xticks(range(len(dist_blender)))
+                ax5.set_xticklabels(LED_NUMBER)
+                ax5.set_yscale('log')
 
-                plt.tight_layout()
+                # plt.tight_layout()
 
                 plt.show()
 
