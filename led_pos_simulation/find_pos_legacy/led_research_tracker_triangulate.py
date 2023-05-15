@@ -12,6 +12,29 @@ for i, leds in enumerate(led_data):
     print(f"{i}, {leds}")
 
 
+def recover_euler_degree(CAMERA_INFO):
+    print('\n\n')
+    for cam_id, cam_data in CAMERA_INFO.items():
+        print('cam_id', cam_id)
+
+        position, rotation = blender_location_rotation_from_opencv(np.array(cam_data['opencv_rt']['rvec'].ravel()),
+                                                                   np.array(cam_data['opencv_rt']['tvec'].ravel()))
+        rotation = quaternion_to_euler_degree(rotation)
+        print('OpenCV')
+        print('euler(degree)', rotation[0], rotation[1], rotation[2])
+
+        X, Y, Z = position
+        print('position', X, Y, Z)
+
+        position, rotation = blender_location_rotation_from_opencv(np.array(cam_data['blender_rt']['rvec'].ravel()),
+                                                                   np.array(cam_data['blender_rt']['tvec'].ravel()))
+        rotation = quaternion_to_euler_degree(rotation)
+        print('BLENDER')
+        print('euler(degree)', rotation[0], rotation[1], rotation[2])
+        X, Y, Z = position
+        print('position', X, Y, Z)
+
+
 def display_tracker_research(images, image_files, data_files):
     print('data_files')
     for data_file in data_files:
@@ -34,6 +57,7 @@ def display_tracker_research(images, image_files, data_files):
                                     'points3D': [],
                                     'opencv_rt': {'rvec': [], 'tvec': []},
                                     'blender_rt': {'rvec': [], 'tvec': []},
+                                    'test_rt': {'rvec': [], 'tvec': []},
                                     }
 
     # for key, value in CAMERA_INFO.items():
@@ -45,75 +69,76 @@ def display_tracker_research(images, image_files, data_files):
     if json_data != ERROR:
         bboxes = json_data['bboxes']
 
-    while True:
-        DRAW_IMG_0 = CAMERA_INFO['0']['image']
-        DRAW_IMG_1 = CAMERA_INFO['1']['image']
+    if 0:
+        while True:
+            DRAW_IMG_0 = CAMERA_INFO['0']['image']
+            DRAW_IMG_1 = CAMERA_INFO['1']['image']
 
-        STACK_FRAME = np.hstack((DRAW_IMG_0, DRAW_IMG_1))
-        cv2.putText(STACK_FRAME, CAMERA_INFO['0']['img_name'], (10, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-        cv2.putText(STACK_FRAME, CAMERA_INFO['1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            STACK_FRAME = np.hstack((DRAW_IMG_0, DRAW_IMG_1))
+            cv2.putText(STACK_FRAME, CAMERA_INFO['0']['img_name'], (10, 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(STACK_FRAME, CAMERA_INFO['1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-        ret, img_filtered = cv2.threshold(STACK_FRAME, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
-        IMG_GRAY = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)
+            ret, img_filtered = cv2.threshold(STACK_FRAME, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+            IMG_GRAY = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)
 
-        if len(bboxes) > 0:
-            except_pos = 0
-            for i, data in enumerate(bboxes):
-                (x, y, w, h) = data['bbox']
-                IDX = data['idx']
-                except_pos += 1
-                if except_pos == len(bboxes) / 2:
-                    color = (255, 255, 255)
-                    line_width = 1
-                    except_pos = 0
-                else:
-                    color = (0, 255, 0)
-                    line_width = 2
+            if len(bboxes) > 0:
+                except_pos = 0
+                for i, data in enumerate(bboxes):
+                    (x, y, w, h) = data['bbox']
+                    IDX = data['idx']
+                    except_pos += 1
+                    if except_pos == len(bboxes) / 2:
+                        color = (255, 255, 255)
+                        line_width = 1
+                        except_pos = 0
+                    else:
+                        color = (0, 255, 0)
+                        line_width = 2
 
-                cv2.rectangle(STACK_FRAME, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width,
-                              1)
-                view_camera_infos(STACK_FRAME, ''.join([f'{IDX}']), int(x), int(y) - 10)
+                    cv2.rectangle(STACK_FRAME, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width,
+                                  1)
+                    view_camera_infos(STACK_FRAME, ''.join([f'{IDX}']), int(x), int(y) - 10)
 
-        key = cv2.waitKey(1)
+            key = cv2.waitKey(1)
 
-        if key == ord('a'):
-            cv2.imshow('Image', IMG_GRAY)
-            bbox = cv2.selectROI('Image', IMG_GRAY)
-            while True:
-                inputs = input('input led number: ')
-                if inputs.isdigit():
-                    input_number = int(inputs)
-                    if input_number in range(0, 1000):
-                        print('label number ', input_number)
-                        print('bbox ', bbox)
-                        bboxes.append({'idx': input_number, 'bbox': bbox})
+            if key == ord('a'):
+                cv2.imshow('Image', IMG_GRAY)
+                bbox = cv2.selectROI('Image', IMG_GRAY)
+                while True:
+                    inputs = input('input led number: ')
+                    if inputs.isdigit():
+                        input_number = int(inputs)
+                        if input_number in range(0, 1000):
+                            print('label number ', input_number)
+                            print('bbox ', bbox)
+                            bboxes.append({'idx': input_number, 'bbox': bbox})
+                            break
+                    elif cv2.waitKey(1) == ord('q'):
+                        bboxes.clear()
                         break
-                elif cv2.waitKey(1) == ord('q'):
-                    bboxes.clear()
-                    break
-        elif key == ord('c'):
-            print('clear area')
-            bboxes.clear()
+            elif key == ord('c'):
+                print('clear area')
+                bboxes.clear()
 
-        elif key == ord('s'):
-            print('save blob area')
-            json_data = OrderedDict()
-            json_data['bboxes'] = bboxes
-            # Write json data
-            rw_json_data(WRITE, json_file, json_data)
+            elif key == ord('s'):
+                print('save blob area')
+                json_data = OrderedDict()
+                json_data['bboxes'] = bboxes
+                # Write json data
+                rw_json_data(WRITE, json_file, json_data)
 
-        elif key & 0xFF == 27:
-            print('ESC pressed')
-            cv2.destroyAllWindows()
-            return
+            elif key & 0xFF == 27:
+                print('ESC pressed')
+                cv2.destroyAllWindows()
+                return
 
-        elif key == ord('e'):
-            print('go next step')
-            break
+            elif key == ord('e'):
+                print('go next step')
+                break
 
-        cv2.imshow("Image", STACK_FRAME)
+            cv2.imshow("Image", STACK_FRAME)
 
     print('Selected bounding boxes {}'.format(bboxes))
     # Specify the tracker type
@@ -189,14 +214,20 @@ def display_tracker_research(images, image_files, data_files):
             # 왼쪽 그리드에 subplot 할당
             ax1 = plt.subplot(gs[0], projection='3d')
 
-            # 오른쪽 그리드를 2x2로 분할
-            gs_sub = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs[1])
+            # 오른쪽 그리드를 위에는 2개, 아래는 3개로 분할
+            gs_sub = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1], height_ratios=[1, 1])
 
-            # 분할된 오른쪽 그리드에 subplot 할당
-            ax2 = plt.subplot(gs_sub[0, 0])
-            ax3 = plt.subplot(gs_sub[0, 1])
-            ax4 = plt.subplot(gs_sub[1, 0])
-            ax5 = plt.subplot(gs_sub[1, 1])
+            # 분할된 오른쪽 그리드의 위쪽에 subplot 할당
+            gs_sub_top = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[0])
+            ax2 = plt.subplot(gs_sub_top[0])
+            ax3 = plt.subplot(gs_sub_top[1])
+
+            # 분할된 오른쪽 그리드의 아래쪽에 subplot 할당
+            gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gs_sub[1])
+            ax4 = plt.subplot(gs_sub_bottom[0])
+            ax5 = plt.subplot(gs_sub_bottom[1])
+            ax6 = plt.subplot(gs_sub_bottom[2])
+
             LED_NUMBER = []
             if len(bboxes) > 0:
                 for i, data in enumerate(bboxes):
@@ -270,18 +301,28 @@ def display_tracker_research(images, image_files, data_files):
 
                     for data_path in data_files:
                         if cam_data['img_name'] in data_path:
-                            projectionMatrix = np.loadtxt(data_path)
-                            intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
-                                projectionMatrix)[:3]
-                            camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
-                            camR = Rot.from_matrix(rotationMatrix)
-                            blender_tvec = camR.apply(camT.ravel())
-                            blender_rvec = camR.as_rotvec()
+
+                            # TEXT Filder Loading
+                            # projectionMatrix = np.loadtxt(data_path)
+                            # intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+                            #     projectionMatrix)[:3]
+                            # camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+                            # camR = Rot.from_matrix(rotationMatrix)
+                            # blender_tvec = camR.apply(camT.ravel())
+                            # blender_rvec = camR.as_rotvec()
+                            # cam_data['blender_rt']['rvec'] = blender_rvec.reshape(-1, 1)
+                            # cam_data['blender_rt']['tvec'] = blender_tvec.reshape(-1, 1)
+
+                            json_data = rw_json_data(READ, data_path, None)
+
+                            blender_rvec = np.array(json_data['rvec']).reshape(-1, 1)
+                            blender_tvec = np.array(json_data['tvec']).reshape(-1, 1)
                             print('RT from Blender to Opencv')
-                            print('rvecs\n', blender_rvec)
-                            print('tvecs\n', blender_tvec)
-                            cam_data['blender_rt']['rvec'] = blender_rvec.reshape(-1, 1)
-                            cam_data['blender_rt']['tvec'] = blender_tvec.reshape(-1, 1)
+                            print('rvecs\n', blender_rvec.ravel())
+                            print('tvecs\n', blender_tvec.ravel())
+                            cam_data['blender_rt']['rvec'] = blender_rvec
+                            cam_data['blender_rt']['tvec'] = blender_tvec
+
                             blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
                                                                         dist_coeff)
                             blender_image_points = np.squeeze(blender_image_points)
@@ -322,7 +363,7 @@ def display_tracker_research(images, image_files, data_files):
                                 ax.legend()
                                 ax.grid()
 
-                    cv2.imshow(f"{cam_id}_result", cam_data['image'])
+                    # cv2.imshow(f"{cam_id}_result", cam_data['image'])
 
                 # Try to remake 3D point and compare
                 camera_k_0 = CAMERA_INFO['0']['camera_k']
@@ -343,6 +384,47 @@ def display_tracker_research(images, image_files, data_files):
                                                  CAMERA_INFO['0']['points2D']['blender'],
                                                  CAMERA_INFO['1']['points2D']['blender']).reshape(-1, 3)
                 print('blender_remake\n', blender_remake)
+
+
+                ###################
+                ####### TEST ######
+                dist_coeff = default_dist_coeffs
+                INPUT_ARRAY = [
+                    0,
+                    np.array(CAMERA_INFO['0']['points3D'], dtype=np.float64),
+                    CAMERA_INFO['0']['points2D']['blender'],
+                    camera_k_0,
+                    dist_coeff
+                ]
+
+                ret, rvec_0, tvec_0, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                CAMERA_INFO['0']['test_rt']['rvec'] = rvec_0
+                CAMERA_INFO['0']['test_rt']['tvec'] = tvec_0
+                print('rvec_0\n', rvec_0.ravel())
+                print('tvec_0\n', tvec_0.ravel())
+
+                INPUT_ARRAY = [
+                    1,
+                    np.array(CAMERA_INFO['1']['points3D'], dtype=np.float64),
+                    CAMERA_INFO['1']['points2D']['blender'],
+                    camera_k_1,
+                    dist_coeff
+                ]
+
+                ret, rvec_1, tvec_1, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                CAMERA_INFO['1']['test_rt']['rvec'] = rvec_1
+                CAMERA_INFO['1']['test_rt']['tvec'] = tvec_1
+                print('rvec_1\n', rvec_1.ravel())
+                print('tvec_1\n', tvec_1.ravel())
+
+                # Get R|T from blender position
+                test_remake = remake_3d_point(camera_k_0, camera_k_1,
+                                              CAMERA_INFO['0']['test_rt'],
+                                              CAMERA_INFO['1']['test_rt'],
+                                              CAMERA_INFO['0']['points2D']['blender'],
+                                              CAMERA_INFO['1']['points2D']['blender']).reshape(-1, 3)
+                print('test_remake\n', test_remake)
+
                 origin_pts = np.array(led_data).reshape(-1, 3)
                 print('origin_pts\n', points3D.reshape(-1, 3))
                 ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o',
@@ -350,6 +432,8 @@ def display_tracker_research(images, image_files, data_files):
                 ax1.scatter(opencv_remake[:, 0], opencv_remake[:, 1], opencv_remake[:, 2], color='red', alpha=0.5,
                             marker='o', s=10)
                 ax1.scatter(blender_remake[:, 0], blender_remake[:, 1], blender_remake[:, 2], color='blue', alpha=0.5,
+                            marker='o', s=10)
+                ax1.scatter(test_remake[:, 0], test_remake[:, 1], test_remake[:, 2], color='green', alpha=0.5,
                             marker='o', s=10)
                 for index in range(blender_remake.shape[0]):
                     ax1.text(blender_remake[index, 0], blender_remake[index, 1], blender_remake[index, 2],
@@ -370,6 +454,8 @@ def display_tracker_research(images, image_files, data_files):
                 print('dist_opencv\n', dist_opencv)
                 dist_blender = np.linalg.norm(points3D.reshape(-1, 3) - blender_remake, axis=1)
                 print('dist_blender\n', dist_blender)
+                dist_test = np.linalg.norm(points3D.reshape(-1, 3) - test_remake, axis=1)
+                print('dist_test\n', dist_test)
                 # Find max values
                 max_opencv = np.max(dist_opencv)
                 max_blender = np.max(dist_blender)
@@ -380,6 +466,7 @@ def display_tracker_research(images, image_files, data_files):
                 ax4.set_xticks(range(len(dist_opencv)))
                 ax4.set_xticklabels(LED_NUMBER)
                 ax4.set_yscale('log')
+
                 ax5.bar(range(len(dist_blender)), dist_blender, width=0.4)
                 ax5.set_title('Distance between origin_pts and blender_remake')
                 ax5.set_xlabel('LEDS')
@@ -388,11 +475,30 @@ def display_tracker_research(images, image_files, data_files):
                 ax5.set_xticklabels(LED_NUMBER)
                 ax5.set_yscale('log')
 
+                ax6.bar(range(len(dist_test)), dist_test, width=0.4)
+                ax6.set_title('Distance between origin_pts and test_remake')
+                ax6.set_xlabel('LEDS')
+                ax6.set_ylabel('Distance')
+                ax6.set_xticks(range(len(dist_test)))
+                ax6.set_xticklabels(LED_NUMBER)
+                ax6.set_yscale('log')
+
                 # plt.tight_layout()
+
+                recover_euler_degree(CAMERA_INFO)
 
                 plt.show()
 
         cv2.imshow('Image', STACK_FRAME)
+
+    file = './data_result.pickle'
+    result_data = OrderedDict()
+    result_data['CAMERA_INFO_0'] = CAMERA_INFO['0']
+    result_data['CAMERA_INFO_1'] = CAMERA_INFO['1']
+    ret = pickle_data(WRITE, file, result_data)
+    if ret != ERROR:
+        print('result_data saved')
+
     cv2.destroyAllWindows()
 
 

@@ -12,6 +12,15 @@ from math import degrees
 from mathutils import Matrix, Vector
 import numpy as np
 import cv2
+import json
+from collections import OrderedDict
+
+
+READ = 0
+WRITE = 1
+
+ERROR = 'ERROR'
+SUCCESS = 'SUCCESS'
 
 camera_matrix = [
     # cam 0
@@ -94,6 +103,22 @@ def get_calibration_matrix_K_from_blender(camd):
     print('K', K)
     return K
 
+def rw_json_data(rw_mode, path, data):
+    try:
+        if rw_mode == READ:
+            with open(path, 'r', encoding="utf-8") as rdata:
+                json_data = json.load(rdata)
+            return json_data
+        elif rw_mode == WRITE:
+            with open(path, 'w', encoding="utf-8") as wdata:
+                json.dump(data, wdata, ensure_ascii=False, indent="\t")
+        else:
+            print('not support mode')
+    except:
+        # print('file r/w error')
+        return ERROR
+
+
 def blender_location_rotation_from_opencv(rvec, tvec, obj):
     isCamera = (obj.type == 'CAMERA')
     R_BlenderView_to_OpenCVView = Matrix([
@@ -157,6 +182,20 @@ def export_camera_to_opencv(cam_name, path, file_name):
     file = path + "/"+ filename
     np.savetxt(file, nP)
     print(f"Saved to: \"{file}\".")
+
+
+def export_camera_to_opencv_json(cam_name, path, file_name):
+    cam = bpy.data.objects[cam_name]
+    _, rvec, tvec = get_3x4_RT_matrix_from_blender(cam)
+    R, _ = cv2.Rodrigues(rvec)
+    filename = file_name + ".json"
+    file = path + "/"+ filename
+    json_data = OrderedDict()
+    json_data['rvec'] = np.array(R.ravel()).tolist()
+    json_data['tvec'] = np.array(tvec).tolist()
+    rw_json_data(WRITE, file, json_data)
+    print(f"Saved to: \"{file}\".")
+
 
 def export_object_location_to_opencv(obj_name):
     obj = bpy.data.objects[obj_name]
@@ -270,7 +309,8 @@ class ButtonAOperator(bpy.types.Operator):
             # 렌더링 수행
             bpy.ops.render.render(write_still=True)
             
-            export_camera_to_opencv(camera_name, output_path, filename)
+            # export_camera_to_opencv(camera_name, output_path, filename)
+            export_camera_to_opencv_json(camera_name, output_path, filename)
             # export_object_location_to_opencv('MeshObject')
         except KeyError:
             print('camera not found', camera_name)            

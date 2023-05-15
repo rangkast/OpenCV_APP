@@ -708,11 +708,11 @@ for idx, led in enumerate(origin_led_data):
 
 # 0.2, 0, 0
 # 90, 0, 90
-rvec_left = np.array([1.20919984, 1.20919951, -1.20919951])
-tvec_left = np.array([-4.17232506e-08, -1.19209291e-08, 2.00000048e-01])
+rvec_left = np.array([ 1.2091998,   1.20919946, -1.20919946])
+tvec_left = np.array([-2.82086248e-08, -2.35607960e-08,  2.00000048e-01])
 
-rvec_right = np.array([0.86044094, 1.63833498, -1.63833511])
-tvec_right = np.array([-8.19563866e-08, 2.92450419e-08, 2.00000092e-01])
+rvec_right = np.array([ 0.86044094,  1.63833515, -1.63833502])
+tvec_right = np.array([-7.45058060e-08, -1.88919191e-08,  2.00000152e-01])
 
 # rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
 # tvec_left = np.array([-0.111,  0.052,  0.337])

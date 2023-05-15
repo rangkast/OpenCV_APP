@@ -569,7 +569,7 @@ def find_center(frame, SPEC_AREA):
 
 def load_data(path):
     image_files = glob.glob(os.path.join(path, "*.png"))
-    data_files = glob.glob(os.path.join(path, "*.txt"))
+    data_files = glob.glob(os.path.join(path, "*.json"))
     images = [cv2.imread(img) for img in image_files]
     return images, image_files, data_files
 
@@ -605,3 +605,48 @@ def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     get_points = cv2.convertPointsFromHomogeneous(homog_points)
 
     return get_points
+
+
+def blender_location_rotation_from_opencv(rvec, tvec, isCamera=True):
+    from scipy.spatial.transform import Rotation as R
+
+    print('rvec', rvec)
+    print('tvec', tvec)
+    R_BlenderView_to_OpenCVView = np.array([
+        [1 if isCamera else -1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+    ])
+
+    # Convert rvec to rotation matrix
+    R_OpenCV, _ = cv2.Rodrigues(rvec)
+
+    # Convert OpenCV R|T to Blender R|T
+    R_BlenderView = R_BlenderView_to_OpenCVView @ R_OpenCV
+    T_BlenderView = R_BlenderView_to_OpenCVView @ tvec
+
+    # Invert rotation matrix
+    R_BlenderView_inv = R_BlenderView.T
+
+    # Calculate location
+    location = -1.0 * R_BlenderView_inv @ T_BlenderView
+
+    # Convert rotation matrix to quaternion
+    rotation = R.from_matrix(R_BlenderView_inv).as_quat()
+
+    return location, rotation
+
+
+def quaternion_to_euler_degree(quaternion):
+    from scipy.spatial.transform import Rotation as R
+
+    # Convert quaternion to Rotation object
+    rotation = R.from_quat(quaternion)
+
+    # Convert Rotation object to Euler rotation (radians)
+    euler_rad = rotation.as_euler('xyz')
+
+    # Convert radians to degrees
+    euler_deg = np.degrees(euler_rad)
+
+    return euler_deg
