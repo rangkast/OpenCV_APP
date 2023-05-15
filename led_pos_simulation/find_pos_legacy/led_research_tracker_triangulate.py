@@ -3,7 +3,7 @@ from definition import *
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-CV_MIN_THRESHOLD = 150
+CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
 pickle_file = './result_cylinder_base.pickle'
 data = pickle_data(READ, pickle_file, None)
@@ -53,7 +53,7 @@ def display_tracker_research(images, image_files, data_files):
         CAMERA_INFO[f'{cam_id}'] = {'image': images[idx],
                                     'img_name': name_key,
                                     'camera_k': camera_k,
-                                    'points2D': {'greysum': [], 'blender': []},
+                                    'points2D': {'greysum': [], 'opencv': [], 'blender': []},
                                     'points3D': [],
                                     'opencv_rt': {'rvec': [], 'tvec': []},
                                     'blender_rt': {'rvec': [], 'tvec': []},
@@ -111,9 +111,14 @@ def display_tracker_research(images, image_files, data_files):
                     if inputs.isdigit():
                         input_number = int(inputs)
                         if input_number in range(0, 1000):
+                            (x, y, w, h) = bbox
                             print('label number ', input_number)
                             print('bbox ', bbox)
-                            bboxes.append({'idx': input_number, 'bbox': bbox})
+                            if x >= CAP_PROP_FRAME_WIDTH:
+                                cam_id = 1
+                            else:
+                                cam_id = 0
+                            bboxes.append({'idx': input_number, 'bbox': bbox, 'id': cam_id})
                             break
                     elif cv2.waitKey(1) == ord('q'):
                         bboxes.clear()
@@ -233,11 +238,10 @@ def display_tracker_research(images, image_files, data_files):
                 for i, data in enumerate(bboxes):
                     (x, y, w, h) = data['bbox']
                     IDX = int(data['idx'])
-                    cam_id = 0
+                    cam_id = int(data['id'])
                     cx, cy = find_center(IMG_GRAY, (x, y, w, h))
-                    if cx >= CAP_PROP_FRAME_WIDTH:
+                    if cam_id == 1:
                         cx -= CAP_PROP_FRAME_WIDTH
-                        cam_id = 1
                         LED_NUMBER.append(IDX)
                     CAMERA_INFO[f'{cam_id}']['points2D']['greysum'].append([cx, cy])
                     CAMERA_INFO[f'{cam_id}']['points3D'].append(led_data[IDX])
@@ -295,6 +299,7 @@ def display_tracker_research(images, image_files, data_files):
                     # 투영된 2D 이미지 점 출력
                     print("Projected 2D image points:")
                     print(image_points)
+                    cam_data['points2D']['opencv'] = image_points
                     # 빨간색점은 opencv pose-estimation 투영 결과
                     for repr_blob in image_points:
                         cv2.circle(cam_data['image'], (int(repr_blob[0]), int(repr_blob[1])), 1, (0, 0, 255), -1)
