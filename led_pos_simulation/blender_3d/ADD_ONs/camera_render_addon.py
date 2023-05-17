@@ -54,6 +54,58 @@ def get_sensor_fit(sensor_fit, size_x, size_y):
             return 'VERTICAL'
     return sensor_fit
 
+# def get_calibration_matrix_K_from_blender(camd):
+#     if camd.type != 'PERSP':
+#         raise ValueError('Non-perspective cameras not supported')
+#     scene = bpy.context.scene
+#     f_in_mm = camd.lens
+#     scale = scene.render.resolution_percentage / 100
+#     resolution_x_in_px = scale * scene.render.resolution_x
+#     resolution_y_in_px = scale * scene.render.resolution_y
+
+#     sensor_size_in_mm = get_sensor_size(camd.sensor_fit, camd.sensor_width, camd.sensor_height)
+#     sensor_fit = get_sensor_fit(
+#         camd.sensor_fit,
+#         scene.render.pixel_aspect_x * resolution_x_in_px,
+#         scene.render.pixel_aspect_y * resolution_y_in_px
+#     )
+#     pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
+#     if sensor_fit == 'HORIZONTAL':
+#         view_fac_in_px = resolution_x_in_px
+#     else:
+#         view_fac_in_px = pixel_aspect_ratio * resolution_y_in_px
+#     pixel_size_mm_per_px = sensor_size_in_mm / f_in_mm / view_fac_in_px
+#     s_u = 1 / pixel_size_mm_per_px
+#     s_v = 1 / pixel_size_mm_per_px / pixel_aspect_ratio
+    
+#     # Calculate the image center in pixels
+#     cscale = resolution_x_in_px / sensor_size_in_mm
+#     cx = camd.shift_x * s_u + resolution_x_in_px / 2.0
+#     cy = camd.shift_y * s_v + resolution_y_in_px / 2.0
+#     cx_px  = (cx - resolution_x_in_px / 2.0) * cscale
+#     cy_px  = -(cy - resolution_y_in_px / 2.0) * cscale
+    
+#     # Parameters of intrinsic calibration matrix K
+#     u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
+#     v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
+#     skew = 0 # only use rectangular pixels
+
+#     K = Matrix(
+#         ((s_u, skew, u_0),
+#         (   0,  s_v, v_0),
+#         (   0,    0,   1)))
+#     print('sensor_fit', sensor_fit)
+#     print('f_in_mm', f_in_mm)
+#     print('sensor_size_in_mm', sensor_size_in_mm)
+#     print('res_x res_y', resolution_x_in_px, resolution_y_in_px)
+#     print('pixel_aspect_ratio', pixel_aspect_ratio)
+#     print('shift_x shift_y', camd.shift_x, camd.shift_y)
+#     print('K', K)
+#     return K
+
+
+
+
 def get_calibration_matrix_K_from_blender(camd):
     if camd.type != 'PERSP':
         raise ValueError('Non-perspective cameras not supported')
@@ -62,7 +114,6 @@ def get_calibration_matrix_K_from_blender(camd):
     scale = scene.render.resolution_percentage / 100
     resolution_x_in_px = scale * scene.render.resolution_x
     resolution_y_in_px = scale * scene.render.resolution_y
-
     sensor_size_in_mm = get_sensor_size(camd.sensor_fit, camd.sensor_width, camd.sensor_height)
     sensor_fit = get_sensor_fit(
         camd.sensor_fit,
@@ -77,14 +128,7 @@ def get_calibration_matrix_K_from_blender(camd):
     pixel_size_mm_per_px = sensor_size_in_mm / f_in_mm / view_fac_in_px
     s_u = 1 / pixel_size_mm_per_px
     s_v = 1 / pixel_size_mm_per_px / pixel_aspect_ratio
-    
-    # Calculate the image center in pixels
-    cscale = resolution_x_in_px / sensor_size_in_mm
-    cx = camd.shift_x * s_u + resolution_x_in_px / 2.0
-    cy = camd.shift_y * s_v + resolution_y_in_px / 2.0
-    cx_px  = (cx - resolution_x_in_px / 2.0) * cscale
-    cy_px  = -(cy - resolution_y_in_px / 2.0) * cscale
-    
+
     # Parameters of intrinsic calibration matrix K
     u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
     v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
@@ -94,6 +138,7 @@ def get_calibration_matrix_K_from_blender(camd):
         ((s_u, skew, u_0),
         (   0,  s_v, v_0),
         (   0,    0,   1)))
+    
     print('sensor_fit', sensor_fit)
     print('f_in_mm', f_in_mm)
     print('sensor_size_in_mm', sensor_size_in_mm)
@@ -101,7 +146,10 @@ def get_calibration_matrix_K_from_blender(camd):
     print('pixel_aspect_ratio', pixel_aspect_ratio)
     print('shift_x shift_y', camd.shift_x, camd.shift_y)
     print('K', K)
+
     return K
+
+
 
 def rw_json_data(rw_mode, path, data):
     try:
@@ -172,7 +220,7 @@ def get_3x4_P_matrix_from_blender(cam):
     RT = get_3x4_RT_matrix_from_blender(cam)[0]
     return K @ RT
 
-def export_camera_to_opencv(cam_name, path, file_name):
+def export_camera_to_opencv_txt(cam_name, path, file_name):
     cam = bpy.data.objects[cam_name]
     P = get_3x4_P_matrix_from_blender(cam)
 
@@ -309,7 +357,7 @@ class ButtonAOperator(bpy.types.Operator):
             # 렌더링 수행
             bpy.ops.render.render(write_still=True)
             
-            # export_camera_to_opencv(camera_name, output_path, filename)
+            export_camera_to_opencv_txt(camera_name, output_path, filename)
             export_camera_to_opencv_json(camera_name, output_path, filename)
             # export_object_location_to_opencv('MeshObject')
         except KeyError:

@@ -72,6 +72,9 @@ class CircleLEDsOperator(bpy.types.Operator):
                 pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
             elif self.shape == 'cylinder_base':
                 pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
+            else:
+                pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
+
         elif os_name == 'Linux':
             print("This is Linux")            
             if self.shape == 'sphere':
@@ -80,6 +83,9 @@ class CircleLEDsOperator(bpy.types.Operator):
                 pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
             elif self.shape == 'cylinder_base':
                 pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
+            else:
+                pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
+
         else:
             print("Unknown OS")
 

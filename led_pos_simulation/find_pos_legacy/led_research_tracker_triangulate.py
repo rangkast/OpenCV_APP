@@ -69,7 +69,7 @@ def display_tracker_research(images, image_files, data_files):
     if json_data != ERROR:
         bboxes = json_data['bboxes']
 
-    if 0:
+    if 1:
         while True:
             DRAW_IMG_0 = CAMERA_INFO['0']['image']
             DRAW_IMG_1 = CAMERA_INFO['1']['image']
@@ -264,7 +264,7 @@ def display_tracker_research(images, image_files, data_files):
                     print('point_3d\n', points3D)
                     print('point_2d\n', points2D)
 
-                    greysum_points = np.squeeze(points2D)
+                    greysum_points = points2D.reshape(-1, 2)
                     for g_point in greysum_points:
                         cv2.circle(cam_data['image'], (int(g_point[0]), int(g_point[1])), 1, (0, 0, 0), -1)
 
@@ -291,7 +291,7 @@ def display_tracker_research(images, image_files, data_files):
 
                     # 3D 점들을 2D 이미지 평면에 투영
                     image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_k, dist_coeff)
-                    image_points = np.squeeze(image_points)
+                    image_points = image_points.reshape(-1, 2)
 
                     ax.scatter(greysum_points[:, 0], greysum_points[:, 1], c='black', alpha=0.5, label='GreySum')
                     ax.scatter(image_points[:, 0], image_points[:, 1], c='red', alpha=0.5, label='OpenCV')
@@ -330,7 +330,7 @@ def display_tracker_research(images, image_files, data_files):
 
                             blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
                                                                         dist_coeff)
-                            blender_image_points = np.squeeze(blender_image_points)
+                            blender_image_points = blender_image_points.reshape(-1, 2)
                             ax.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue', alpha=0.5,
                                        label='Blender')
 

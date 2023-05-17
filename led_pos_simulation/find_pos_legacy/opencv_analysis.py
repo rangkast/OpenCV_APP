@@ -9,10 +9,30 @@ CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
 
 if __name__ == "__main__":
-    CAM_INFO = pickle_data(READ, './data_result.pickle', None)
+    # CAM_INFO = pickle_data(READ, './data_result.pickle', None)
     os_name = platform.system()
     image_path = '../blender_3d/image_output'
-    images, image_files, data_files = load_data(image_path)
+    image_files = glob.glob(os.path.join(image_path, "*.png"))
+    data_files = glob.glob(os.path.join(image_path, "*.json"))
+    txt_files = glob.glob(os.path.join(image_path, "*.txt"))
+    images = [cv2.imread(img) for img in image_files]
+
+    # data parsing
+    CAMERA_INFO = {}
+    for idx, image_file in enumerate(image_files):
+        img_name = os.path.basename(image_file)
+        cam_id = int(img_name.split('_')[1])
+        camera_k = camera_matrix[0][0]
+        name_key = img_name.split('.png')[0]
+        CAMERA_INFO[f'{cam_id}'] = {'image': images[idx],
+                                    'img_name': name_key,
+                                    'camera_k': camera_k,
+                                    'points2D': {'greysum': [], 'opencv': [], 'blender': []},
+                                    'points3D': [],
+                                    'opencv_rt': {'rvec': [], 'tvec': []},
+                                    'blender_rt': {'rvec': [], 'tvec': []},
+                                    'test_rt': {'rvec': [], 'tvec': []},
+                                    }
 
     root = tk.Tk()
     width_px = root.winfo_screenwidth()
@@ -34,13 +54,15 @@ if __name__ == "__main__":
     if json_data != ERROR:
         bboxes = json_data['bboxes']
 
-    DRAW_IMG_0 = images[0]
-    DRAW_IMG_1 = images[1]
+    # DRAW_IMG_0 = images[1]
+    # DRAW_IMG_1 = images[0]
+    DRAW_IMG_0 = CAMERA_INFO['0']['image']
+    DRAW_IMG_1 = CAMERA_INFO['1']['image']
 
     STACK_FRAME = np.hstack((DRAW_IMG_0, DRAW_IMG_1))
-    cv2.putText(STACK_FRAME, CAM_INFO['CAMERA_INFO_0']['img_name'], (10, 20),
+    cv2.putText(STACK_FRAME, CAMERA_INFO['0']['img_name'], (10, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-    cv2.putText(STACK_FRAME, CAM_INFO['CAMERA_INFO_1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
+    cv2.putText(STACK_FRAME, CAMERA_INFO['1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
     ret, img_filtered = cv2.threshold(STACK_FRAME, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
@@ -58,6 +80,10 @@ if __name__ == "__main__":
             cX = int(M["m10"] / M["m00"]) + x
             cY = int(M["m01"] / M["m00"]) + y
             results[0].append((cX, cY))
+
+            # GreySum
+            gcx, gcy = find_center(IMG_GRAY, (x, y, w, h))
+            results[1].append((gcx, gcy))
 
             # 컨투어 찾기
             contours, _ = cv2.findContours(roi.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -100,29 +126,112 @@ if __name__ == "__main__":
         (x, y, w, h) = bboxes[i]['bbox']
         cam_id = int(bboxes[i]['id'])
         # ADD other algo here
-        ax.scatter(results[0][i][0], results[0][i][1], color='red', marker='o', s=1)
+        ax.scatter(results[0][i][0], results[0][i][1], color='red', marker='o', s=3)
+        ax.scatter(results[1][i][0], results[1][i][1], color='black', marker='o', s=3)
 
         # Draw the bbox
         rect = patches.Rectangle((x, y), w, h, linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
 
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 0],
-               np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
-               s=1)
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-               np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
-               s=1)
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 0],
+    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
+    #            s=1)
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 0] + CAP_PROP_FRAME_WIDTH,
+    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
+    #            s=1)
+    #
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 0],
+    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 0] + CAP_PROP_FRAME_WIDTH,
+    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
+    #
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 0],
+    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
+    #            s=1)
+    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 0] + CAP_PROP_FRAME_WIDTH,
+    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
+    #            s=1)
 
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 0],
-               np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-               np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
+    points3D = np.array([0.05, 0, 0])
+    points3D = np.array(points3D, dtype=np.float64)
+    for cam_id, cam_data in CAMERA_INFO.items():
+        camera_k = cam_data['camera_k']
+        dist_coeff = default_dist_coeffs
+        for data_path in data_files:
+            if cam_data['img_name'] in data_path:
 
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 0],
-               np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
-               s=1)
-    ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-               np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
-               s=1)
+                for txt_data in txt_files:
+                    if cam_data['img_name'] in txt_data:
+                        # TEXT Filder Loading
+                        projectionMatrix = np.loadtxt(txt_data)
+                        intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+                            projectionMatrix)[:3]
+                        camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+                        camR = Rot.from_matrix(rotationMatrix)
+                        blender_tvec = camR.apply(camT.ravel())
+                        blender_rvec = camR.as_rotvec()
+                        blender_rvec = blender_rvec.reshape(-1, 1)
+                        blender_tvec = blender_tvec.reshape(-1, 1)
+
+                        blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec,
+                                                                    cameraMatrix=intrinsic,
+                                                                    distCoeffs=None)
+                        blender_image_points = blender_image_points.reshape(-1, 2)
+                        if int(cam_id) == 1:
+                            bx = blender_image_points[:, 0] + CAP_PROP_FRAME_WIDTH
+                        else:
+                            bx = blender_image_points[:, 0]
+                        by = blender_image_points[:, 1]
+
+                        print('bx by', bx, by)
+                        ax.scatter(bx, by, c='magenta', alpha=1, label='Blender', s=5)
+
+                        print("Projected 2D image points <Projection>")
+                        print(blender_image_points)
+
+                json_data = rw_json_data(READ, data_path, None)
+
+                blender_rvec = np.array(json_data['rvec']).reshape(-1, 1)
+                blender_tvec = np.array(json_data['tvec']).reshape(-1, 1)
+
+                print('RT from Blender to Opencv')
+                print('rvecs\n', blender_rvec.ravel())
+                print('tvecs\n', blender_tvec.ravel())
+                cam_data['blender_rt']['rvec'] = blender_rvec
+                cam_data['blender_rt']['tvec'] = blender_tvec
+
+                blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec,
+                                                            camera_k,
+                                                            dist_coeff)
+                blender_image_points = blender_image_points.reshape(-1, 2)
+                if int(cam_id) == 1:
+                    bx = blender_image_points[:, 0] + CAP_PROP_FRAME_WIDTH
+                else:
+                    bx = blender_image_points[:, 0]
+                by = blender_image_points[:, 1]
+
+                print('bx by', bx, by)
+                # ax.scatter(bx, by, c='blue', alpha=1, label='Blender', s=5)
+
+                print("Projected 2D image points <BLENDER RT only>")
+                print(blender_image_points)
+
+    # if len(bboxes) > 0:
+    #     except_pos = 0
+    #     for i, data in enumerate(bboxes):
+    #         (x, y, w, h) = data['bbox']
+    #         IDX = data['idx']
+    #         except_pos += 1
+    #         if except_pos == len(bboxes) / 2:
+    #             color = (255, 255, 255)
+    #             line_width = 1
+    #             except_pos = 0
+    #         else:
+    #             color = (0, 255, 0)
+    #             line_width = 2
+    #
+    #         cv2.rectangle(IMG_GRAY, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width, 1)
+
+    # cv2.imshow('image', IMG_GRAY)
 
     plt.show()

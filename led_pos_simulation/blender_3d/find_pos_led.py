@@ -590,7 +590,8 @@ origin_led_data = np.array([
 # shape = 'plane'
 # shape = 'sphere'
 # shape = 'cylinder'
-shape = 'cylinder_base'
+# shape = 'cylinder_base'
+shape = 'basic'
 
 pickle_file = None
 os_name = platform.system()
@@ -602,6 +603,8 @@ if os_name == 'Windows':
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
     elif shape == 'cylinder_base':
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
+    else:
+        pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
 elif os_name == 'Linux':
     print("This is Linux")
     if shape == 'sphere':
@@ -610,6 +613,8 @@ elif os_name == 'Linux':
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder.pickle'
     elif shape == 'cylinder_base':
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
+    else:
+        pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
 else:
     print("Unknown OS")
 
@@ -619,6 +624,12 @@ with gzip.open(pickle_file, 'rb') as f:
 led_data = data['LED_INFO']
 model_data = data['MODEL_INFO']
 camera_names = ["CAMERA_0", "CAMERA_1"]
+
+
+
+for i, leds in enumerate(led_data):
+    print(f"{i}, led: {leds}")
+
 
 padding = 0.0  # 원하는 패딩 값을 입력하세요.
 # LED 원의 반지름을 설정합니다. 원하는 크기를 입력으로 제공할 수 있습니다.
@@ -771,6 +782,3 @@ if set_track_to == 1:
         constraint.target = empty_obj
         constraint.track_axis = 'TRACK_NEGATIVE_Z'
         constraint.up_axis = 'UP_Y'
-
-for i, leds in enumerate(led_data):
-    print(f"{i}, led: {leds}")
