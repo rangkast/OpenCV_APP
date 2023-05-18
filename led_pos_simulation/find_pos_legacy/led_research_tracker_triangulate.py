@@ -75,10 +75,10 @@ def display_tracker_research(images, image_files, data_files):
             DRAW_IMG_1 = CAMERA_INFO['1']['image']
 
             STACK_FRAME = np.hstack((DRAW_IMG_0, DRAW_IMG_1))
-            cv2.putText(STACK_FRAME, CAMERA_INFO['0']['img_name'], (10, 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.putText(STACK_FRAME, CAMERA_INFO['1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            # cv2.putText(STACK_FRAME, CAMERA_INFO['0']['img_name'], (10, 20),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+            # cv2.putText(STACK_FRAME, CAMERA_INFO['1']['img_name'], (10 + CAP_PROP_FRAME_WIDTH, 20),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
             ret, img_filtered = cv2.threshold(STACK_FRAME, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
             IMG_GRAY = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)

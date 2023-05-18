@@ -19,10 +19,12 @@ elif os_name == 'Linux':
 else:
     print("Unknown OS")
 
+
 def delete_all_objects_except(exclude_object_names):
     for obj in bpy.data.objects:
         if obj.name not in exclude_object_names:
             bpy.data.objects.remove(obj, do_unlink=True)
+
 
 def DeselectEdgesAndPolygons(obj):
     for p in obj.data.polygons:
@@ -36,6 +38,7 @@ def get_sensor_size(sensor_fit, sensor_x, sensor_y):
         return sensor_y
     return sensor_x
 
+
 # BKE_camera_sensor_fit
 def get_sensor_fit(sensor_fit, size_x, size_y):
     if sensor_fit == 'AUTO':
@@ -44,6 +47,7 @@ def get_sensor_fit(sensor_fit, size_x, size_y):
         else:
             return 'VERTICAL'
     return sensor_fit
+
 
 def get_calibration_matrix_K_from_blender(camd):
     if camd.type != 'PERSP':
@@ -71,13 +75,13 @@ def get_calibration_matrix_K_from_blender(camd):
     # Parameters of intrinsic calibration matrix K
     u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
     v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
-    skew = 0 # only use rectangular pixels
+    skew = 0  # only use rectangular pixels
 
     K = Matrix(
         ((s_u, skew, u_0),
-        (   0,  s_v, v_0),
-        (   0,    0,   1)))
-    
+         (0, s_v, v_0),
+         (0, 0, 1)))
+
     print('sensor_fit', sensor_fit)
     print('f_in_mm', f_in_mm)
     print('sensor_size_in_mm', sensor_size_in_mm)
@@ -88,15 +92,16 @@ def get_calibration_matrix_K_from_blender(camd):
 
     return K
 
+
 def get_3x4_RT_matrix_from_blender(obj):
     isCamera = (obj.type == 'CAMERA')
-    R_BlenderView_to_OpenCVView = np.diag([1 if isCamera else -1,-1,-1])
+    R_BlenderView_to_OpenCVView = np.diag([1 if isCamera else -1, -1, -1])
     print('R_BlenderView_to_OpenCVView', R_BlenderView_to_OpenCVView)
     location, rotation = obj.matrix_world.decompose()[:2]
     print('location', location, 'rotation', rotation)
     # Convert the rotation to axis-angle representation
     axis, angle = rotation.to_axis_angle()
-    
+
     # Create a 3x3 rotation matrix from the axis-angle representation
     R_BlenderView = Matrix.Rotation(angle, 3, axis).transposed()
 
@@ -104,14 +109,15 @@ def get_3x4_RT_matrix_from_blender(obj):
 
     R_OpenCV = R_BlenderView_to_OpenCVView @ R_BlenderView
     T_OpenCV = R_BlenderView_to_OpenCVView @ T_BlenderView
-    
+
     R, _ = cv2.Rodrigues(R_OpenCV)
     print('R_OpenCV', R_OpenCV)
     print('R_OpenCV(Rod)', R.ravel())
     print('T_OpenCV', T_OpenCV)
-    
+
     RT_OpenCV = Matrix(np.column_stack((R_OpenCV, T_OpenCV)))
     return RT_OpenCV, R_OpenCV, T_OpenCV
+
 
 def get_3x4_P_matrix_from_blender(cam):
     K = get_calibration_matrix_K_from_blender(cam.data)
@@ -154,7 +160,7 @@ print('-------------------')
 points3D = []
 for i, v in enumerate(vertices):
     co2D = world_to_camera_view(scene, cam, v)
-    
+
     # Add a small sphere at each vertex position
     bpy.ops.mesh.primitive_uv_sphere_add(location=v)
     bpy.ops.transform.resize(value=(0.005, 0.005, 0.005))
@@ -170,7 +176,7 @@ for i, v in enumerate(vertices):
         depsgraph = bpy.context.evaluated_depsgraph_get()
         location = scene.ray_cast(depsgraph, cam.location, (v - cam.location).normalized())
         if location[0] and (v - location[1]).length < limit:
-            print(f"Vertex {i}: 3D coord: {v}, 2D coord: {(co2D.x*width, co2D.y*height)}")
+            print(f"Vertex {i}: 3D coord: {v}, 2D coord: {(co2D.x * width, co2D.y * height)}")
             bpy.ops.object.text_add(location=v)
             text_obj = bpy.context.object
             text_obj.data.body = f"V{i}"
@@ -181,9 +187,20 @@ for i, v in enumerate(vertices):
 
     bpy.ops.object.duplicate()  # Keep the sphere object in the scene for rendering
 
+
+
+# use generator expressions () or list comprehensions []
+verts = (vert.co for vert in obj.data.vertices)
+coords_2d = [world_to_camera_view(scene, cam, coord) for coord in verts]
+
+# 2d data printout:
+rnd = lambda i: round(i)
+for x, y, distance_to_lens in coords_2d:
+    print("{},{}".format(float(width*x), float(height*y)))
+
 scene.render.image_settings.file_format = 'PNG'
 scene.render.filepath = image_file_path
-bpy.ops.render.render(write_still = 1)
+bpy.ops.render.render(write_still=1)
 
 bpy.ops.wm.save_as_mainfile(filepath=blend_file_path)
 
@@ -196,7 +213,6 @@ rotation_degrees = tuple(degrees(angle) for angle in rotation)
 print(f"{cam} 위치: ", location)
 print(f"{cam} XYZ 오일러 회전 (도): ", rotation_degrees)
 print(f"{cam} XYZ 쿼너티온: ", quat)
-
 
 # print projection M
 P = get_3x4_P_matrix_from_blender(cam)
@@ -211,8 +227,9 @@ tvec = np.array(tvec)
 print('rvec', rvec)
 print('tvec', tvec)
 
-
 # ProjectPoints
+print('points3D\n', points3D)
+
 points3D = np.array(points3D, dtype=np.float64)
 intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
     projectionMatrix)[:3]

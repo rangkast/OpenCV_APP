@@ -133,25 +133,6 @@ if __name__ == "__main__":
         rect = patches.Rectangle((x, y), w, h, linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
 
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 0],
-    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
-    #            s=1)
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['greysum'])[:, 1], c='black', alpha=0.5, label='GreySum',
-    #            s=1)
-    #
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 0],
-    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['opencv'])[:, 1], c='red', alpha=0.5, label='OpenCV', s=1)
-    #
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 0],
-    #            np.array(CAM_INFO['CAMERA_INFO_0']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
-    #            s=1)
-    # ax.scatter(np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 0] + CAP_PROP_FRAME_WIDTH,
-    #            np.array(CAM_INFO['CAMERA_INFO_1']['points2D']['blender'])[:, 1], c='blue', alpha=0.5, label='Blender',
-    #            s=1)
-
     points3D = np.array([0.05, 0, 0])
     points3D = np.array(points3D, dtype=np.float64)
     for cam_id, cam_data in CAMERA_INFO.items():
