@@ -199,6 +199,8 @@ blob_info = [
     ['CAMERA_0_x74_y15_z84', [5, 12, 8, 14, 6, 7], [1, 2, 0, 3, -1, -1]],
     ['CAMERA_0_cylinder_x89_y0_z89', [0, 11, 9, -1, -1, 10, 5, 4], [0, -1, 3, -1, -1, 1, -1, 2]]
 ]
+
+
 def display_images(images, image_files, data_files):
     index = 0
     print('data_files\n', data_files)
@@ -295,7 +297,8 @@ def display_images(images, image_files, data_files):
                             blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec, camera_k,
                                                                         dist_coeff)
                             blender_image_points = np.squeeze(blender_image_points)
-                            plt.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue', label='Blender')
+                            plt.scatter(blender_image_points[:, 0], blender_image_points[:, 1], c='blue',
+                                        label='Blender')
 
                             print("Projected 2D image points:")
                             print(blender_image_points)

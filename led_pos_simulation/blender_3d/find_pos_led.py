@@ -15,6 +15,10 @@ from bpy_extras import mesh_utils
 from math import degrees
 from datetime import datetime
 import platform
+import json
+from collections import OrderedDict
+from scipy.spatial.transform import Rotation as Rot
+
 
 '''
 Functions
@@ -137,27 +141,6 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
     return led_objects
 
 
-# def create_circle_leds_with_light_on_surface(led_coords, led_size, mesh_obj, led_power=100, name_prefix="LED"):
-#     led_objects = create_circle_leds_on_surface(led_coords, led_size, name_prefix)
-
-#     for i, led_obj in enumerate(led_objects):
-#         # 빛을 생성합니다.
-#         light_data = bpy.data.lights.new(name=f"Light_{i}", type='POINT')
-#         light_data.energy = led_power
-
-#         # 빛을 LED 오브젝트에 넣습니다.
-#         light_obj = bpy.data.objects.new(name=f"Light_{i}", object_data=light_data)
-#         bpy.context.collection.objects.link(light_obj)
-
-#         # 빛을 LED 위치로 이동합니다.
-#         light_obj.location = led_obj.location
-
-#         # 빛을 메시 오브젝트 표면의 조금 안쪽으로 옮깁니다.
-#         light_obj.location -= (mesh_obj.location - led_obj.location).normalized() * 0.01
-
-#     return led_objects
-
-
 def set_up_dark_world_background():
     # 월드 배경을 어둡게 설정합니다.
     world = bpy.context.scene.world
@@ -193,24 +176,166 @@ def rotation_matrix_to_quaternion(R):
     return np.array([qw, qx, qy, qz])
 
 
-# def blender_location_rotation_from_opencv(R_OpenCV, T_OpenCV):
-#     R, _ = cv2.Rodrigues(R_OpenCV)
-#     isCamera = True
-#     R_OpenCV_to_BlenderView = np.diag([1 if isCamera else -1, -1, -1])
 
-#     print('R_OpenCV_to_BlenderView', R_OpenCV_to_BlenderView)
-#     R_BlenderView = R_OpenCV_to_BlenderView @ R
-#     T_BlenderView = R_OpenCV_to_BlenderView @ T_OpenCV
 
-#     # Convert the 3x3 rotation matrix to a quaternion
-#     R_BlenderView_np = np.array(R_BlenderView)
-#     R_BlenderView_matrix = Matrix(R_BlenderView_np.tolist())
-#     rotation = R_BlenderView_matrix.to_quaternion()
+def DeselectEdgesAndPolygons(obj):
+    for p in obj.data.polygons:
+        p.select = False
+    for e in obj.data.edges:
+        e.select = False
 
-#     # Calculate the location vector
-#     location = -1.0 * R_BlenderView_np.T @ T_BlenderView
 
-#     return location, rotation
+def get_sensor_size(sensor_fit, sensor_x, sensor_y):
+    if sensor_fit == 'VERTICAL':
+        return sensor_y
+    return sensor_x
+
+
+# BKE_camera_sensor_fit
+def get_sensor_fit(sensor_fit, size_x, size_y):
+    if sensor_fit == 'AUTO':
+        if size_x >= size_y:
+            return 'HORIZONTAL'
+        else:
+            return 'VERTICAL'
+    return sensor_fit
+
+
+# Build intrinsic camera parameters from Blender camera data
+#
+# See notes on this in 
+# blender.stackexchange.com/questions/15102/what-is-blenders-camera-projection-matrix-model
+# as well as
+# https://blender.stackexchange.com/a/120063/3581
+def get_calibration_matrix_K_from_blender(camd):
+    if camd.type != 'PERSP':
+        raise ValueError('Non-perspective cameras not supported')
+    scene = bpy.context.scene
+    f_in_mm = camd.lens
+    scale = scene.render.resolution_percentage / 100
+    resolution_x_in_px = scale * scene.render.resolution_x
+    resolution_y_in_px = scale * scene.render.resolution_y
+    sensor_size_in_mm = get_sensor_size(camd.sensor_fit, camd.sensor_width, camd.sensor_height)
+    sensor_fit = get_sensor_fit(
+        camd.sensor_fit,
+        scene.render.pixel_aspect_x * resolution_x_in_px,
+        scene.render.pixel_aspect_y * resolution_y_in_px
+    )
+    pixel_aspect_ratio = scene.render.pixel_aspect_y / scene.render.pixel_aspect_x
+    if sensor_fit == 'HORIZONTAL':
+        view_fac_in_px = resolution_x_in_px
+    else:
+        view_fac_in_px = pixel_aspect_ratio * resolution_y_in_px
+    pixel_size_mm_per_px = sensor_size_in_mm / f_in_mm / view_fac_in_px
+    s_u = 1 / pixel_size_mm_per_px
+    s_v = 1 / pixel_size_mm_per_px / pixel_aspect_ratio
+
+    # Parameters of intrinsic calibration matrix K
+    u_0 = resolution_x_in_px / 2 - camd.shift_x * view_fac_in_px
+    v_0 = resolution_y_in_px / 2 + camd.shift_y * view_fac_in_px / pixel_aspect_ratio
+    skew = 0  # only use rectangular pixels
+
+    K = Matrix(
+        ((s_u, skew, u_0),
+         (0, s_v, v_0),
+         (0, 0, 1)))
+
+    print('sensor_fit', sensor_fit)
+    print('f_in_mm', f_in_mm)
+    print('sensor_size_in_mm', sensor_size_in_mm)
+    print('res_x res_y', resolution_x_in_px, resolution_y_in_px)
+    print('pixel_aspect_ratio', pixel_aspect_ratio)
+    print('shift_x shift_y', camd.shift_x, camd.shift_y)
+    print('K', K)
+
+    return K
+
+
+# Returns camera rotation and translation matrices from Blender.
+# 
+# There are 3 coordinate systems involved:
+#    1. The World coordinates: "world"
+#       - right-handed
+#    2. The Blender camera coordinates: "bcam"
+#       - x is horizontal
+#       - y is up
+#       - right-handed: negative z look-at direction
+#    3. The desired computer vision camera coordinates: "cv"
+#       - x is horizontal
+#       - y is down (to align to the actual pixel coordinates 
+#         used in digital images)
+#       - right-handed: positive z look-at direction
+def get_3x4_RT_matrix_from_blender(cam):
+    # bcam stands for blender camera
+    R_bcam2cv = Matrix(
+        ((1, 0, 0),
+         (0, -1, 0),
+         (0, 0, -1)))
+
+    # Transpose since the rotation is object rotation, 
+    # and we want coordinate rotation
+    # R_world2bcam = cam.rotation_euler.to_matrix().transposed()
+    # T_world2bcam = -1*R_world2bcam @ location
+    #
+    # Use matrix_world instead to account for all constraints
+    location, rotation = cam.matrix_world.decompose()[0:2]
+    R_world2bcam = rotation.to_matrix().transposed()
+
+    # Convert camera location to translation vector used in coordinate changes
+    # T_world2bcam = -1*R_world2bcam @ cam.location
+    # Use location from matrix_world to account for constraints:     
+    T_world2bcam = -1 * R_world2bcam @ location
+
+    # Build the coordinate transform matrix from world to computer vision camera
+    R_world2cv = R_bcam2cv @ R_world2bcam
+    T_world2cv = R_bcam2cv @ T_world2bcam
+
+    # put into 3x4 matrix
+    RT = Matrix((
+        R_world2cv[0][:] + (T_world2cv[0],),
+        R_world2cv[1][:] + (T_world2cv[1],),
+        R_world2cv[2][:] + (T_world2cv[2],)
+    ))
+    return RT
+
+
+def get_3x4_RT_matrix_from_blender_OpenCV(obj):
+    isCamera = (obj.type == 'CAMERA')
+    R_BlenderView_to_OpenCVView = np.diag([1 if isCamera else -1, -1, -1])
+    print('R_BlenderView_to_OpenCVView', R_BlenderView_to_OpenCVView)
+    location, rotation = obj.matrix_world.decompose()[:2]
+    print('location', location, 'rotation', rotation)
+    # Convert the rotation to axis-angle representation
+    axis, angle = rotation.to_axis_angle()
+
+    # Create a 3x3 rotation matrix from the axis-angle representation
+    R_BlenderView = Matrix.Rotation(angle, 3, axis).transposed()
+
+    T_BlenderView = -1.0 * R_BlenderView @ location
+
+    R_OpenCV = R_BlenderView_to_OpenCVView @ R_BlenderView
+    T_OpenCV = R_BlenderView_to_OpenCVView @ T_BlenderView
+
+    R, _ = cv2.Rodrigues(R_OpenCV)
+    print('R_OpenCV', R_OpenCV)
+    print('R_OpenCV(Rod)', R.ravel())
+    print('T_OpenCV', T_OpenCV)
+
+    RT_OpenCV = Matrix(np.column_stack((R_OpenCV, T_OpenCV)))
+    return RT_OpenCV, R_OpenCV, T_OpenCV
+
+
+def get_3x4_P_matrix_from_blender_OpenCV(cam):
+    K = get_calibration_matrix_K_from_blender(cam.data)
+    RT = get_3x4_RT_matrix_from_blender_OpenCV(cam)[0]
+    return K @ RT
+
+
+def get_3x4_P_matrix_from_blender(cam):
+    K = get_calibration_matrix_K_from_blender(cam.data)
+    RT = get_3x4_RT_matrix_from_blender(cam)
+    return K @ RT, K, RT
+
 
 
 def blender_location_rotation_from_opencv(rvec, tvec, isCamera=True):
@@ -237,6 +362,31 @@ def blender_location_rotation_from_opencv(rvec, tvec, isCamera=True):
     rotation = R_BlenderView_inv.to_quaternion()
 
     return location, rotation
+
+
+# ----------------------------------------------------------
+# Alternate 3D coordinates to 2D pixel coordinate projection code
+# adapted from https://blender.stackexchange.com/questions/882/how-to-find-image-coordinates-of-the-rendered-vertex?lq=1
+# to have the y axes pointing up and origin at the top-left corner
+def project_by_object_utils(cam, point):
+    scene = bpy.context.scene
+    co_2d = bpy_extras.object_utils.world_to_camera_view(scene, cam, point)
+    render_scale = scene.render.resolution_percentage / 100
+    render_size = (
+        int(scene.render.resolution_x * render_scale),
+        int(scene.render.resolution_y * render_scale),
+    )
+    return (co_2d.x * render_size[0], render_size[1] - co_2d.y * render_size[1])
+
+
+def quaternion_to_euler_degree(quaternion):
+    # Convert quaternion to Euler rotation (radians)
+    euler_rad = quaternion.to_euler()
+
+    # Convert radians to degrees
+    euler_deg = Vector([math.degrees(axis) for axis in euler_rad])
+
+    return euler_deg
 
 
 def calculate_camera_position_direction(rvec, tvec):
@@ -425,28 +575,22 @@ def create_camera(camera_f, camera_c, cam_location, name, rot):
     return cam
 
 
-def plot_camera(position, direction, axis_length=1.0, save_path='./camera_plot.png'):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+def create_camera_default(cam_location, rot, name):
+    rotation = quaternion_to_euler_degree(rot)
+    print('euler(degree)', rotation)
 
-    origin = np.array(position)
-    end_point = origin + axis_length * np.array(direction)
+    X, Y, Z = cam_location
+    print('position', X, Y, Z)
+    # Remove existing camera
+    if name in bpy.data.objects:
+        bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
 
-    ax.quiver(origin[0], origin[1], origin[2],
-              direction[0], direction[1], direction[2],
-              length=axis_length, color='r')
+    # MAKE DEFAULT CAM
+    bpy.ops.object.camera_add(location=(X, Y, Z))
+    cam = bpy.context.active_object
+    cam.name = name
+    cam.rotation_euler = (math.radians(rotation[0]), math.radians(rotation[1]), math.radians(rotation[2]))
 
-    ax.set_xlim(origin[0] - 5, origin[0] + 5)
-    ax.set_ylim(origin[1] - 5, origin[1] + 5)
-    ax.set_zlim(origin[2] - 5, origin[2] + 5)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-
-    # Save the plot to a file
-    plt.savefig(save_path, bbox_inches='tight')
-    plt.close(fig)
-    print(f"Saved plot to {os.path.abspath(save_path)}")
 
 
 def create_point(location, point_name="Point"):
@@ -496,7 +640,52 @@ def make_cameras(camera_name, rvec, tvec, camera_matrix):
     camera = create_camera(camera_matrix['camera_f'], camera_matrix['camera_c'], position, camera_name, rotation)
 
 
-#    plot_camera(position, direction, save_path='./camera_plot.png')
+def make_cameras_default(camera_name, rvec, tvec):
+    position, rotation = blender_location_rotation_from_opencv(rvec, tvec)
+    camera = create_camera_default(position, rotation, camera_name)
+
+
+def export_camera_to_opencv_txt(cam_name, path, file_name):
+    cam = bpy.data.objects[cam_name]
+    P = get_3x4_P_matrix_from_blender(cam)
+
+    nP = np.matrix(P)
+    # path = bpy.path.abspath("//")
+    filename = file_name + ".txt"
+    file = path + "/" + filename
+    np.savetxt(file, nP)
+    print(f"Saved to: \"{file}\".")
+
+
+def export_camera_to_opencv_json(cam_name, path, file_name):
+    cam = bpy.data.objects[cam_name]
+    _, rvec, tvec = get_3x4_RT_matrix_from_blender(cam)
+    R, _ = cv2.Rodrigues(rvec)
+    filename = file_name + ".json"
+    file = path + "/" + filename
+    json_data = OrderedDict()
+    json_data['rvec'] = np.array(R.ravel()).tolist()
+    json_data['tvec'] = np.array(tvec).tolist()
+    rw_json_data(WRITE, file, json_data)
+    print(f"Saved to: \"{file}\".")
+
+
+def rw_json_data(rw_mode, path, data):
+    print('json path', path)
+    try:
+        if rw_mode == 0:
+            with open(path, 'r', encoding="utf-8") as rdata:
+                json_data = json.load(rdata)
+            return json_data
+        elif rw_mode == 1:
+            with open(path, 'w', encoding="utf-8") as wdata:
+                json.dump(data, wdata, ensure_ascii=False, indent="\t")
+        else:
+            print('not support mode')
+    except:
+        # print('file r/w error')
+        return -1
+
 
 
 def draw_line(p1, p2, name):
@@ -605,6 +794,8 @@ if os_name == 'Windows':
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
     else:
         pickle_file = 'D:/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
+        base_file_path = 'D:/OpenCV_APP/led_pos_simulation/blender_3d/image_output/blender_basic/'
+
 elif os_name == 'Linux':
     print("This is Linux")
     if shape == 'sphere':
@@ -615,6 +806,8 @@ elif os_name == 'Linux':
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/result_cylinder_base.pickle'
     else:
         pickle_file = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/find_pos_legacy/basic_test.pickle'
+        base_file_path = '/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/blender_3d/image_output/blender_basic/'
+    
 else:
     print("Unknown OS")
 
@@ -640,30 +833,6 @@ default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572]}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618]}
 
-# 카메라 해상도 설정 (예: 1920x1080)
-bpy.context.scene.render.resolution_x = 1280
-bpy.context.scene.render.resolution_y = 960
-# 렌더링 결과의 픽셀 밀도를 100%로 설정 (기본값은 50%)
-bpy.context.scene.render.resolution_percentage = 100
-bpy.context.scene.render.film_transparent = False  # 렌더링 배경을 불투명하게 설정
-
-# bpy.context.scene.render.engine = 'CYCLES'
-# bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
-# bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
-bpy.context.scene.unit_settings.system = 'METRIC'
-bpy.context.scene.unit_settings.scale_length = 1.0
-bpy.context.scene.unit_settings.length_unit = 'METERS'
-
-# 렌더링 엔진을 Eevee로 설정합니다.
-bpy.context.scene.render.engine = 'BLENDER_EEVEE'
-# Eevee 렌더링 설정을 조절합니다.
-bpy.context.scene.eevee.use_bloom = True
-bpy.context.scene.eevee.bloom_threshold = 0.8
-bpy.context.scene.eevee.bloom_radius = 6.5
-bpy.context.scene.eevee.bloom_intensity = 0.1
-
-# 월드 배경을 어둡게 설정합니다.
-set_up_dark_world_background()
 
 # delte objects
 exclude_object_names = ["Oculus_L_05.002"]
@@ -707,62 +876,166 @@ for idx, led in enumerate(origin_led_data):
 #########################
 '''
 
-################### TESTTESTEST
+image_file_path = base_file_path
+blend_file_path = base_file_path + 'blender_test_image.blend'
 
-# # left
-# rvec_left = np.array([ 0.92258546, -0.31966116,  1.53042547])
-# tvec_left = np.array([-0.10226342,  0.21217596,  0.45900419])
-
-# # right
-# rvec_right = np.array([ 0.82721212, -1.71101202,  0.74346322])
-# tvec_right = np.array([-0.08838871,  0.08055683, 0.446927  ])
-
-# 0.2, 0, 0
-# 90, 0, 90
 rvec_left = np.array([ 1.2091998,   1.20919946, -1.20919946])
 tvec_left = np.array([-2.82086248e-08, -2.35607960e-08,  2.00000048e-01])
 
 rvec_right = np.array([ 0.86044094,  1.63833515, -1.63833502])
 tvec_right = np.array([-7.45058060e-08, -1.88919191e-08,  2.00000152e-01])
 
-# rvec_left = np.array([ 0.58729, 0.56275,  0.96684])
-# tvec_left = np.array([-0.111,  0.052,  0.337])
 
-# location, rotation = blender_location_rotation_from_opencv(rvec_left, tvec_left)
+#make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
+#make_cameras("CAMERA_1", rvec_right, tvec_right, cam_0_matrix)
+make_cameras_default("CAMERA_0", rvec_left, tvec_left)
+make_cameras_default("CAMERA_1", rvec_right, tvec_right)
 
-make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
-make_cameras("CAMERA_1", rvec_right, tvec_right, cam_0_matrix)
-# euler_deg = quaternion_to_euler_degree(rotation)
 
-# print('cam_remake')
-# print('location:', location)
-# print('rotation:', rotation, 'quat', euler_deg)
+# 카메라 해상도 설정 (예: 1920x1080)
+bpy.context.scene.render.resolution_x = 1280
+bpy.context.scene.render.resolution_y = 960
 
-# cam_o = bpy.data.objects["CAMERA_0"]
-# o_loc, o_rot = cam_o.matrix_world.decompose()[:2]
-# rotation = cam_o.rotation_quaternion
-# location = cam_o.location
-# rotation_euler = cam_o.rotation_euler
-# # Rad to degrees conversion
-# euler_deg = tuple(math.degrees(angle) for angle in rotation_euler)
-# quaternion = rotation_euler.to_quaternion()
-# print("Euler degrees:", euler_deg)
-# print('cam_origin')
-# print('location', o_loc, location, 'rotation', o_rot, rotation, euler_deg, quaternion)
+# 렌더링 결과의 픽셀 밀도를 100%로 설정 (기본값은 50%)
+bpy.context.scene.render.resolution_percentage = 100
+bpy.context.scene.render.film_transparent = False  # 렌더링 배경을 불투명하게 설정
 
-# 변환: Quaternion -> Euler degrees
-# euler_deg = quaternion_to_euler_degree(rotation)
-# print('cam_remake')
-# print('location:', location)
-# print('rotation:', rotation, 'quat', euler_deg)
-# dot_product = quaternion.dot(rotation)
-# print('dot_product', dot_product)
+bpy.context.scene.render.engine = 'CYCLES'
+# bpy.context.scene.cycles.transparent_max_bounces = 12  # 반사와 굴절 최대 반투명 경계 설정
+# bpy.context.scene.cycles.preview_samples = 100  # 뷰포트 렌더링 품질 설정
+bpy.context.scene.unit_settings.system = 'METRIC'
+bpy.context.scene.unit_settings.scale_length = 1.0
+bpy.context.scene.unit_settings.length_unit = 'METERS'
+
+# 렌더링 엔진을 Eevee로 설정합니다.
+bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+# Eevee 렌더링 설정을 조절합니다.
+#bpy.context.scene.eevee.use_bloom = True
+#bpy.context.scene.eevee.bloom_threshold = 0.8
+#bpy.context.scene.eevee.bloom_radius = 6.5
+#bpy.context.scene.eevee.bloom_intensity = 0.1
+
+# 월드 배경을 어둡게 설정합니다.
+set_up_dark_world_background()
+
+
+
+
+json_data = OrderedDict()
+json_data['CAMERA_0'] = {'Vertex': [], 'Project': [], 'OpenCV': [], 'Obj_Util': [], 'points3D': []}
+json_data['CAMERA_1'] = {'Vertex': [], 'Project': [], 'OpenCV': [], 'Obj_Util': [], 'points3D': []}
+
+for cam_name in camera_names:
+    if cam_name not in bpy.data.objects or bpy.data.objects[cam_name].type != 'CAMERA':
+        print({'ERROR'}, f"No camera found with name {camera_name}")
+        break;
+    
+    try:
+        print(f"\n\n{cam_name}")
+        print('--------TEST 1-----------')        
+        points3D = led_data
+        print('points3D\n', points3D)
+        points3D = np.array(points3D, dtype=np.float64)
+        cam = bpy.data.objects[cam_name]
+        # 이제 active object를 원하는 object로 변경
+        bpy.context.view_layer.objects.active = cam
+        # 선택한 오브젝트를 선택 상태
+        cam.select_set(True)
+        active_obj = bpy.context.active_object
+        print('active_obj', active_obj)
+
+        scene = bpy.context.scene
+        scene.camera = cam  # 현재 씬의 카메라로 설정
+
+        
+        width = scene.render.resolution_x
+        height = scene.render.resolution_y
+        
+        print('width', width, 'height', height)
+        
+        location = cam.location
+        rotation = cam.rotation_euler
+        quat = cam.rotation_quaternion
+        # XYZ 오일러 각도를 degree 단위로 변환
+        rotation_degrees = tuple(degrees(angle) for angle in rotation)
+        # 결과 출력
+        print(f"{cam} 위치: ", location)
+        print(f"{cam} XYZ 오일러 회전 (도): ", rotation_degrees)
+        print(f"{cam} XYZ 쿼너티온: ", quat)
+
+        # print projection M
+        P = get_3x4_P_matrix_from_blender_OpenCV(cam)
+        projectionMatrix = np.matrix(P)
+        print('projection M', projectionMatrix)
+
+        # print R|T
+        _, rvec, tvec = get_3x4_RT_matrix_from_blender_OpenCV(cam)
+        R, _ = cv2.Rodrigues(rvec)
+        rvec = np.array(R.ravel())
+        tvec = np.array(tvec)
+        print('rvec', rvec)
+        print('tvec', tvec)
+
+        intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+            projectionMatrix)[:3]
+        camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+        camR = Rot.from_matrix(rotationMatrix)
+        blender_tvec = camR.apply(camT.ravel())
+        blender_rvec = camR.as_rotvec()
+        blender_rvec = blender_rvec.reshape(-1, 1)
+        blender_tvec = blender_tvec.reshape(-1, 1)
+
+        blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec,
+                                                    cameraMatrix=intrinsic,
+                                                    distCoeffs=None)
+        blender_image_points = blender_image_points.reshape(-1, 2)
+
+        print("Projected 2D image points <Projection>")
+        print(blender_image_points)
+        json_data[cam_name]['OpenCV'] = np.array(blender_image_points).tolist()
+        json_data[cam_name]['points3D'] = np.array(points3D).tolist()
+
+        print('\n\n')
+        print('--------TEST 2-----------')
+        # Insert your camera name here
+        P, K, RT = get_3x4_P_matrix_from_blender(cam)
+        print("K")
+        print(K)
+        print("RT")
+        print(RT)
+        print("P")
+        print(P)
+
+        for i, point in enumerate(points3D):
+            point_3D = Vector(point)  # Convert tuple to Vector
+            p = P @ Vector((point_3D.x, point_3D.y, point_3D.z, 1))  # Append 1 to the vector for matrix multiplication
+            p /= p[2]
+
+            print(f"Projected point {i}")
+            print(p[:2])
+            json_data[cam_name]['Project'].append(p[:2])
+            print("proj by object_utils")
+            obj_coords = project_by_object_utils(cam, point_3D)
+            json_data[cam_name]['Obj_Util'].append(obj_coords)
+            print(obj_coords)
+        
+        
+        # save png file
+        scene.render.image_settings.file_format = 'PNG'
+        scene.render.filepath = base_file_path + f"{cam_name}" + '_blender_test_image.png'
+        bpy.ops.render.render(write_still=1)
+        
+    except KeyError:
+        print('camera not found', camera_name)   
+
+print('json_data\n', json_data)
+jfile = base_file_path + 'blender_test_image.json'
+rw_json_data(1, jfile, json_data)
+
 
 
 # List of camera names
-
 set_track_to = 1
-
 if set_track_to == 1:
     # List of camera names
     for camera_name in camera_names:
