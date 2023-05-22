@@ -1,11 +1,13 @@
+import numpy as np
+
 from definition import *
 from function import *
 import matplotlib.patches as patches
 from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes, mark_inset
 
-CAP_PROP_FRAME_WIDTH = 1920
-CAP_PROP_FRAME_HEIGHT = 1080
-CV_MIN_THRESHOLD = 100
+CAP_PROP_FRAME_WIDTH = 1280
+CAP_PROP_FRAME_HEIGHT = 960
+CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 
 
@@ -23,6 +25,14 @@ def detect_led_lights(image, padding=5):
 
     return blob_info
 
+# Euclidean distance function
+def euclidean_distance(point1, point2):
+    return np.sqrt(np.sum((np.array(point1) - np.array(point2)) ** 2))
+
+
+# Euclidean distance function
+def euclidean_distance(point1, point2):
+    return np.sqrt(np.sum((np.array(point1) - np.array(point2)) ** 2))
 
 if __name__ == "__main__":
     os_name = platform.system()
@@ -62,13 +72,14 @@ if __name__ == "__main__":
 
     STACK_FRAME = np.hstack((DRAW_IMG_0, DRAW_IMG_1))
 
-    ret, img_filtered = cv2.threshold(STACK_FRAME, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    ret, img_filtered = cv2.threshold(DRAW_IMG_0, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
     IMG_GRAY = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)
 
     blob_area = detect_led_lights(IMG_GRAY, 5)
 
     results = [[] for _ in range(4)]
-
+    # cv2.imshow('test', IMG_GRAY)
+    # cv2.waitKey(0)
     for idx, area in enumerate(blob_area):
         (x, y, w, h) = area
 
@@ -119,17 +130,36 @@ if __name__ == "__main__":
     ax.imshow(IMG_GRAY, cmap='gray')
 
     print('len(result)', len(results[0]))
-    for i in range(len(results[0])):
-        # 주어진 영역을 잘라내기
-        (x, y, w, h) = blob_area[i]
 
-        # ADD other algo here
-        # ax.scatter(results[0][i][0], results[0][i][1], color='red', marker='o', alpha=0.5,  s=3)
+    mapping_indices = []
+    for i in range(len(results[1])):
+        (x, y, w, h) = blob_area[i]
         ax.scatter(results[1][i][0], results[1][i][1], color='black', marker='o', alpha=0.5, s=3)
+
+        # Filter the points that are within the current blob area
+        within_blob_area = [j for j, coord in enumerate(result_data['CAMERA_0']['Obj_Util'])
+                            if x <= coord[0] <= x + w and y <= coord[1] <= y + h]
+
+        # Store the indices of the points within the blob area
+        mapping_indices.append(within_blob_area)
 
         # Draw the bbox
         rect = patches.Rectangle((x, y), w, h, linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(rect)
+
+    print('mapping_indices', mapping_indices)
+    total_shift_x = 0
+    total_shift_y = 0
+    for i in range(len(results[1])):
+        for j in mapping_indices[i]:
+            shift_x = result_data['CAMERA_0']['Obj_Util'][j][0] - results[1][i][0]
+            shift_y = result_data['CAMERA_0']['Obj_Util'][j][1] - results[1][i][1]
+            total_shift_x += shift_x
+            total_shift_y += shift_y
+    average_shift_x = total_shift_x / len(results[1])
+    average_shift_y = total_shift_y / len(results[1])
+
+    print('average_shift_x', average_shift_x, 'average_shift_y', average_shift_y)
 
     # Test
     # ax.scatter([coord[0] for coord in result_data['CAMERA_0']['OpenCV']],
@@ -139,12 +169,59 @@ if __name__ == "__main__":
 
     ax.scatter([coord[0] for coord in result_data['CAMERA_0']['Obj_Util']],
                [coord[1] for coord in result_data['CAMERA_0']['Obj_Util']], color='red', marker='o', alpha=0.5, s=3)
-    ax.scatter([coord[0] + CAP_PROP_FRAME_WIDTH for coord in result_data['CAMERA_1']['Obj_Util']],
-               [coord[1] for coord in result_data['CAMERA_1']['Obj_Util']], color='red', marker='o', alpha=0.5, s=3)
+
+    ax.scatter([coord[0] - average_shift_x for coord in result_data['CAMERA_0']['Obj_Util']],
+               [coord[1] - average_shift_y for coord in result_data['CAMERA_0']['Obj_Util']], color='green', marker='o', alpha=0.5, s=3)
+
+    # ax.scatter([coord[0] + CAP_PROP_FRAME_WIDTH for coord in result_data['CAMERA_1']['Obj_Util']],
+    #            [coord[1] for coord in result_data['CAMERA_1']['Obj_Util']], color='red', marker='o', alpha=0.5, s=3)
 
     # ax.scatter([coord[0] for coord in result_data['CAMERA_0']['Project']],
     #            [coord[1] for coord in result_data['CAMERA_0']['Project']], color='green', marker='o', alpha=0.5, s=3)
     # ax.scatter([coord[0] + CAP_PROP_FRAME_WIDTH for coord in result_data['CAMERA_1']['Project']],
     #            [coord[1] for coord in result_data['CAMERA_1']['Project']], color='green', marker='o', alpha=0.5, s=3)
 
+    print('greysum')
+    print(results[1])
+
+    print('Blender Obj_Util')
+    print(result_data['CAMERA_0']['Obj_Util'])
+
+    # Initialize lists to store the distances
+    distances_0 = []
+    distances_1 = []
+
+    for i in range(len(results[1])):
+        for j in mapping_indices[i]:
+            # Calculate the distance before and after applying the shift
+            distance_0 = euclidean_distance(results[1][i], result_data['CAMERA_0']['Obj_Util'][j])
+            distance_1 = euclidean_distance(results[1][i], [result_data['CAMERA_0']['Obj_Util'][j][0] - average_shift_x,
+                                                            result_data['CAMERA_0']['Obj_Util'][j][
+                                                                1] - average_shift_y])
+            distances_0.append(distance_0)
+            distances_1.append(distance_1)
+
+    # Calculate the mean distances
+    mean_distance_0 = np.mean(distances_0)
+    mean_distance_1 = np.mean(distances_1)
+
+    # Generate indices for plotting
+    indices = np.arange(len(distances_0))
+
+    # Create a bar plot of the distances
+    plt.figure(figsize=(10, 6))
+    plt.bar(indices, distances_0, width=0.4, align='center', alpha=0.5, label='Before Shift')
+    plt.bar(indices, distances_1, width=0.4, align='edge', alpha=0.5, label='After Shift')
+
+    plt.ylabel('Distance')
+    plt.title('Euclidean Distances Before and After Shift')
+
+    # Display the mean distances
+    plt.axhline(y=mean_distance_0, color='b', linestyle='-', label=f'Mean Distance Before Shift: {mean_distance_0:.2f}')
+    plt.axhline(y=mean_distance_1, color='orange', linestyle='-',
+                label=f'Mean Distance After Shift: {mean_distance_1:.2f}')
+
+    plt.legend()
+
     plt.show()
+
