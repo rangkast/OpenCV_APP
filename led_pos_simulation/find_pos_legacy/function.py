@@ -561,7 +561,7 @@ def find_center(frame, SPEC_AREA):
         return 0, 0
     #
 
-    result_data_str = f'{g_c_x}' + f'{g_c_y}'
+    result_data_str = f'{g_c_x} ' + f'{g_c_y}'
     print(result_data_str)
 
     return g_c_x, g_c_y
