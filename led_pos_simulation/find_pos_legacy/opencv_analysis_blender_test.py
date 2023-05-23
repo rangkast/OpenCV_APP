@@ -143,7 +143,11 @@ if __name__ == "__main__":
             rect = patches.Rectangle((x, y), w, h, linewidth=1, edgecolor='r', facecolor='none')
             ax.add_patch(rect)
 
-        print('mapping_indices', mapping_indices)
+        mapping_indices_flat = np.array(mapping_indices).ravel()
+        print('mapping_indices', mapping_indices_flat)
+        if len(mapping_indices_flat) <= 0:
+            break
+
         total_shift_x = 0
         total_shift_y = 0
         for i in range(len(results[1])):
@@ -156,7 +160,7 @@ if __name__ == "__main__":
         average_shift_y = total_shift_y / len(results[1])
 
         print('average_shift_x', average_shift_x, 'average_shift_y', average_shift_y)
-        for i in np.array(mapping_indices).squeeze():
+        for i in mapping_indices_flat:
             # OpenCV ProjectionPoints
             ax.scatter(result_data[key]['OpenCV'][i][0], result_data[key]['OpenCV'][i][1], color='blue', marker='o', alpha=0.7, s=5)
             # Blender Object Util (WorldToView)
@@ -213,5 +217,6 @@ if __name__ == "__main__":
 
         # Set the x ticks
         dist_ax.set_xticks(indices)
+        dist_ax.set_xticklabels(mapping_indices_flat)
 
     plt.show()

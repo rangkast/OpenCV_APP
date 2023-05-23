@@ -509,6 +509,6 @@ def display_tracker_research(images, image_files, data_files):
 
 if __name__ == "__main__":
     os_name = platform.system()
-    image_path = '../blender_3d/image_output'
+    image_path = '../blender_3d/image_output/blender_cylinder_base'
     images, image_files, data_files = load_data(image_path)
     display_tracker_research(images, image_files, data_files)

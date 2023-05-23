@@ -59,25 +59,35 @@ spacing = 0.02
 theta = np.arange(0, 2 * np.pi, spacing / radius)
 z = np.arange(lower_z, upper_z, spacing)
 
-p_coords = []
+# Generate the theta and z values
+theta = np.arange(0, 2 * np.pi, spacing / radius)
+z = np.arange(lower_z, upper_z, spacing)
 
-# Define standard deviation of noise
-std_dev = 0.1  # Adjust this to change the amount of noise
+# Placeholder for the points
+all_points = []
 
-for i, t in enumerate(theta):
-    for j, z_val in enumerate(z):
-        # Add noise to the angle
-        t_noisy = t + np.random.normal(0, std_dev)
+# Iterate through all the theta and z values
+for t in theta:
+    for z_val in z:
+        # Calculate the x and y values
+        x = center[0] + radius * np.cos(t)
+        y = center[1] + radius * np.sin(t)
+        # If x > 0, add it to the list of points
+        if x > 0:
+            all_points.append([x, y, z_val])
 
-        x = center[0] + radius * np.cos(t_noisy)
-        y = center[1] + radius * np.sin(t_noisy)
+# Convert to a numpy array
+all_points = np.array(all_points)
 
-        if x > 0 and (i + j) % 2 == 0:
-            p_coords.append([x, y, z_val])
+# Set the seed for reproducibility
+np.random.seed(4)
 
-p_coords = np.array(p_coords)
+# Randomly select 6 points
+selected_indices = np.random.choice(len(all_points), 6, replace=False)
+selected_points = all_points[selected_indices]
 
-ax.scatter(p_coords[:, 0], p_coords[:, 1], p_coords[:, 2], marker="o", color="r", alpha=0.7)
+ax.scatter(selected_points[:, 0], selected_points[:, 1], selected_points[:, 2], marker="o", color="r", alpha=0.7)
+
 # 원점
 ax.scatter(0, 0, 0, marker='o', color='k', s=10)
 ax.set_xlim([-0.2, 0.2])
@@ -98,7 +108,7 @@ data = OrderedDict()
 
 p_coords_changed = []
 
-for i, coord in enumerate(p_coords):
+for i, coord in enumerate(selected_points):
     # LED 오브젝트의 위치를 조정합니다.
     normalized_direction = Vector(coord).normalized()
     distance_to_o = led_r * 0
