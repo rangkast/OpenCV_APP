@@ -119,9 +119,11 @@ dist1 = fig.add_subplot(gs[1, 1])
 # 이미지 파일 경로를 지정합니다.
 blend_image_l = "./image_output/real_image/CAMERA_0_blender_test_image.png"
 real_image_l = "../../../REAL_ROBOT/left_frame_1685066703.png"
-
+# real_image_l = "./blended_image.png"
 blend_image_r = "./image_output/real_image/CAMERA_1_blender_test_image.png"
 real_image_r = "../../../REAL_ROBOT/right_frame_1685066703.png"
+
+
 
 # 두 이미지를 블렌딩합니다.
 B_img_1 = cv2.imread(blend_image_l)
@@ -143,6 +145,8 @@ cv2.putText(STACK_FRAME, 'RIGHT', (10 + CAP_PROP_FRAME_WIDTH, 20),
             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
 cv2.imshow('STACK Frame', STACK_FRAME)
+
+
 key = cv2.waitKey(0)
 cv2.destroyAllWindows()
 
