@@ -1,5 +1,4 @@
 import numpy as np
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from matplotlib.ticker import FormatStrFormatter
@@ -15,6 +14,7 @@ CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
+
 
 def find_center(frame, SPEC_AREA):
     x_sum = 0
@@ -160,23 +160,19 @@ dist0 = fig.add_subplot(gs[1, 0])
 dist1 = fig.add_subplot(gs[1, 1])
 
 # 이미지 파일 경로를 지정합니다.
-blend_image_l = "./image_output/real_image/CAMERA_0_blender_test_image.png"
-real_image_l = "./image_output/real_image/left_frame.png"
-# real_image_l = "./blended_image.png"
-blend_image_r = "./image_output/real_image/CAMERA_1_blender_test_image.png"
-real_image_r = "./image_output/real_image/right_frame.png"
+blend_image_l = "./CAMERA_0_blender_test_image.png"
+real_image_l = "./left_frame.png"
+blend_image_r = "./CAMERA_1_blender_test_image.png"
+real_image_r = "./right_frame.png"
 
 # 두 이미지를 블렌딩합니다.
 B_img_1 = cv2.imread(blend_image_l)
 R_img_1 = cv2.imread(real_image_l)
 alpha_image_l = blend_images(ax0, "alpha_image_l.png", B_img_1, R_img_1, alpha=0.5)
-# cv2.imshow('B_img_1', B_img_1)
-# cv2.imshow('R_img_1', R_img_1)
+
 B_img_r = cv2.imread(blend_image_r)
 R_img_r = cv2.imread(real_image_r)
 alpha_image_r = blend_images(ax1, "alpha_image_r.png", B_img_r, R_img_r, alpha=0.5)
-# cv2.imshow('B_img_r', B_img_r)
-# cv2.imshow('R_img_r', R_img_r)
 
 # 결과 이미지를 표시합니다.
 STACK_FRAME = np.hstack((alpha_image_l, alpha_image_r))

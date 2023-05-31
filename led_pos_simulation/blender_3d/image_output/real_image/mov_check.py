@@ -7,8 +7,8 @@ CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
 
 # Read the two videos
-cap_0 = cv2.VideoCapture('./image_output/real_image/camera_0.mkv')
-cap_1 = cv2.VideoCapture('./image_output/real_image/camera_1.mkv')
+cap_0 = cv2.VideoCapture('./camera_0.mkv')
+cap_1 = cv2.VideoCapture('./camera_1.mkv')
 
 
 def detect_led_lights(image, padding=5):
