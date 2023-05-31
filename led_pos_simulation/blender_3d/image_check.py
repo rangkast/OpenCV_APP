@@ -16,6 +16,39 @@ CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
 
+def find_center(frame, SPEC_AREA):
+    x_sum = 0
+    t_sum = 0
+    y_sum = 0
+    g_c_x = 0
+    g_c_y = 0
+    m_count = 0
+
+    (X, Y, W, H) = SPEC_AREA
+
+    for y in range(Y, Y + H):
+        for x in range(X, X + W):
+            x_sum += x * frame[y][x]
+            t_sum += frame[y][x]
+            m_count += 1
+
+    for x in range(X, X + W):
+        for y in range(Y, Y + H):
+            y_sum += y * frame[y][x]
+
+    if t_sum != 0:
+        g_c_x = x_sum / t_sum
+        g_c_y = y_sum / t_sum
+
+    if g_c_x == 0 or g_c_y == 0:
+        return 0, 0
+    #
+
+    result_data_str = f'{g_c_x} ' + f'{g_c_y}'
+    print(result_data_str)
+
+    return g_c_x, g_c_y
+
 
 def detect_led_lights(image, padding=5):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -41,6 +74,8 @@ def blend_images(ax, name, image1, image2, alpha=0.5):
 
     img_draw_1, ax_img_1 = draw_elllipse(ax, 'BL', img1)
     img_draw_2, ax_img_2 = draw_elllipse(ax, 'RE', img2)
+    cv2.imshow(f"BL{name}", img_draw_1)
+    cv2.imshow(f"RE{name}", img_draw_2)
 
     img_draw_blended = cv2.addWeighted(img_draw_1, alpha, img_draw_2, 1 - alpha, 0)
     ax_blended = cv2.addWeighted(ax_img_1, alpha, ax_img_2, 1 - alpha, 0)
@@ -60,6 +95,14 @@ def draw_elllipse(ax, name, image):
         (x, y, w, h) = area
         # 무게 중심 계산
         roi = image[y:y + h, x:x + w]
+
+        # GreySum
+        gcx, gcy = find_center(image, (x, y, w, h))
+        cv2.rectangle(img_draw, (x, y), (x + w, y + h), (255, 255, 255), 1)
+        cv2.putText(img_draw, f"{idx}",
+                    (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), lineType=cv2.LINE_AA)
+
         # 컨투어 찾기
         contours, _ = cv2.findContours(roi.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
@@ -118,24 +161,22 @@ dist1 = fig.add_subplot(gs[1, 1])
 
 # 이미지 파일 경로를 지정합니다.
 blend_image_l = "./image_output/real_image/CAMERA_0_blender_test_image.png"
-real_image_l = "../../../REAL_ROBOT/left_frame_1685066703.png"
+real_image_l = "./image_output/real_image/left_frame.png"
 # real_image_l = "./blended_image.png"
 blend_image_r = "./image_output/real_image/CAMERA_1_blender_test_image.png"
-real_image_r = "../../../REAL_ROBOT/right_frame_1685066703.png"
-
-
+real_image_r = "./image_output/real_image/right_frame.png"
 
 # 두 이미지를 블렌딩합니다.
 B_img_1 = cv2.imread(blend_image_l)
 R_img_1 = cv2.imread(real_image_l)
 alpha_image_l = blend_images(ax0, "alpha_image_l.png", B_img_1, R_img_1, alpha=0.5)
-cv2.imshow('B_img_1', B_img_1)
-cv2.imshow('R_img_1', R_img_1)
+# cv2.imshow('B_img_1', B_img_1)
+# cv2.imshow('R_img_1', R_img_1)
 B_img_r = cv2.imread(blend_image_r)
 R_img_r = cv2.imread(real_image_r)
 alpha_image_r = blend_images(ax1, "alpha_image_r.png", B_img_r, R_img_r, alpha=0.5)
-cv2.imshow('B_img_r', B_img_r)
-cv2.imshow('R_img_r', R_img_r)
+# cv2.imshow('B_img_r', B_img_r)
+# cv2.imshow('R_img_r', R_img_r)
 
 # 결과 이미지를 표시합니다.
 STACK_FRAME = np.hstack((alpha_image_l, alpha_image_r))
@@ -146,9 +187,9 @@ cv2.putText(STACK_FRAME, 'RIGHT', (10 + CAP_PROP_FRAME_WIDTH, 20),
 
 cv2.imshow('STACK Frame', STACK_FRAME)
 
-
 key = cv2.waitKey(0)
-cv2.destroyAllWindows()
 
+if cv2.waitKey(1) & 0xFF == ord('q'):
+    cv2.destroyAllWindows()
 
-# plt.show()
+plt.show()
