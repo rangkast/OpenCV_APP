@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from matplotlib.ticker import FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
@@ -24,6 +23,9 @@ import subprocess
 import cv2
 import traceback
 import math
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -82,6 +84,7 @@ CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
+show_plt = 0
 
 json_file = './blob_area.json'
 # 이미지 파일 경로를 지정합니다.
@@ -98,6 +101,7 @@ CAMERA_INFO_STRUCTURE = {
     'points2D': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
     'rt': {'rvec': [], 'tvec': []},
+    'remake_3d': [],
 }
 
 
@@ -108,8 +112,6 @@ class POSE_ESTIMATION_METHOD(Enum):
     SOLVE_PNP_AP3P = auto()
     SOLVE_PNP = auto()
     SOLVE_PNP_RESERVED = auto()
-
-
 def solvepnp_ransac(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -130,8 +132,6 @@ def solvepnp_ransac(*args):
                                                     dist_coeff)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, inliers
-
-
 def solvepnp_ransac_refineLM(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -151,8 +151,6 @@ def solvepnp_ransac_refineLM(*args):
                                  rvecs, tvecs)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-
-
 def solvepnp_AP3P(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -175,15 +173,27 @@ def solvepnp_AP3P(*args):
                                      flags=cv2.SOLVEPNP_AP3P)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-
-
 SOLVE_PNP_FUNCTION = {
     POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC: solvepnp_ransac,
     POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
     POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
 }
-
-
+def pickle_data(rw_mode, path, data):
+    import pickle
+    import gzip
+    try:
+        if rw_mode == READ:
+            with gzip.open(path, 'rb') as f:
+                data = pickle.load(f)
+            return data
+        elif rw_mode == WRITE:
+            with gzip.open(path, 'wb') as f:
+                pickle.dump(data, f)
+        else:
+            print('not support mode')
+    except:
+        print('file r/w error')
+        return ERROR
 def rw_json_data(rw_mode, path, data):
     try:
         if rw_mode == READ:
@@ -199,14 +209,10 @@ def rw_json_data(rw_mode, path, data):
     except:
         # print('file r/w error')
         return ERROR
-
-
 def view_camera_infos(frame, text, x, y):
     cv2.putText(frame, text,
                 (x, y),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
-
-
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
         # get the current x and y limits
@@ -245,8 +251,6 @@ def zoom_factory(ax, base_scale=2.):
 
     # return the function
     return zoom_fun
-
-
 def find_center(frame, SPEC_AREA):
     x_sum = 0
     t_sum = 0
@@ -275,11 +279,9 @@ def find_center(frame, SPEC_AREA):
         return 0, 0
 
     result_data_str = f'{g_c_x} ' + f'{g_c_y}'
-    print(result_data_str)
+    # print(result_data_str)
 
     return g_c_x, g_c_y
-
-
 def detect_led_lights(image, padding=5):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
@@ -293,13 +295,9 @@ def detect_led_lights(image, padding=5):
         blob_info.append([x, y, w, h])
 
     return blob_info
-
-
 def add_value(my_dict, key, tag, value):
     compound_key = str(key) + "-" + tag
     my_dict[compound_key] = value  # 이전 값을 삭제하고 새로운 값을 저장합니다.
-
-
 def draw_bboxes(image, bboxes):
     if len(bboxes) > 0:
         except_pos = 0
@@ -318,8 +316,6 @@ def draw_bboxes(image, bboxes):
             cv2.rectangle(image, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width,
                           1)
             view_camera_infos(image, ''.join([f'{IDX}']), int(x), int(y) - 10)
-
-
 def blob_area_set(index, image, tag):
     bboxes = []
     json_data = rw_json_data(READ, json_file, None)
@@ -370,14 +366,11 @@ def blob_area_set(index, image, tag):
             print('ESC pressed')
             cv2.destroyAllWindows()
             return ERROR
-
         elif key == ord('n'):
             print('go next step')
             break
 
         cv2.imshow(f"{compound_key}", draw_img)
-
-
 def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     l_rotation, _ = cv2.Rodrigues(RT_0['rvec'])
     r_rotation, _ = cv2.Rodrigues(RT_1['rvec'])
@@ -390,12 +383,10 @@ def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     homog_points = triangulation.transpose()
     get_points = cv2.convertPointsFromHomogeneous(homog_points)
     return get_points
-
-
 def calculation(key, bboxes, IMG_GRAY, *args):
+    DEBUG = 0
     draw_img = copy.deepcopy(IMG_GRAY)
     data_key = copy.deepcopy(key)
-    print('data key', key)
     ax1 = args[0][0]
     ax2 = args[0][1]
     ax3 = args[0][2]
@@ -417,10 +408,14 @@ def calculation(key, bboxes, IMG_GRAY, *args):
             CAMERA_INFO[f"{data_key}_{cam_id}"]['points2D']['greysum'].append([cx, cy])
             CAMERA_INFO[f"{data_key}_{cam_id}"]['points3D'].append(origin_led_data[IDX])
 
-    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-
-    print(CAMERA_INFO[f"{data_key}_0"]['points2D'])
-    print(CAMERA_INFO[f"{data_key}_1"]['points2D'])
+    if len(LED_NUMBER) >= 5:
+        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+    else:
+        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+    if DEBUG == 1:
+        print('data key', key)
+        print(CAMERA_INFO[f"{data_key}_0"]['points2D'])
+        print(CAMERA_INFO[f"{data_key}_1"]['points2D'])
     for keys, cam_data in CAMERA_INFO.items():
         if data_key not in keys:
             continue
@@ -428,8 +423,9 @@ def calculation(key, bboxes, IMG_GRAY, *args):
         cam_data['led_num'] = LED_NUMBER
         points2D = np.array(cam_data['points2D']['greysum'], dtype=np.float64)
         points3D = np.array(cam_data['points3D'], dtype=np.float64)
-        print('point_3d\n', points3D)
-        print('point_2d\n', points2D)
+        if DEBUG == 1:
+            print('point_3d\n', points3D)
+            print('point_2d\n', points2D)
 
         INPUT_ARRAY = [
             cam_id,
@@ -440,10 +436,10 @@ def calculation(key, bboxes, IMG_GRAY, *args):
         ]
 
         ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-
-        print('RT from OpenCV SolvePnP')
-        print('rvec', rvec)
-        print('tvec', tvec)
+        if DEBUG == 1:
+            print('RT from OpenCV SolvePnP')
+            print('rvec', rvec)
+            print('tvec', tvec)
         cam_data['rt']['rvec'] = rvec
         cam_data['rt']['tvec'] = tvec
 
@@ -468,10 +464,11 @@ def calculation(key, bboxes, IMG_GRAY, *args):
                                 CAMERA_INFO[f"{data_key}_1"]['rt'],
                                 CAMERA_INFO[f"{data_key}_0"]['points2D']['greysum'],
                                 CAMERA_INFO[f"{data_key}_1"]['points2D']['greysum']).reshape(-1, 3)
-    print('remake_3d\n', remake_3d)
+    CAMERA_INFO[f"{data_key}_0"]['remake_3d'] = points3D.reshape(-1, 3)
+    CAMERA_INFO[f"{data_key}_1"]['remake_3d'] = points3D.reshape(-1, 3)
 
     origin_pts = np.array(origin_led_data).reshape(-1, 3)
-    print('origin_pts\n', points3D.reshape(-1, 3))
+
     ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o',
                 s=10)
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
@@ -484,9 +481,7 @@ def calculation(key, bboxes, IMG_GRAY, *args):
     scale = 1.5
     f = zoom_factory(ax1, base_scale=scale)
 
-    # Compute Euclidean distance
     dist_remake_3d = np.linalg.norm(points3D.reshape(-1, 3) - remake_3d, axis=1)
-    print('dist_remake_3d\n', dist_remake_3d)
     ax3.bar(range(len(dist_remake_3d)), dist_remake_3d, width=0.4)
     ax3.set_title(f"Distance between origin_pts and remake {data_key}")
     ax3.set_xlabel('LEDS')
@@ -495,7 +490,10 @@ def calculation(key, bboxes, IMG_GRAY, *args):
     ax3.set_xticklabels(LED_NUMBER)
     ax3.set_yscale('log')
 
-
+    if DEBUG == 1:
+        print('remake_3d\n', remake_3d)
+        print('origin_pts\n', points3D.reshape(-1, 3))
+        print('dist_remake_3d\n', dist_remake_3d)
 def trianglute_test(index, img_bl, img_re):
     try:
         root = tk.Tk()
@@ -545,14 +543,13 @@ def trianglute_test(index, img_bl, img_re):
         calculation(f"{index}-BL", bboxes_bl, IMG_GRAY_BL, [ax1, ax2, ax4])
         calculation(f"{index}-RE", bboxes_re, IMG_GRAY_RE, [ax1, ax3, ax5])
 
-        plt.show()
+        if show_plt:
+            plt.show()
         key = cv2.waitKey(0)
 
     except:
         traceback.print_exc()
         return ERROR
-
-
 def triangulate_test():
     curr_index = 0
     prev_index = -1
@@ -568,22 +565,90 @@ def triangulate_test():
                 break
             if blob_area_set(curr_index, STACK_FRAME_R, 'RE') == ERROR:
                 break
+            prev_index = curr_index
         key = cv2.waitKey(1)
         if key & 0xFF == 27:
             print('ESC pressed')
             break
         elif key == ord('c'):
+            print('capture')
             if trianglute_test(curr_index, STACK_FRAME_B, STACK_FRAME_R) == ERROR:
                 break
             curr_index += 1
+            cv2.destroyAllWindows()
+        elif key == ord('n'):
+            curr_index += 1
+            cv2.destroyAllWindows()
         else:
-            prev_index = curr_index
+            print('capture mode')
 
     cv2.destroyAllWindows()
+    file = './camera_info.pickle'
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+def test_result():
+    pickle_file = './camera_info.pickle'
+    data = pickle_data(READ, pickle_file, None)
+    CAMERA_INFO = data['CAMERA_INFO']
+
+    for key, value in CAMERA_INFO.items():
+        print('############################')
+        print('key', key)
+        print(value)
+        print('############################')
+        print('\n')
+
+    # 모델과 카메라 ID별로 rvec, tvec 값 저장할 딕셔너리 초기화
+    rvecs = {}
+    tvecs = {}
+
+    # 평균과 표준편차를 저장할 데이터프레임 생성
+    df = pd.DataFrame(columns=['model_cam_id', 'type', 'mean', 'std'])
+    for key, value in CAMERA_INFO.items():
+        model_cam_id = key.split('-')[1]  # 'BL_0', 'BL_1', 'RE_0', 'RE_1' 등 추출
+        rvec = np.linalg.norm(value['rt']['rvec'])  # rvec 벡터의 길이 계산
+        tvec = np.linalg.norm(value['rt']['tvec'])  # tvec 벡터의 길이 계산
+
+        if model_cam_id not in rvecs:
+            rvecs[model_cam_id] = []
+        if model_cam_id not in tvecs:
+            tvecs[model_cam_id] = []
+
+        rvecs[model_cam_id].append(rvec)
+        tvecs[model_cam_id].append(tvec)
+
+    # 각 모델과 카메라 ID에 대해 rvec, tvec의 평균과 표준편차 계산
+    for idx, model_cam_id in enumerate(rvecs.keys()):
+        rvec_arr = np.array(rvecs[model_cam_id])
+        tvec_arr = np.array(tvecs[model_cam_id])
+
+        rvec_mean = np.mean(rvec_arr)
+        tvec_mean = np.mean(tvec_arr)
+
+        rvec_std = np.std(rvec_arr)
+        tvec_std = np.std(tvec_arr)
+
+        print(f'model and camera id: {model_cam_id}')
+        print(f'rvec mean: {rvec_mean}, rvec std: {rvec_std}')
+        print(f'tvec mean: {tvec_mean}, tvec std: {tvec_std}')
+        print('\n')
+        df.loc[2 * idx] = [model_cam_id, 'rvec', rvec_mean, rvec_std]
+        df.loc[2 * idx + 1] = [model_cam_id, 'tvec', tvec_mean, tvec_std]
+
+    # 그래프 그리기
+    plt.figure(figsize=(10, 6))  # 그래프 사이즈 설정
+    sns.barplot(x='model_cam_id', y='std', hue='type', data=df, palette=['#53a4b1', '#c06343'],
+                capsize=0.1)  # 바 그래프 그리기
+    plt.title('Standard Deviation of rvec & tvec for each model')  # 그래프 제목 설정
+    plt.show()  # 그래프 보여주기
 
 
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
         print(f"{i}, {leds}")
-    triangulate_test()
+    # triangulate_test()
+    test_result()
 
