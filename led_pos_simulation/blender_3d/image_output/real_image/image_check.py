@@ -14,7 +14,19 @@ CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
+default_cameraK = np.eye(3).astype(np.float64)
+default_distCoeff = np.zeros((4, 1)).astype(np.float64)
 
+camera_matrix = [
+    [np.array([[712.623, 0.0, 653.448],
+               [0.0, 712.623, 475.572],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
+    [np.array([[716.896, 0.0, 668.902],
+               [0.0, 716.896, 460.618],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)]
+]
 
 def find_center(frame, SPEC_AREA):
     x_sum = 0
@@ -48,8 +60,6 @@ def find_center(frame, SPEC_AREA):
     print(result_data_str)
 
     return g_c_x, g_c_y
-
-
 def detect_led_lights(image, padding=5):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
@@ -63,8 +73,6 @@ def detect_led_lights(image, padding=5):
         blob_info.append([x, y, w, h])
 
     return blob_info
-
-
 def blend_images(ax, name, image1, image2, alpha=0.5):
     # 이미지를 읽고, 동일한 크기로 조정합니다.
     _, img1 = cv2.threshold(cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
@@ -85,8 +93,6 @@ def blend_images(ax, name, image1, image2, alpha=0.5):
 
     cv2.imwrite(name, img_draw_blended)
     return img_draw_blended
-
-
 def draw_elllipse(ax, name, image):
     # 컨투어 찾기
     img_draw = cv2.cvtColor(image.copy(), cv2.COLOR_GRAY2BGR)
@@ -136,7 +142,18 @@ def draw_elllipse(ax, name, image):
                 ax.plot(x_minor, y_minor, color='b', alpha=0.5, linewidth=1)
 
     return img_draw, image
-
+def distort_image(cam_id, image):
+    # 카메라 매트릭스와 왜곡 계수 설정
+    camera_k = camera_matrix[cam_id][0]
+    dist_coeffs = camera_matrix[cam_id][1]
+    # 이미지 크기를 가져옵니다.
+    h, w = image.shape[:2]
+    # 새 카메라 행렬을 계산합니다.
+    newcameramatrix, roi = cv2.getOptimalNewCameraMatrix(default_cameraK, dist_coeffs, (w, h), 0, (w, h))
+    # 왜곡된 이미지를 계산합니다.
+    distorted_img = cv2.undistort(image, default_cameraK, dist_coeffs, None, newcameramatrix)
+    # 왜곡된 이미지를 출력합니다.
+    return distorted_img
 
 root = tk.Tk()
 width_px = root.winfo_screenwidth()
@@ -167,10 +184,12 @@ real_image_r = "./right_frame.png"
 
 # 두 이미지를 블렌딩합니다.
 B_img_1 = cv2.imread(blend_image_l)
+# B_img_1 = distort_image(0, B_img_1)
 R_img_1 = cv2.imread(real_image_l)
 alpha_image_l = blend_images(ax0, "alpha_image_l.png", B_img_1, R_img_1, alpha=0.5)
 
 B_img_r = cv2.imread(blend_image_r)
+# B_img_r = distort_image(1, B_img_r)
 R_img_r = cv2.imread(real_image_r)
 alpha_image_r = blend_images(ax1, "alpha_image_r.png", B_img_r, R_img_r, alpha=0.5)
 

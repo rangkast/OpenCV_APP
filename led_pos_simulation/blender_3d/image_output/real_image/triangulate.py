@@ -19,6 +19,11 @@ import json
 import matplotlib.ticker as ticker
 from enum import Enum, auto
 import copy
+import re
+import subprocess
+import cv2
+import traceback
+import math
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -65,6 +70,7 @@ camera_matrix = [
      np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)]
 ]
 default_dist_coeffs = np.zeros((4, 1))
+default_cameraK = np.eye(3).astype(np.float64)
 
 READ = 0
 WRITE = 1
@@ -87,12 +93,14 @@ real_image_r = "./right_frame.png"
 # data parsing
 CAMERA_INFO = {}
 CAMERA_INFO_STRUCTURE = {
-        'camera_k': [],
-        'points2D': {'greysum': [], 'opencv': [], 'blender': []},
-        'points3D': [],
-        'opencv_rt': {'rvec': [], 'tvec': []},
-        'blender_rt': {'rvec': [], 'tvec': []},
-    }
+    'camera_k': [],
+    'led_num': [],
+    'points2D': {'greysum': [], 'opencv': [], 'blender': []},
+    'points3D': [],
+    'rt': {'rvec': [], 'tvec': []},
+}
+
+
 class POSE_ESTIMATION_METHOD(Enum):
     # Opencv legacy
     SOLVE_PNP_RANSAC = auto()
@@ -100,6 +108,8 @@ class POSE_ESTIMATION_METHOD(Enum):
     SOLVE_PNP_AP3P = auto()
     SOLVE_PNP = auto()
     SOLVE_PNP_RESERVED = auto()
+
+
 def solvepnp_ransac(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -120,6 +130,8 @@ def solvepnp_ransac(*args):
                                                     dist_coeff)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, inliers
+
+
 def solvepnp_ransac_refineLM(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -139,6 +151,8 @@ def solvepnp_ransac_refineLM(*args):
                                  rvecs, tvecs)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
+
+
 def solvepnp_AP3P(*args):
     cam_id = args[0][0]
     points3D = args[0][1]
@@ -161,11 +175,14 @@ def solvepnp_AP3P(*args):
                                      flags=cv2.SOLVEPNP_AP3P)
 
     return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
+
+
 SOLVE_PNP_FUNCTION = {
     POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC: solvepnp_ransac,
     POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
     POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
 }
+
 
 def rw_json_data(rw_mode, path, data):
     try:
@@ -182,10 +199,14 @@ def rw_json_data(rw_mode, path, data):
     except:
         # print('file r/w error')
         return ERROR
+
+
 def view_camera_infos(frame, text, x, y):
     cv2.putText(frame, text,
                 (x, y),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
+
+
 def zoom_factory(ax, base_scale=2.):
     def zoom_fun(event):
         # get the current x and y limits
@@ -224,6 +245,8 @@ def zoom_factory(ax, base_scale=2.):
 
     # return the function
     return zoom_fun
+
+
 def find_center(frame, SPEC_AREA):
     x_sum = 0
     t_sum = 0
@@ -255,6 +278,8 @@ def find_center(frame, SPEC_AREA):
     print(result_data_str)
 
     return g_c_x, g_c_y
+
+
 def detect_led_lights(image, padding=5):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
@@ -268,9 +293,13 @@ def detect_led_lights(image, padding=5):
         blob_info.append([x, y, w, h])
 
     return blob_info
+
+
 def add_value(my_dict, key, tag, value):
     compound_key = str(key) + "-" + tag
     my_dict[compound_key] = value  # 이전 값을 삭제하고 새로운 값을 저장합니다.
+
+
 def draw_bboxes(image, bboxes):
     if len(bboxes) > 0:
         except_pos = 0
@@ -289,6 +318,8 @@ def draw_bboxes(image, bboxes):
             cv2.rectangle(image, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width,
                           1)
             view_camera_infos(image, ''.join([f'{IDX}']), int(x), int(y) - 10)
+
+
 def blob_area_set(index, image, tag):
     bboxes = []
     json_data = rw_json_data(READ, json_file, None)
@@ -345,9 +376,33 @@ def blob_area_set(index, image, tag):
             break
 
         cv2.imshow(f"{compound_key}", draw_img)
-def calculation(key, bboxes, IMG_GRAY):
-    CAMERA_INFO[f"{key}_0"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-    CAMERA_INFO[f"{key}_1"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+
+
+def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
+    l_rotation, _ = cv2.Rodrigues(RT_0['rvec'])
+    r_rotation, _ = cv2.Rodrigues(RT_1['rvec'])
+    l_projection = np.dot(camera_k_0, np.hstack((l_rotation, RT_0['tvec'])))
+    r_projection = np.dot(camera_k_1, np.hstack((r_rotation, RT_1['tvec'])))
+    l_blob = np.reshape(BLOB_0, (1, len(BLOB_0), 2))
+    r_blob = np.reshape(BLOB_1, (1, len(BLOB_1), 2))
+    triangulation = cv2.triangulatePoints(l_projection, r_projection,
+                                          l_blob, r_blob)
+    homog_points = triangulation.transpose()
+    get_points = cv2.convertPointsFromHomogeneous(homog_points)
+    return get_points
+
+
+def calculation(key, bboxes, IMG_GRAY, *args):
+    draw_img = copy.deepcopy(IMG_GRAY)
+    data_key = copy.deepcopy(key)
+    print('data key', key)
+    ax1 = args[0][0]
+    ax2 = args[0][1]
+    ax3 = args[0][2]
+    CAMERA_INFO[f"{data_key}_0"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+    CAMERA_INFO[f"{data_key}_1"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+    ax2.set_title(f'2D Image and Projection of GreySum {data_key}')
+    ax2.imshow(draw_img, cmap='gray')
 
     LED_NUMBER = []
     if len(bboxes) > 0:
@@ -359,34 +414,29 @@ def calculation(key, bboxes, IMG_GRAY):
             if cam_id == 1:
                 cx -= CAP_PROP_FRAME_WIDTH
                 LED_NUMBER.append(IDX)
-                print('key', f"{key}_{cam_id}")
-            CAMERA_INFO[f"{key}_{cam_id}"]['points2D']['greysum'].append([cx, cy])
-            CAMERA_INFO[f"{key}_{cam_id}"]['points3D'].append(origin_led_data[IDX])
+            CAMERA_INFO[f"{data_key}_{cam_id}"]['points2D']['greysum'].append([cx, cy])
+            CAMERA_INFO[f"{data_key}_{cam_id}"]['points3D'].append(origin_led_data[IDX])
 
-    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
 
-    print(CAMERA_INFO[f"{key}_0"]['points2D'])
-    print(CAMERA_INFO[f"{key}_1"]['points2D'])
-    for key, cam_data in CAMERA_INFO.items():
-        cam_id = int(key.split('_')[1])
-        print('CAM id', cam_id, cam_data)
+    print(CAMERA_INFO[f"{data_key}_0"]['points2D'])
+    print(CAMERA_INFO[f"{data_key}_1"]['points2D'])
+    for keys, cam_data in CAMERA_INFO.items():
+        if data_key not in keys:
+            continue
+        cam_id = int(keys.split('_')[1])
+        cam_data['led_num'] = LED_NUMBER
         points2D = np.array(cam_data['points2D']['greysum'], dtype=np.float64)
         points3D = np.array(cam_data['points3D'], dtype=np.float64)
         print('point_3d\n', points3D)
         print('point_2d\n', points2D)
-        #
-        greysum_points = points2D.reshape(-1, 2)
-        for g_point in greysum_points:
-            cv2.circle(IMG_GRAY, (int(g_point[0]), int(g_point[1])), 1, (0, 0, 0), -1)
 
-        dist_coeff = default_dist_coeffs
         INPUT_ARRAY = [
             cam_id,
             points3D,
             points2D,
             camera_matrix[cam_id][0],
-            # camera_matrix[cam_id][1]
-            dist_coeff
+            camera_matrix[cam_id][1]
         ]
 
         ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
@@ -394,28 +444,109 @@ def calculation(key, bboxes, IMG_GRAY):
         print('RT from OpenCV SolvePnP')
         print('rvec', rvec)
         print('tvec', tvec)
+        cam_data['rt']['rvec'] = rvec
+        cam_data['rt']['tvec'] = tvec
+
+        greysum_points = points2D.reshape(-1, 2)
+        # 3D 점들을 2D 이미지 평면에 투영
+        image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_matrix[cam_id][0], camera_matrix[cam_id][1])
+        image_points = image_points.reshape(-1, 2)
+
+        if 'BL' in data_key:
+            color = 'blue'
+        else:
+            color = 'red'
+        if cam_id == 0:
+            ax2.scatter(greysum_points[:, 0], greysum_points[:, 1], c='black', alpha=0.5, label='GreySum', s=7)
+            ax2.scatter(image_points[:, 0], image_points[:, 1], c=color, alpha=0.5, label='OpenCV', s=7)
+        else:
+            ax2.scatter(greysum_points[:, 0] + CAP_PROP_FRAME_WIDTH, greysum_points[:, 1], c='black', alpha=0.7, label='GreySum', s=1)
+            ax2.scatter(image_points[:, 0] + CAP_PROP_FRAME_WIDTH, image_points[:, 1], c=color, alpha=0.7, label='OpenCV', s=1)
+
+    remake_3d = remake_3d_point(camera_matrix[0][0], camera_matrix[1][0],
+                                CAMERA_INFO[f"{data_key}_0"]['rt'],
+                                CAMERA_INFO[f"{data_key}_1"]['rt'],
+                                CAMERA_INFO[f"{data_key}_0"]['points2D']['greysum'],
+                                CAMERA_INFO[f"{data_key}_1"]['points2D']['greysum']).reshape(-1, 3)
+    print('remake_3d\n', remake_3d)
+
+    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+    print('origin_pts\n', points3D.reshape(-1, 3))
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o',
+                s=10)
+    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax1.set_xlim([-0.1, 0.1])
+    ax1.set_xlabel('X')
+    ax1.set_ylim([-0.1, 0.1])
+    ax1.set_ylabel('Y')
+    ax1.set_zlim([-0.1, 0.1])
+    ax1.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax1, base_scale=scale)
+
+    # Compute Euclidean distance
+    dist_remake_3d = np.linalg.norm(points3D.reshape(-1, 3) - remake_3d, axis=1)
+    print('dist_remake_3d\n', dist_remake_3d)
+    ax3.bar(range(len(dist_remake_3d)), dist_remake_3d, width=0.4)
+    ax3.set_title(f"Distance between origin_pts and remake {data_key}")
+    ax3.set_xlabel('LEDS')
+    ax3.set_ylabel('Distance')
+    ax3.set_xticks(range(len(dist_remake_3d)))
+    ax3.set_xticklabels(LED_NUMBER)
+    ax3.set_yscale('log')
 
 
 def trianglute_test(index, img_bl, img_re):
     try:
+        root = tk.Tk()
+        width_px = root.winfo_screenwidth()
+        height_px = root.winfo_screenheight()
+
+        # 모니터 해상도에 맞게 조절
+        mpl.rcParams['figure.dpi'] = 120  # DPI 설정
+        monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
+        monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
+
+        fig = plt.figure(figsize=(monitor_width_inches, monitor_height_inches), num='LED Position FinDer')
+
+        # 2:1 비율로 큰 그리드 생성
+        gs = gridspec.GridSpec(1, 2, width_ratios=[1, 2])
+
+        # 왼쪽 그리드에 subplot 할당
+        ax1 = plt.subplot(gs[0], projection='3d')
+
+        # 오른쪽 그리드를 위에는 2개, 아래는 3개로 분할
+        gs_sub = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1], height_ratios=[1, 1])
+
+        # 분할된 오른쪽 그리드의 위쪽에 subplot 할당
+        gs_sub_top = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[0])
+        ax2 = plt.subplot(gs_sub_top[0])
+        ax3 = plt.subplot(gs_sub_top[1])
+
+        # 분할된 오른쪽 그리드의 아래쪽에 subplot 할당
+        gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[1])
+        ax4 = plt.subplot(gs_sub_bottom[0])
+        ax5 = plt.subplot(gs_sub_bottom[1])
+
         img_bl = img_bl.copy()
         img_re = img_re.copy()
         json_data = rw_json_data(READ, json_file, None)
         bboxes_bl = json_data[f"{index}-BL"]['bboxes']
         bboxes_re = json_data[f"{index}-RE"]['bboxes']
-        _, img_filtered = cv2.threshold(img_bl, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
-        IMG_GRAY_BL = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)
-        _, img_filtered = cv2.threshold(img_re, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
-        IMG_GRAY_RE = cv2.cvtColor(img_filtered, cv2.COLOR_BGR2GRAY)
+        _, img_bl_filtered = cv2.threshold(img_bl, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+        IMG_GRAY_BL = cv2.cvtColor(img_bl_filtered, cv2.COLOR_BGR2GRAY)
+        _, img_re_filtered = cv2.threshold(img_re, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+        IMG_GRAY_RE = cv2.cvtColor(img_re_filtered, cv2.COLOR_BGR2GRAY)
         draw_bboxes(img_bl, bboxes_bl)
         draw_bboxes(img_re, bboxes_re)
 
         # cv2.imshow(f"{index}-BL", img_bl)
         # cv2.imshow(f"{index}-RE", img_re)
-        calculation(f"{index}-BL", bboxes_bl, IMG_GRAY_BL)
+        calculation(f"{index}-BL", bboxes_bl, IMG_GRAY_BL, [ax1, ax2, ax4])
+        calculation(f"{index}-RE", bboxes_re, IMG_GRAY_RE, [ax1, ax3, ax5])
+
+        plt.show()
         key = cv2.waitKey(0)
-
-
 
     except:
         traceback.print_exc()
@@ -440,19 +571,19 @@ def triangulate_test():
         key = cv2.waitKey(1)
         if key & 0xFF == 27:
             print('ESC pressed')
-            cv2.destroyAllWindows()
-            return ERROR
+            break
         elif key == ord('c'):
-            print('go next step')
             if trianglute_test(curr_index, STACK_FRAME_B, STACK_FRAME_R) == ERROR:
-                cv2.destroyAllWindows()
-                return ERROR
+                break
             curr_index += 1
         else:
             prev_index = curr_index
+
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
         print(f"{i}, {leds}")
     triangulate_test()
+
