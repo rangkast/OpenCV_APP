@@ -26,6 +26,8 @@ import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
+import itertools
+from typing import List, Dict
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -84,9 +86,10 @@ CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
-show_plt = 0
+show_plt = 1
 
 json_file = './blob_area.json'
+std_file = './blob_area_all.json'
 # 이미지 파일 경로를 지정합니다.
 blend_image_l = "./CAMERA_0_blender_test_image.png"
 real_image_l = "./left_frame.png"
@@ -316,9 +319,9 @@ def draw_bboxes(image, bboxes):
             cv2.rectangle(image, (int(x), int(y)), (int(x + w), int(y + h)), color, line_width,
                           1)
             view_camera_infos(image, ''.join([f'{IDX}']), int(x), int(y) - 10)
-def blob_area_set(index, image, tag):
+def blob_area_set(index, image, tag, file_path):
     bboxes = []
-    json_data = rw_json_data(READ, json_file, None)
+    json_data = rw_json_data(READ, file_path, None)
     compound_key = str(index) + "-" + tag
     if json_data != ERROR:
         if compound_key in json_data:
@@ -360,7 +363,7 @@ def blob_area_set(index, image, tag):
             print('save blob area')
             add_value(json_data, index, tag, {'bboxes': bboxes})
             # Write json data
-            rw_json_data(WRITE, json_file, json_data)
+            rw_json_data(WRITE, file_path, json_data)
 
         elif key & 0xFF == 27:
             print('ESC pressed')
@@ -384,7 +387,7 @@ def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     get_points = cv2.convertPointsFromHomogeneous(homog_points)
     return get_points
 def calculation(key, bboxes, IMG_GRAY, *args):
-    DEBUG = 0
+    DEBUG = 1
     draw_img = copy.deepcopy(IMG_GRAY)
     data_key = copy.deepcopy(key)
     ax1 = args[0][0]
@@ -464,8 +467,8 @@ def calculation(key, bboxes, IMG_GRAY, *args):
                                 CAMERA_INFO[f"{data_key}_1"]['rt'],
                                 CAMERA_INFO[f"{data_key}_0"]['points2D']['greysum'],
                                 CAMERA_INFO[f"{data_key}_1"]['points2D']['greysum']).reshape(-1, 3)
-    CAMERA_INFO[f"{data_key}_0"]['remake_3d'] = points3D.reshape(-1, 3)
-    CAMERA_INFO[f"{data_key}_1"]['remake_3d'] = points3D.reshape(-1, 3)
+    CAMERA_INFO[f"{data_key}_0"]['remake_3d'] = remake_3d.reshape(-1, 3)
+    CAMERA_INFO[f"{data_key}_1"]['remake_3d'] = remake_3d.reshape(-1, 3)
 
     origin_pts = np.array(origin_led_data).reshape(-1, 3)
 
@@ -494,7 +497,7 @@ def calculation(key, bboxes, IMG_GRAY, *args):
         print('remake_3d\n', remake_3d)
         print('origin_pts\n', points3D.reshape(-1, 3))
         print('dist_remake_3d\n', dist_remake_3d)
-def trianglute_test(index, img_bl, img_re):
+def refactor_3d(index, img_bl, img_re):
     try:
         root = tk.Tk()
         width_px = root.winfo_screenwidth()
@@ -538,8 +541,6 @@ def trianglute_test(index, img_bl, img_re):
         draw_bboxes(img_bl, bboxes_bl)
         draw_bboxes(img_re, bboxes_re)
 
-        # cv2.imshow(f"{index}-BL", img_bl)
-        # cv2.imshow(f"{index}-RE", img_re)
         calculation(f"{index}-BL", bboxes_bl, IMG_GRAY_BL, [ax1, ax2, ax4])
         calculation(f"{index}-RE", bboxes_re, IMG_GRAY_RE, [ax1, ax3, ax5])
 
@@ -561,9 +562,9 @@ def triangulate_test():
         STACK_FRAME_B = np.hstack((B_img_l, B_img_r))
         STACK_FRAME_R = np.hstack((R_img_l, R_img_r))
         if prev_index != curr_index:
-            if blob_area_set(curr_index, STACK_FRAME_B, 'BL') == ERROR:
+            if blob_area_set(curr_index, STACK_FRAME_B, 'BL', json_file) == ERROR:
                 break
-            if blob_area_set(curr_index, STACK_FRAME_R, 'RE') == ERROR:
+            if blob_area_set(curr_index, STACK_FRAME_R, 'RE', json_file) == ERROR:
                 break
             prev_index = curr_index
         key = cv2.waitKey(1)
@@ -572,7 +573,7 @@ def triangulate_test():
             break
         elif key == ord('c'):
             print('capture')
-            if trianglute_test(curr_index, STACK_FRAME_B, STACK_FRAME_R) == ERROR:
+            if refactor_3d(curr_index, STACK_FRAME_B, STACK_FRAME_R) == ERROR:
                 break
             curr_index += 1
             cv2.destroyAllWindows()
@@ -646,9 +647,240 @@ def test_result():
     plt.show()  # 그래프 보여주기
 
 
+def solve_pnp_and_plot(CAMERA_INFO, keys_to_process):
+    DEBUG = 1
+    for keys in keys_to_process:
+        cam_data = CAMERA_INFO[keys]
+        cam_id = int(keys.split('_')[1])
+        LED_NUMBER = cam_data['led_num']
+        if len(LED_NUMBER) >= 5:
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+        else:
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+        if DEBUG == 1:
+            print('data key', keys)
+            print(CAMERA_INFO[keys]['points2D'])
+
+        points2D = np.array(cam_data['points2D']['greysum'], dtype=np.float64)
+        points3D = np.array(cam_data['points3D'], dtype=np.float64)
+        if DEBUG == 1:
+            print('point_3d\n', points3D)
+            print('point_2d\n', points2D)
+
+        INPUT_ARRAY = [
+            cam_id,
+            points3D,
+            points2D,
+            camera_matrix[cam_id][0],
+            camera_matrix[cam_id][1]
+        ]
+
+        ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+        if DEBUG == 1:
+            print('RT from OpenCV SolvePnP')
+            print('rvec', rvec)
+            print('tvec', tvec)
+        cam_data['rt']['rvec'] = rvec
+        cam_data['rt']['tvec'] = tvec
+
+        # 3D 점들을 2D 이미지 평면에 투영
+        image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_matrix[cam_id][0], camera_matrix[cam_id][1])
+        image_points = image_points.reshape(-1, 2)
+        CAMERA_INFO[keys]['points2D']['opencv'] = image_points
+
+    # separate loop for remaking 3D
+    if len(keys_to_process) != 2:
+        raise ValueError("Exactly two keys expected in keys_to_process")
+
+    key_0, key_1 = keys_to_process
+
+    cam_id_0 = int(key_0.split('_')[1])
+    cam_id_1 = int(key_1.split('_')[1])
+
+    cam_data_0 = CAMERA_INFO[key_0]
+    cam_data_1 = CAMERA_INFO[key_1]
+
+    print('################################################')
+    print('cam_data_0', cam_data_0, camera_matrix[cam_id_0][0])
+    print('cam_data_1', cam_data_1, camera_matrix[cam_id_1][0])
+    remake_3d = remake_3d_point(camera_matrix[cam_id_0][0], camera_matrix[cam_id_1][0],
+                                cam_data_0['rt'],
+                                cam_data_1['rt'],
+                                cam_data_0['points2D']['greysum'],
+                                cam_data_1['points2D']['greysum']).reshape(-1, 3)
+
+    print('remake_3d', remake_3d)
+    print('################################################')
+    CAMERA_INFO[key_0]['remake_3d'] = remake_3d.reshape(-1, 3)
+    CAMERA_INFO[key_1]['remake_3d'] = remake_3d.reshape(-1, 3)
+
+
+
+def process_bboxes_for_camera(image, bboxes, cam_id, index, key):
+    LED_NUMBER = []
+    data_key = f"{index}-{key}"
+    CAMERA_INFO[f"{data_key}_{cam_id}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+    for bbox in bboxes:
+        (x, y, w, h) = bbox['bbox']
+        IDX = int(bbox['idx'])
+        cx, cy = find_center(image, (x, y, w, h))
+        if cam_id == 1:
+            cx -= CAP_PROP_FRAME_WIDTH
+            LED_NUMBER.append(IDX)
+        CAMERA_INFO[f"{data_key}_{cam_id}"]['points2D']['greysum'].append([cx, cy])
+        CAMERA_INFO[f"{data_key}_{cam_id}"]['points3D'].append(origin_led_data[IDX])
+
+        if cam_id == 1:
+            CAMERA_INFO[f"{data_key}_{cam_id - 1}"]['led_num'] = LED_NUMBER
+        else:
+            CAMERA_INFO[f"{data_key}_{cam_id}"]['led_num'] = LED_NUMBER
+
+
+def combinations(bboxes):
+    # camera id 별로 나누기
+    bboxes_by_id: Dict[int, List[dict]] = {0: [], 1: []}
+    for bbox in bboxes:
+        bboxes_by_id[bbox["id"]].append(bbox)
+
+    # id 별로 4-6개의 조합 만들기
+    combined_bboxes: Dict[int, List[list]] = {0: [], 1: []}
+    for id, bboxes in bboxes_by_id.items():
+        for r in range(4, 7):  # 4개부터 6개까지
+            permutations = list(itertools.permutations(bboxes, r))  # 순열 생성
+            combined_bboxes[id].extend(permutations)  # 순열 추가
+    return combined_bboxes
+
+def process_combinations(image, bboxes, key):
+    combined_bboxes = combinations(bboxes)
+    for index, (bboxes_0, bboxes_1) in enumerate(zip(combined_bboxes[0], combined_bboxes[1])):
+        if index >= 1:
+            break
+        keys_0 = f"{index}-{key}_0"
+        keys_1 = f"{index}-{key}_1"
+        process_bboxes_for_camera(image, bboxes_0, 0, index, key)
+        process_bboxes_for_camera(image, bboxes_1, 1, index, key)
+        solve_pnp_and_plot(CAMERA_INFO, [keys_0, keys_1])
+
+def solvePnP_std_test():
+    blob_set = NOT_SET
+    root = tk.Tk()
+    width_px = root.winfo_screenwidth()
+    height_px = root.winfo_screenheight()
+
+    # 모니터 해상도에 맞게 조절
+    mpl.rcParams['figure.dpi'] = 120  # DPI 설정
+    monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
+    monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
+
+    fig = plt.figure(figsize=(monitor_width_inches, monitor_height_inches), num='LED Position FinDer')
+
+    # 2:1 비율로 큰 그리드 생성
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1, 2])
+
+    # 왼쪽 그리드에 subplot 할당
+    ax1 = plt.subplot(gs[0], projection='3d')
+
+    # 오른쪽 그리드를 위에는 2개, 아래는 3개로 분할
+    gs_sub = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1], height_ratios=[1, 1])
+
+    # 분할된 오른쪽 그리드의 위쪽에 subplot 할당
+    gs_sub_top = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[0])
+    ax2 = plt.subplot(gs_sub_top[0])
+    ax3 = plt.subplot(gs_sub_top[1])
+
+    # 분할된 오른쪽 그리드의 아래쪽에 subplot 할당
+    gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[1])
+    ax4 = plt.subplot(gs_sub_bottom[0])
+    ax5 = plt.subplot(gs_sub_bottom[1])
+
+    # ax1 설정
+    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o', s=10)
+    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax1.set_xlim([-0.1, 0.1])
+    ax1.set_xlabel('X')
+    ax1.set_ylim([-0.1, 0.1])
+    ax1.set_ylabel('Y')
+    ax1.set_zlim([-0.1, 0.1])
+    ax1.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax1, base_scale=scale)  # 이부분은 ax1이 zoom in, zoom out 기능을 가지게 해주는 코드입니다.
+
+    # ax3 설정
+    led_number = len(origin_led_data)
+    ax4.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
+    ax4.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
+    ax4.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
+
+    while True:
+        B_img_l = cv2.imread(blend_image_l)
+        B_img_r = cv2.imread(blend_image_r)
+        R_img_l = cv2.imread(real_image_l)
+        R_img_r = cv2.imread(real_image_r)
+        STACK_FRAME_B = np.hstack((B_img_l, B_img_r))
+        STACK_FRAME_R = np.hstack((R_img_l, R_img_r))
+        if blob_set == NOT_SET:
+            if blob_area_set(0, STACK_FRAME_B, 'BL', std_file) == ERROR:
+                break
+            if blob_area_set(0, STACK_FRAME_R, 'RE', std_file) == ERROR:
+                break
+        blob_set = DONE
+        key = cv2.waitKey(1)
+        if key & 0xFF == 27:
+            print('ESC pressed')
+            break
+        elif key == ord('c'):
+            json_data = rw_json_data(READ, std_file, None)
+            bboxes_bl = json_data[f"{0}-BL"]['bboxes']
+            bboxes_re = json_data[f"{0}-RE"]['bboxes']
+            _, img_bl_filtered = cv2.threshold(STACK_FRAME_B, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+            IMG_GRAY_BL = cv2.cvtColor(img_bl_filtered, cv2.COLOR_BGR2GRAY)
+            _, img_re_filtered = cv2.threshold(STACK_FRAME_R, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+            IMG_GRAY_RE = cv2.cvtColor(img_re_filtered, cv2.COLOR_BGR2GRAY)
+            process_combinations(IMG_GRAY_BL, bboxes_bl, 'BL')
+
+
+            print('CAMERA_INFO\n', CAMERA_INFO)
+
+            # ax2 설정
+            ax2.imshow(STACK_FRAME_B, cmap='gray')  # STACK_FRAME_B가 이미지 데이터라면, ax2의 배경에 이 이미지를 설정합니다.
+            for keys, cam_data in CAMERA_INFO.items():
+                cam_id = int(keys.split('_')[1])
+                if 'BL' not in keys:  # BL이 포함된 키만 처리합니다.
+                    continue
+
+                # ax2에 points2D 데이터를 plot합니다.
+                points2D = np.array(cam_data['points2D']['greysum'])
+                if cam_id == 1:
+                    ax2.scatter(points2D[:, 0] + CAP_PROP_FRAME_WIDTH, points2D[:, 1], color='blue', alpha=0.5, marker='o', s=10)
+                else:
+                    ax2.scatter(points2D[:, 0], points2D[:, 1], color='blue', alpha=0.5, marker='o', s=10)
+                    # ax1에 remake_3d 데이터를 plot합니다.
+                    remake_3d = np.array(cam_data['remake_3d'])
+                    ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='blue', alpha=0.5, marker='o',
+                                s=10)
+                    # ax4에 points3D와 remake_3d의 거리 차이를 plot합니다.
+                    points3D = np.array(cam_data['points3D'])
+
+                    dist_diff = np.linalg.norm(points3D.reshape(-1, 3) - remake_3d, axis=1)
+                    ax4.bar(range(len(dist_diff)), dist_diff, color='blue', alpha=0.5)
+
+            plt.show()
+        else:
+            print('capture mode')
+
+    cv2.destroyAllWindows()
+    file = './rt_std.pickle'
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
         print(f"{i}, {leds}")
-    # triangulate_test()
-    test_result()
-
+    triangulate_test()
+    # test_result()
+    # solvePnP_std_test()
