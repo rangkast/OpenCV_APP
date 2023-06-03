@@ -9,7 +9,7 @@ distorted_points3D = points3D + noise
 print('distorted_points3D\n', distorted_points3D)
 default_cameraK = np.eye(3).astype(np.float64)
 distCoeffs = np.zeros(4)  # 왜곡 계수는 0으로 가정
-num_cameras = 400
+num_cameras = 2
 RTs = [cv2.Rodrigues(np.random.randn(3))[0] for _ in range(num_cameras)]  # 임의의 회전
 Ts = [np.random.randn(3) for _ in range(num_cameras)]  # 임의의 이동
 distorted_points2D = []
@@ -29,6 +29,7 @@ def fun(params, n_cameras, n_points, camera_indices, points_indices, points_2d):
     points_3d = params[:n_points * 3].reshape((n_points, 3))
     camera_params = params[n_points * 3:].reshape((n_cameras, 6))
     points_proj = np.zeros(points_2d.shape)
+    # print(points_3d)
     for i in range(points_2d.shape[0]):
         camera_index = camera_indices[i]
         point_index = points_indices[i]
@@ -43,9 +44,17 @@ n_cameras = len(estimated_RTs)
 n_points = len(points3D)
 camera_indices = np.repeat(np.arange(n_cameras), n_points)
 points_indices = np.tile(np.arange(n_points), n_cameras)
+print('n_cameras', n_cameras, 'n_points', n_points)
+print('camera_indices', camera_indices)
+print('points_indices', points_indices)
 points_2d = np.concatenate(distorted_points2D)
+print('points_2d', points_2d)
+
 # 수정한 코드
 estimated_RTs_flattened = [np.hstack(rt) for rt in estimated_RTs]
+
+print(points3D.ravel())
+print(estimated_RTs_flattened)
 x0 = np.hstack((points3D.ravel(), np.hstack(estimated_RTs_flattened)))
 
 

@@ -28,6 +28,8 @@ import seaborn as sns
 import pandas as pd
 import itertools
 from typing import List, Dict
+from scipy.optimize import least_squares
+from scipy.sparse import lil_matrix
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -64,14 +66,14 @@ origin_led_dir = np.array([
     [0.49720891, -0.70839529, -0.5009585]
 ])
 camera_matrix = [
+    [np.array([[716.896, 0.0, 668.902],
+               [0.0, 716.896, 460.618],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)],
     [np.array([[712.623, 0.0, 653.448],
                [0.0, 712.623, 475.572],
                [0.0, 0.0, 1.0]], dtype=np.float64),
      np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
-    [np.array([[716.896, 0.0, 668.902],
-               [0.0, 716.896, 460.618],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)]
 ]
 default_dist_coeffs = np.zeros((4, 1))
 default_cameraK = np.eye(3).astype(np.float64)
@@ -86,7 +88,9 @@ CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 100
 CV_MAX_THRESHOLD = 255
+
 show_plt = 1
+undistort = 1
 
 json_file = './blob_area.json'
 std_file = './blob_area_all.json'
@@ -99,12 +103,14 @@ real_image_r = "./right_frame.png"
 # data parsing
 CAMERA_INFO = {}
 CAMERA_INFO_STRUCTURE = {
-    'camera_k': [],
+    'camera_calibration': {'camera_k': [], 'dist_coeff': []},
     'led_num': [],
     'points2D': {'greysum': [], 'opencv': [], 'blender': []},
+    'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
     'rt': {'rvec': [], 'tvec': []},
     'remake_3d': [],
+    'distance': []
 }
 
 
@@ -645,77 +651,94 @@ def test_result():
                 capsize=0.1)  # 바 그래프 그리기
     plt.title('Standard Deviation of rvec & tvec for each model')  # 그래프 제목 설정
     plt.show()  # 그래프 보여주기
-
-
 def solve_pnp_and_plot(CAMERA_INFO, keys_to_process):
-    DEBUG = 1
+    DEBUG = 0
     for keys in keys_to_process:
         cam_data = CAMERA_INFO[keys]
         cam_id = int(keys.split('_')[1])
-        LED_NUMBER = cam_data['led_num']
-        if len(LED_NUMBER) >= 5:
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-        else:
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-        if DEBUG == 1:
-            print('data key', keys)
-            print(CAMERA_INFO[keys]['points2D'])
+
+        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
         points2D = np.array(cam_data['points2D']['greysum'], dtype=np.float64)
+        cam_data['points2D_U']['greysum'] = np.array(cv2.undistortPoints(points2D, camera_matrix[cam_id][0], camera_matrix[cam_id][1])).reshape(-1, 2)
+
         points3D = np.array(cam_data['points3D'], dtype=np.float64)
         if DEBUG == 1:
             print('point_3d\n', points3D)
             print('point_2d\n', points2D)
-
         INPUT_ARRAY = [
             cam_id,
             points3D,
-            points2D,
-            camera_matrix[cam_id][0],
-            camera_matrix[cam_id][1]
+            points2D if undistort == 0 else cam_data['points2D_U']['greysum'],
+            camera_matrix[cam_id][0] if undistort == 0 else default_cameraK,
+            camera_matrix[cam_id][1] if undistort == 0 else default_dist_coeffs
         ]
-
         ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-        if DEBUG == 1:
-            print('RT from OpenCV SolvePnP')
-            print('rvec', rvec)
-            print('tvec', tvec)
+
         cam_data['rt']['rvec'] = rvec
         cam_data['rt']['tvec'] = tvec
 
         # 3D 점들을 2D 이미지 평면에 투영
-        image_points, _ = cv2.projectPoints(points3D, rvec, tvec, camera_matrix[cam_id][0], camera_matrix[cam_id][1])
+        # image_points, _ = cv2.projectPoints(points3D, rvec, tvec,
+        #                                     camera_matrix[cam_id][0] if undistort == 0 else default_cameraK,
+        #                                     camera_matrix[cam_id][1] if undistort == 0 else default_dist_coeffs)
+        # if undistort == 0:
+        #     image_points = image_points.reshape(-1, 2)
+        # else:
+        #     distorted_points = cv2.fisheye.distortPoints(image_points, camera_matrix[cam_id][0], camera_matrix[cam_id][1])
+        #     image_points = distorted_points.reshape(-1, 2)
+        image_points, _ = cv2.projectPoints(points3D, rvec, tvec,
+                                            camera_matrix[cam_id][0],
+                                            camera_matrix[cam_id][1])
         image_points = image_points.reshape(-1, 2)
         CAMERA_INFO[keys]['points2D']['opencv'] = image_points
 
     # separate loop for remaking 3D
     if len(keys_to_process) != 2:
         raise ValueError("Exactly two keys expected in keys_to_process")
-
     key_0, key_1 = keys_to_process
-
     cam_id_0 = int(key_0.split('_')[1])
     cam_id_1 = int(key_1.split('_')[1])
-
     cam_data_0 = CAMERA_INFO[key_0]
     cam_data_1 = CAMERA_INFO[key_1]
+    CAMERA_INFO[key_0]['camera_calibration']['camera_k'] = camera_matrix[cam_id_0][0]
+    CAMERA_INFO[key_0]['camera_calibration']['dist_coeff'] = camera_matrix[cam_id_0][1]
+    CAMERA_INFO[key_1]['camera_calibration']['camera_k'] = camera_matrix[cam_id_1][0]
+    CAMERA_INFO[key_1]['camera_calibration']['dist_coeff'] = camera_matrix[cam_id_1][1]
 
-    print('################################################')
-    print('cam_data_0', cam_data_0, camera_matrix[cam_id_0][0])
-    print('cam_data_1', cam_data_1, camera_matrix[cam_id_1][0])
-    remake_3d = remake_3d_point(camera_matrix[cam_id_0][0], camera_matrix[cam_id_1][0],
-                                cam_data_0['rt'],
-                                cam_data_1['rt'],
-                                cam_data_0['points2D']['greysum'],
-                                cam_data_1['points2D']['greysum']).reshape(-1, 3)
-
-    print('remake_3d', remake_3d)
-    print('################################################')
+    if undistort == 0:
+        remake_3d = remake_3d_point(camera_matrix[cam_id_0][0], camera_matrix[cam_id_1][0],
+                                    cam_data_0['rt'],
+                                    cam_data_1['rt'],
+                                    cam_data_0['points2D']['greysum'],
+                                    cam_data_1['points2D']['greysum']).reshape(-1, 3)
+    else:
+        remake_3d = remake_3d_point(default_cameraK, default_cameraK,
+                                    cam_data_0['rt'],
+                                    cam_data_1['rt'],
+                                    cam_data_0['points2D_U']['greysum'],
+                                    cam_data_1['points2D_U']['greysum']).reshape(-1, 3)
+    dist_diff = np.linalg.norm(points3D.reshape(-1, 3) - remake_3d, axis=1)
     CAMERA_INFO[key_0]['remake_3d'] = remake_3d.reshape(-1, 3)
     CAMERA_INFO[key_1]['remake_3d'] = remake_3d.reshape(-1, 3)
+    CAMERA_INFO[key_0]['distance'] = dist_diff
+    CAMERA_INFO[key_1]['distance'] = dist_diff
 
-
-
+    if DEBUG == 1:
+        print('cam_id', cam_id)
+        print('camera_matrix\n', 'camera_k\n', camera_matrix[cam_id][0], 'dist_coeff\n', camera_matrix[cam_id][1])
+        print('data key', keys)
+        print(CAMERA_INFO[keys]['points2D'])
+        print('RT from OpenCV SolvePnP')
+        print('rvec', rvec)
+        print('tvec', tvec)
+    print('################################################')
+    print(key_0)
+    print('cam_data_0', cam_data_0, camera_matrix[cam_id_0][0])
+    print(key_1)
+    print('cam_data_1', cam_data_1, camera_matrix[cam_id_1][0])
+    print('remake_3d', remake_3d)
+    print('################################################')
 def process_bboxes_for_camera(image, bboxes, cam_id, index, key):
     LED_NUMBER = []
     data_key = f"{index}-{key}"
@@ -726,16 +749,11 @@ def process_bboxes_for_camera(image, bboxes, cam_id, index, key):
         cx, cy = find_center(image, (x, y, w, h))
         if cam_id == 1:
             cx -= CAP_PROP_FRAME_WIDTH
-            LED_NUMBER.append(IDX)
+        LED_NUMBER.append(IDX)
         CAMERA_INFO[f"{data_key}_{cam_id}"]['points2D']['greysum'].append([cx, cy])
         CAMERA_INFO[f"{data_key}_{cam_id}"]['points3D'].append(origin_led_data[IDX])
 
-        if cam_id == 1:
-            CAMERA_INFO[f"{data_key}_{cam_id - 1}"]['led_num'] = LED_NUMBER
-        else:
-            CAMERA_INFO[f"{data_key}_{cam_id}"]['led_num'] = LED_NUMBER
-
-
+    CAMERA_INFO[f"{data_key}_{cam_id}"]['led_num'] = LED_NUMBER
 def combinations(bboxes):
     # camera id 별로 나누기
     bboxes_by_id: Dict[int, List[dict]] = {0: [], 1: []}
@@ -749,18 +767,19 @@ def combinations(bboxes):
             permutations = list(itertools.permutations(bboxes, r))  # 순열 생성
             combined_bboxes[id].extend(permutations)  # 순열 추가
     return combined_bboxes
-
 def process_combinations(image, bboxes, key):
     combined_bboxes = combinations(bboxes)
     for index, (bboxes_0, bboxes_1) in enumerate(zip(combined_bboxes[0], combined_bboxes[1])):
-        if index >= 1:
+        # Setting Here
+        if index >= 500:
             break
+        if len(bboxes_0) > 4 or len(bboxes_1) > 4:
+            continue
         keys_0 = f"{index}-{key}_0"
         keys_1 = f"{index}-{key}_1"
         process_bboxes_for_camera(image, bboxes_0, 0, index, key)
         process_bboxes_for_camera(image, bboxes_1, 1, index, key)
         solve_pnp_and_plot(CAMERA_INFO, [keys_0, keys_1])
-
 def solvePnP_std_test():
     blob_set = NOT_SET
     root = tk.Tk()
@@ -789,13 +808,14 @@ def solvePnP_std_test():
     ax3 = plt.subplot(gs_sub_top[1])
 
     # 분할된 오른쪽 그리드의 아래쪽에 subplot 할당
-    gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[1])
+    gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 3, subplot_spec=gs_sub[1])
     ax4 = plt.subplot(gs_sub_bottom[0])
     ax5 = plt.subplot(gs_sub_bottom[1])
+    ax6 = plt.subplot(gs_sub_bottom[2])
 
     # ax1 설정
     origin_pts = np.array(origin_led_data).reshape(-1, 3)
-
+    ax1.set_title('3D plot')
     ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o', s=10)
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
     ax1.set_xlim([-0.1, 0.1])
@@ -809,10 +829,24 @@ def solvePnP_std_test():
 
     # ax3 설정
     led_number = len(origin_led_data)
+    ax4.set_title('distance BL')
     ax4.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
     ax4.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
     ax4.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
 
+    ax5.set_title('distance RE')
+    ax5.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
+    ax5.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
+    ax5.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
+
+    ax6.set_xlabel('Camera ID')
+    ax6.set_ylabel('Mean and Std Dev')
+
+    # 평균과 표준편차를 저장할 데이터프레임 생성
+    df = pd.DataFrame(columns=['model_cam_id', 'type', 'mean', 'std'])
+    # 모델과 카메라 ID별로 rvec, tvec 값 저장할 딕셔너리 초기화
+    rvecs = {}
+    tvecs = {}
     while True:
         B_img_l = cv2.imread(blend_image_l)
         B_img_r = cv2.imread(blend_image_r)
@@ -839,32 +873,67 @@ def solvePnP_std_test():
             _, img_re_filtered = cv2.threshold(STACK_FRAME_R, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
             IMG_GRAY_RE = cv2.cvtColor(img_re_filtered, cv2.COLOR_BGR2GRAY)
             process_combinations(IMG_GRAY_BL, bboxes_bl, 'BL')
-
-
-            print('CAMERA_INFO\n', CAMERA_INFO)
+            process_combinations(IMG_GRAY_RE, bboxes_re, 'RE')
 
             # ax2 설정
-            ax2.imshow(STACK_FRAME_B, cmap='gray')  # STACK_FRAME_B가 이미지 데이터라면, ax2의 배경에 이 이미지를 설정합니다.
+            ax2.set_title('Projection BL')
+            ax2.imshow(IMG_GRAY_BL, cmap='gray')
+            ax3.set_title('Projection RE')
+            ax3.imshow(IMG_GRAY_RE, cmap='gray')
+
             for keys, cam_data in CAMERA_INFO.items():
                 cam_id = int(keys.split('_')[1])
-                if 'BL' not in keys:  # BL이 포함된 키만 처리합니다.
-                    continue
-
-                # ax2에 points2D 데이터를 plot합니다.
                 points2D = np.array(cam_data['points2D']['greysum'])
-                if cam_id == 1:
-                    ax2.scatter(points2D[:, 0] + CAP_PROP_FRAME_WIDTH, points2D[:, 1], color='blue', alpha=0.5, marker='o', s=10)
-                else:
-                    ax2.scatter(points2D[:, 0], points2D[:, 1], color='blue', alpha=0.5, marker='o', s=10)
-                    # ax1에 remake_3d 데이터를 plot합니다.
-                    remake_3d = np.array(cam_data['remake_3d'])
-                    ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='blue', alpha=0.5, marker='o',
-                                s=10)
-                    # ax4에 points3D와 remake_3d의 거리 차이를 plot합니다.
-                    points3D = np.array(cam_data['points3D'])
+                points2D_opencv = np.array(cam_data['points2D']['opencv'])
+                remake_3d = np.array(cam_data['remake_3d'])
+                led_index = np.array(cam_data['led_num'])
+                dist_diff = np.array(cam_data['distance'])
+                model_cam_id = keys.split('-')[1]  # 'BL_0', 'BL_1', 'RE_0', 'RE_1' 등 추출
+                rvec = np.linalg.norm(cam_data['rt']['rvec'])  # rvec 벡터의 길이 계산
+                tvec = np.linalg.norm(cam_data['rt']['tvec'])  # tvec 벡터의 길이 계산
+                if model_cam_id not in rvecs:
+                    rvecs[model_cam_id] = []
+                if model_cam_id not in tvecs:
+                    tvecs[model_cam_id] = []
+                rvecs[model_cam_id].append(rvec)
+                tvecs[model_cam_id].append(tvec)
 
-                    dist_diff = np.linalg.norm(points3D.reshape(-1, 3) - remake_3d, axis=1)
-                    ax4.bar(range(len(dist_diff)), dist_diff, color='blue', alpha=0.5)
+                if 'BL' in keys:
+                    if cam_id == 1:
+                        ax2.scatter(points2D[:, 0] + CAP_PROP_FRAME_WIDTH, points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
+                        ax2.scatter(points2D_opencv[:, 0] + CAP_PROP_FRAME_WIDTH, points2D_opencv[:, 1], color='blue', alpha=0.5, marker='o', s=1)
+                    else:
+                        ax2.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
+                        ax2.scatter(points2D_opencv[:, 0], points2D_opencv[:, 1], color='blue', alpha=0.5, marker='o', s=1)
+                        ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='blue', alpha=0.5, marker='o',
+                                    s=3)
+                        ax4.scatter(led_index, dist_diff, color='blue', alpha=0.5)
+
+                elif 'RE' in keys:
+                    if cam_id == 1:
+                        ax3.scatter(points2D[:, 0] + CAP_PROP_FRAME_WIDTH, points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
+                        ax3.scatter(points2D_opencv[:, 0] + CAP_PROP_FRAME_WIDTH, points2D_opencv[:, 1], color='red', alpha=0.5, marker='o', s=1)
+                    else:
+                        ax3.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
+                        ax3.scatter(points2D_opencv[:, 0], points2D_opencv[:, 1], color='red', alpha=0.5, marker='o', s=1)
+                        ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='red', alpha=0.5, marker='o',
+                                    s=3)
+                        ax5.scatter(led_index, dist_diff, color='red', alpha=0.5)
+
+            # 각 모델과 카메라 ID에 대해 rvec, tvec의 평균과 표준편차 계산
+            for idx, model_cam_id in enumerate(rvecs.keys()):
+                rvec_arr = np.array(rvecs[model_cam_id])
+                tvec_arr = np.array(tvecs[model_cam_id])
+                rvec_mean = np.mean(rvec_arr)
+                tvec_mean = np.mean(tvec_arr)
+                rvec_std = np.std(rvec_arr)
+                tvec_std = np.std(tvec_arr)
+                df.loc[2 * idx] = [model_cam_id, 'rvec', rvec_mean, rvec_std]
+                df.loc[2 * idx + 1] = [model_cam_id, 'tvec', tvec_mean, tvec_std]
+            # ax6에 그래프 그리기
+            sns.barplot(x='model_cam_id', y='std', hue='type', data=df, palette=['#53a4b1', '#c06343'],
+                        capsize=0.1, ax=ax6)  # 바 그래프 그리기
+            ax6.set_title('Standard Deviation of rvec & tvec for each model')  # 그래프 제목 설정
 
             plt.show()
         else:
@@ -877,10 +946,135 @@ def solvePnP_std_test():
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
+def BA():
+    pickle_file = './rt_std.pickle'
+    data = pickle_data(READ, pickle_file, None)
+    CAMERA_INFO = data['CAMERA_INFO']
+    camera_indices = []
+    point_indices = []
+    estimated_RTs = []
+    POINTS_2D = []
+    POINTS_3D = []
+
+    n_points = 0
+    cam_id = 0
+    for key, camera_info in CAMERA_INFO.items():
+        if 'RE' in key:
+            # print('key', key)
+            # print(camera_info['points2D']['greysum'])
+            # print(camera_info['led_num'])
+            # print(camera_info['rt'])
+
+            # Extract the camera id
+            # cam_id = int(key.split('_')[-1])
+
+            # Save camera parameters for each camera
+            rvec = camera_info['rt']['rvec']
+            tvec = camera_info['rt']['tvec']
+            estimated_RTs.append((rvec.ravel(), tvec.ravel()))
+
+            # Save 3D and 2D points for each LED in the current camera
+            for led_num in range(len(camera_info['led_num'])):
+                POINTS_3D.append(camera_info['remake_3d'][led_num])
+                POINTS_2D.append(camera_info['points2D']['greysum'][led_num])
+                camera_indices.append(cam_id)
+                point_indices.append(len(POINTS_3D) - 1)
+
+            cam_id += 1
+            # Add the number of 3D points in this camera to the total count
+            n_points += len(camera_info['led_num'])
+    #
+    #
+    # def fun(params, n_cameras, n_points, camera_indices, points_indices, points_2d):
+    #     points_3d = params[:n_points * 3].reshape((n_points, 3))
+    #     camera_params = params[n_points * 3:].reshape((n_cameras, 6))
+    #     points_proj = np.zeros(points_2d.shape)
+    #     # print('len(points_2d.shape[0])', points_2d.shape[0])
+    #     for i in range(points_2d.shape[0]):
+    #         camera_index = camera_indices[i]
+    #         point_index = points_indices[i]
+    #         R, _ = cv2.Rodrigues(camera_params[camera_index, :3])
+    #         T = camera_params[camera_index, 3:]
+    #         # print('points_3d', points_3d[point_index], ' ', camera_index, ' ', point_index)
+    #         # print('R', camera_params[camera_index, :3])
+    #         # print('T', T)
+    #         points_proj[i], _ = cv2.projectPoints(points_3d[point_index].reshape(1, 1, 3),
+    #                                               R,
+    #                                               T,
+    #                                               camera_matrix[camera_index % 2][0],
+    #                                               camera_matrix[camera_index % 2][1])
+    #         # print(f"points_proj[{i}]", points_proj[i])
+    #     return (abs(points_proj - points_2d)).ravel()
+
+    def fun(params, n_cameras, n_points, camera_indices, point_indices, points_2d):
+        """Compute residuals.
+        `params` contains camera parameters and 3-D coordinates.
+        """
+        camera_params = params[:n_cameras * 6].reshape((n_cameras, 6))
+        points_3d = params[n_cameras * 6:].reshape((n_points, 3))
+
+        # set code function here
+        points_proj = []
+        for i, POINT_3D in enumerate(points_3d[point_indices]):
+            camera_index = camera_indices[i]
+            POINT_2D_PROJ, _ = cv2.projectPoints(POINT_3D,
+                                                 np.array(camera_params[camera_indices][i][:3]),
+                                                 np.array(camera_params[camera_indices][i][3:6]),
+                                                 camera_matrix[camera_index % 2][0],
+                                                 camera_matrix[camera_index % 2][1])
+            points_proj.append(POINT_2D_PROJ[0][0])
+            # print('points_3d', POINT_3D, ' ', camera_index, ' ', i)
+            # print('R', np.array(camera_params[camera_indices][i][:3]))
+            # print('T', np.array(camera_params[camera_indices][i][3:6]))
+
+        points_proj = np.array(points_proj)
+        return (abs(points_proj - points_2d)).ravel()
+
+    def bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indices):
+        m = camera_indices.size * 2
+        n = n_cameras * 6 + n_points * 3
+        A = lil_matrix((m, n), dtype=int)
+        i = np.arange(camera_indices.size)
+        for s in range(6):
+            A[2 * i, camera_indices * 6 + s] = 1
+            A[2 * i + 1, camera_indices * 6 + s] = 1
+        for s in range(3):
+            A[2 * i, n_cameras * 6 + point_indices * 3 + s] = 1
+            A[2 * i + 1, n_cameras * 6 + point_indices * 3 + s] = 1
+        return A
+
+    # Convert the lists to NumPy arrays
+    n_cameras = len(estimated_RTs)
+    camera_indices = np.array(camera_indices)
+    point_indices = np.array(point_indices)
+    camera_params = np.array(estimated_RTs)
+    POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
+    POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
+    A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indices)
+    # x0 = np.hstack((POINTS_3D.ravel(), camera_params.ravel()))
+    x0 = np.hstack((camera_params.ravel(), POINTS_3D.ravel()))
+
+    print('n_cameras', n_cameras, 'n_points', n_points)
+
+    res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
+                        args=(n_cameras, n_points, camera_indices, point_indices, POINTS_2D))
+
+    # optimized_points3D = res.x[:n_points * 3].reshape(-1, 3)
+    # optimized_camera_params = res.x[n_points * 3:].reshape(-1, 6)
+    # print("Optimized 3D points: ", optimized_points3D)
+    # print("Optimized camera parameters: ", optimized_camera_params)
+    n_cam_params = res.x[:len(camera_params.ravel())].reshape((n_cameras, 6))
+    n_points_3d = res.x[len(camera_params.ravel()):].reshape((n_points, 3))
+    print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
+    print("Optimized camera parameters: ", n_cam_params)
+
 
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
         print(f"{i}, {leds}")
-    triangulate_test()
+        
+    print(os.getcwd())
+    # triangulate_test()
     # test_result()
     # solvePnP_std_test()
+    BA()
