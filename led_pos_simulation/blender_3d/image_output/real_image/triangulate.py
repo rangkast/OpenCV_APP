@@ -31,6 +31,27 @@ from typing import List, Dict
 from scipy.optimize import least_squares
 from scipy.sparse import lil_matrix
 
+# origin_led_data = np.array([
+#     [-0.0219925,  -0.0034213, -0.01381347],
+#     [-0.0320128,   0.00564988, -0.01205496],
+#     [-0.03666606,  0.00933568,  0.0032205 ],
+#     [-0.04266669,  0.02692627, -0.00198677],
+#     [-0.04119838,  0.03610836,  0.02002675],
+#     [-0.02790306,  0.06227605,  0.0163227 ],
+#
+#
+#     [-0.01456789, 0.06295633, 0.03659283],
+#     [0.00766914, 0.07115411, 0.0206431],
+#     [0.02992447, 0.05507271, 0.03108736],
+#     [0.03724313, 0.05268665, 0.01100446],
+#     [0.04265723, 0.03016438, 0.01624689],
+#     [0.04222733, 0.0228845, -0.00394005],
+#     [0.03300807, 0.00371497, 0.00026865],
+#     [0.03006234, 0.00378822, -0.01297127],
+#     [0.02000199, -0.00388647, -0.014973]
+# ])
+#
+
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
@@ -1203,74 +1224,43 @@ def BA_std_test():
         else:
             ax2.scatter(rep_2d_points[:, 0], rep_2d_points[:, 1], color='blue', alpha=0.5, marker='o', s=1)
 
-    from sklearn.decomposition import PCA
-    # # 3D 포인트에 대한 PCA
-    # pca_points = PCA(n_components=3)
-    # pca_points.fit(n_points_3d)
-    #
-    # print("3D 포인트의 주성분:")
-    # print(pca_points.components_)
-    # print("3D 포인트의 설명된 분산 비율:")
-    # print(pca_points.explained_variance_ratio_)
-    #
-    # # 카메라 파라미터에 대한 PCA
-    # pca_params = PCA(n_components=6)
-    # pca_params.fit(n_cam_params)
-    #
-    # print("\n카메라 파라미터의 주성분:")
-    # print(pca_params.components_)
-    # print("카메라 파라미터의 설명된 분산 비율:")
-    # print(pca_params.explained_variance_ratio_)
 
-    l_points_3d = []
     l_cam_param = []
-    r_points_3d = []
     r_cam_param = []
 
     for i, lr_pos in enumerate(LR_POSITION):
         cam_param = n_cam_params[i]
-        points_3d = n_points_3d[i*4: i*4+4]
-
         if lr_pos == 0:
-            l_points_3d.append(points_3d)
             l_cam_param.append(cam_param)
         else:
-            r_points_3d.append(points_3d)
             r_cam_param.append(cam_param)
 
-    # 왼쪽 카메라의 데이터에 대해 PCA 분석
-    pca_l_points = PCA(n_components=3)
-    pca_l_points.fit(np.vstack(l_points_3d))
+    from sklearn.decomposition import PCA
 
-    print("왼쪽 카메라의 3D 포인트 주성분:")
-    print(pca_l_points.components_)
-    print("왼쪽 카메라의 3D 포인트 설명된 분산 비율:")
-    print(pca_l_points.explained_variance_ratio_)
+    # 각각의 LED 번호에 대응되는 3D 점을 저장할 딕셔너리를 생성합니다.
+    points_3d_dict = {}
 
-    pca_l_cam = PCA(n_components=min(6, len(l_cam_param)))
-    pca_l_cam.fit(np.vstack(l_cam_param))
+    for i, lr_pos in enumerate(LR_POSITION):
+        led_numbers = LED_NUMBER[i]
+        points_3d = n_points_3d[i * 4: i * 4 + 4]
 
-    print("\n왼쪽 카메라의 카메라 파라미터 주성분:")
-    print(pca_l_cam.components_)
-    print("왼쪽 카메라의 카메라 파라미터 설명된 분산 비율:")
-    print(pca_l_cam.explained_variance_ratio_)
+        # 각 LED 번호에 대응하는 3D 점을 딕셔너리에 추가합니다.
+        for led_num, point_3d in zip(led_numbers, points_3d):
+            if led_num not in points_3d_dict:
+                points_3d_dict[led_num] = []  # 이 LED 번호에 대한 리스트가 아직 없다면 새로 생성합니다.
+            points_3d_dict[led_num].append(point_3d)
 
-    # 오른쪽 카메라의 데이터에 대해 PCA 분석
-    pca_r_points = PCA(n_components=3)
-    pca_r_points.fit(np.vstack(r_points_3d))
+    # 각 LED 번호에 대해 PCA를 적용하고, 첫 번째 주성분에 대한 중심을 계산합니다.
+    for led_num, points_3d in points_3d_dict.items():
+        pca = PCA(n_components=3)  # 3차원 PCA를 계산합니다.
+        pca.fit(points_3d)
 
-    print("\n오른쪽 카메라의 3D 포인트 주성분:")
-    print(pca_r_points.components_)
-    print("오른쪽 카메라의 3D 포인트 설명된 분산 비율:")
-    print(pca_r_points.explained_variance_ratio_)
+        # PCA의 첫 번째 주성분의 중심을 계산합니다.
+        center = pca.mean_
 
-    pca_r_cam = PCA(n_components=min(6, len(r_cam_param)))
-    pca_r_cam.fit(np.vstack(r_cam_param))
-
-    print("\n오른쪽 카메라의 카메라 파라미터 주성분:")
-    print(pca_r_cam.components_)
-    print("오른쪽 카메라의 카메라 파라미터 설명된 분산 비율:")
-    print(pca_r_cam.explained_variance_ratio_)
+        # 이후에는 center를 원하는대로 사용하면 됩니다.
+        # 예를 들면, 출력해보기
+        print(f"Center of PCA for LED number {led_num}:\n{center}\n")
 
     # plt.show()
 
@@ -1282,5 +1272,5 @@ if __name__ == "__main__":
     # triangulate_test()
     # test_result()
     # solvePnP_std_test()
-    BA()
-    # BA_std_test()
+    # BA()
+    BA_std_test()
