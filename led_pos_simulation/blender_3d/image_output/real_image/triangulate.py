@@ -955,11 +955,13 @@ def BA():
     estimated_RTs = []
     POINTS_2D = []
     POINTS_3D = []
-
+    LR_POSITION = []
+    LED_NUMBER = []
     n_points = 0
     cam_id = 0
     for key, camera_info in CAMERA_INFO.items():
         if 'RE' in key:
+            LR_POS = int(key.split('_')[1])
             # print('key', key)
             # print(camera_info['points2D']['greysum'])
             # print(camera_info['led_num'])
@@ -972,7 +974,8 @@ def BA():
             rvec = camera_info['rt']['rvec']
             tvec = camera_info['rt']['tvec']
             estimated_RTs.append((rvec.ravel(), tvec.ravel()))
-
+            LR_POSITION.append(LR_POS)
+            LED_NUMBER.append(camera_info['led_num'])
             # Save 3D and 2D points for each LED in the current camera
             for led_num in range(len(camera_info['led_num'])):
                 POINTS_3D.append(camera_info['remake_3d'][led_num])
@@ -983,7 +986,7 @@ def BA():
             cam_id += 1
             # Add the number of 3D points in this camera to the total count
             n_points += len(camera_info['led_num'])
-    #
+
     #
     # def fun(params, n_cameras, n_points, camera_indices, points_indices, points_2d):
     #     points_3d = params[:n_points * 3].reshape((n_points, 3))
@@ -1050,12 +1053,12 @@ def BA():
     camera_params = np.array(estimated_RTs)
     POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
     POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
-    A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indices)
+
     # x0 = np.hstack((POINTS_3D.ravel(), camera_params.ravel()))
+
     x0 = np.hstack((camera_params.ravel(), POINTS_3D.ravel()))
-
+    A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indices)
     print('n_cameras', n_cameras, 'n_points', n_points)
-
     res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
                         args=(n_cameras, n_points, camera_indices, point_indices, POINTS_2D))
 
@@ -1063,11 +1066,213 @@ def BA():
     # optimized_camera_params = res.x[n_points * 3:].reshape(-1, 6)
     # print("Optimized 3D points: ", optimized_points3D)
     # print("Optimized camera parameters: ", optimized_camera_params)
-    n_cam_params = res.x[:len(camera_params.ravel())].reshape((n_cameras, 6))
-    n_points_3d = res.x[len(camera_params.ravel()):].reshape((n_points, 3))
+    n_cam_params = res.x[:n_cameras * 6].reshape((n_cameras, 6))
+    n_points_3d = res.x[n_cameras * 6:].reshape((n_points, 3))
     print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
     print("Optimized camera parameters: ", n_cam_params)
 
+    file = './result_ba.pickle'
+    data = OrderedDict()
+    data['BA_RESULT'] = res
+    data['LR_POS'] = LR_POSITION
+    data['n_cameras'] = n_cameras
+    data['n_points'] = n_points
+    data['led_number'] = LED_NUMBER
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+
+def BA_std_test():
+    ba_data = pickle_data(READ, './result_ba.pickle', None)
+    BA_RESULT = ba_data['BA_RESULT']
+    n_cameras = ba_data['n_cameras']
+    n_points = ba_data['n_points']
+    LR_POSITION = ba_data['LR_POS']
+    LED_NUMBER = ba_data['led_number']
+    # print('LR_POSITION\n', LR_POSITION)
+    cam_data = pickle_data(READ, './rt_std.pickle', None)
+    CAMERA_INFO = cam_data['CAMERA_INFO']
+
+    root = tk.Tk()
+    width_px = root.winfo_screenwidth()
+    height_px = root.winfo_screenheight()
+
+    # 모니터 해상도에 맞게 조절
+    mpl.rcParams['figure.dpi'] = 120  # DPI 설정
+    monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
+    monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
+
+    fig = plt.figure(figsize=(monitor_width_inches, monitor_height_inches), num='LED Position FinDer')
+
+    # 2:1 비율로 큰 그리드 생성
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1, 2])
+
+    # 왼쪽 그리드에 subplot 할당
+    ax1 = plt.subplot(gs[0], projection='3d')
+
+    # 오른쪽 그리드를 위에는 2개, 아래는 3개로 분할
+    gs_sub = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=gs[1], height_ratios=[1, 1])
+
+    # 분할된 오른쪽 그리드의 위쪽에 subplot 할당
+    gs_sub_top = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[0])
+    ax2 = plt.subplot(gs_sub_top[0])
+    ax3 = plt.subplot(gs_sub_top[1])
+
+    # 분할된 오른쪽 그리드의 아래쪽에 subplot 할당
+    gs_sub_bottom = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=gs_sub[1])
+    ax4 = plt.subplot(gs_sub_bottom[0])
+    ax5 = plt.subplot(gs_sub_bottom[1])
+
+    # ax1 설정
+    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+    ax1.set_title('3D plot')
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o', s=10)
+    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax1.set_xlim([-0.1, 0.1])
+    ax1.set_xlabel('X')
+    ax1.set_ylim([-0.1, 0.1])
+    ax1.set_ylabel('Y')
+    ax1.set_zlim([-0.1, 0.1])
+    ax1.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax1, base_scale=scale)  # 이부분은 ax1이 zoom in, zoom out 기능을 가지게 해주는 코드입니다.
+
+    # ax2 설정
+    R_img_l = cv2.imread(real_image_l)
+    R_img_r = cv2.imread(real_image_r)
+    _, filter_l = cv2.threshold(R_img_l, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    IMG_GRAY_L = cv2.cvtColor(filter_l, cv2.COLOR_BGR2GRAY)
+    _, filter_r = cv2.threshold(R_img_r, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    IMG_GRAY_R = cv2.cvtColor(filter_r, cv2.COLOR_BGR2GRAY)
+
+    ax2.set_title('Projection LEFT')
+    ax2.imshow(IMG_GRAY_L, cmap='gray')
+    ax3.set_title('Projection RIGHT')
+    ax3.imshow(IMG_GRAY_R, cmap='gray')
+
+    # ax3 설정
+    led_number = len(origin_led_data)
+    ax4.set_title('distance BL')
+    ax4.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
+    ax4.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
+    ax4.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
+
+    ax5.set_title('distance RE')
+    ax5.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
+    ax5.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
+    ax5.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
+
+    for key, camera_info in CAMERA_INFO.items():
+        if 'RE' in key:
+            LR_POS = int(key.split('_')[1])
+            points2D = np.array(camera_info['points2D']['greysum'])
+            points2D_opencv = np.array(camera_info['points2D']['opencv'])
+            remake_3d = np.array(camera_info['remake_3d'])
+            if LR_POS == 1:
+                ax3.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o',
+                            s=1)
+                ax3.scatter(points2D_opencv[:, 0], points2D_opencv[:, 1], color='red',
+                            alpha=0.5, marker='o', s=1)
+            else:
+                ax2.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
+                ax2.scatter(points2D_opencv[:, 0], points2D_opencv[:, 1], color='red', alpha=0.5, marker='o', s=1)
+                ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='red', alpha=0.5, marker='o', s=3)
+
+    n_cam_params = BA_RESULT.x[:n_cameras * 6].reshape((n_cameras, 6))
+    n_points_3d = BA_RESULT.x[n_cameras * 6:].reshape((n_points, 3))
+    print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
+    print("Optimized camera parameters: ", n_cam_params)
+    ax1.scatter(n_points_3d[:, 0], n_points_3d[:, 1], n_points_3d[:, 2], color='blue', alpha=0.5, marker='o', s=3)
+
+    print('success:', BA_RESULT)
+
+    for i, camera_rt in enumerate(n_cam_params):
+        rvec = camera_rt[:3]
+        tvec = camera_rt[3:]
+        lr_pos = LR_POSITION[i]
+        camera_k = camera_matrix[lr_pos][0]
+        dist_coeff = camera_matrix[lr_pos][1]
+        pts, _ = cv2.projectPoints(n_points_3d[i*4: i*4+4], rvec, tvec,
+                                   cameraMatrix=camera_k,
+                                   distCoeffs=dist_coeff)
+        rep_2d_points = pts.reshape(-1, 2)
+
+        if lr_pos == 1:
+            ax3.scatter(rep_2d_points[:, 0], rep_2d_points[:, 1], color='blue',
+                        alpha=0.5, marker='o', s=1)
+        else:
+            ax2.scatter(rep_2d_points[:, 0], rep_2d_points[:, 1], color='blue', alpha=0.5, marker='o', s=1)
+
+    from sklearn.decomposition import PCA
+    # # 3D 포인트에 대한 PCA
+    # pca_points = PCA(n_components=3)
+    # pca_points.fit(n_points_3d)
+    #
+    # print("3D 포인트의 주성분:")
+    # print(pca_points.components_)
+    # print("3D 포인트의 설명된 분산 비율:")
+    # print(pca_points.explained_variance_ratio_)
+    #
+    # # 카메라 파라미터에 대한 PCA
+    # pca_params = PCA(n_components=6)
+    # pca_params.fit(n_cam_params)
+    #
+    # print("\n카메라 파라미터의 주성분:")
+    # print(pca_params.components_)
+    # print("카메라 파라미터의 설명된 분산 비율:")
+    # print(pca_params.explained_variance_ratio_)
+
+    l_points_3d = []
+    l_cam_param = []
+    r_points_3d = []
+    r_cam_param = []
+
+    for i, lr_pos in enumerate(LR_POSITION):
+        cam_param = n_cam_params[i]
+        points_3d = n_points_3d[i*4: i*4+4]
+
+        if lr_pos == 0:
+            l_points_3d.append(points_3d)
+            l_cam_param.append(cam_param)
+        else:
+            r_points_3d.append(points_3d)
+            r_cam_param.append(cam_param)
+
+    # 왼쪽 카메라의 데이터에 대해 PCA 분석
+    pca_l_points = PCA(n_components=3)
+    pca_l_points.fit(np.vstack(l_points_3d))
+
+    print("왼쪽 카메라의 3D 포인트 주성분:")
+    print(pca_l_points.components_)
+    print("왼쪽 카메라의 3D 포인트 설명된 분산 비율:")
+    print(pca_l_points.explained_variance_ratio_)
+
+    pca_l_cam = PCA(n_components=min(6, len(l_cam_param)))
+    pca_l_cam.fit(np.vstack(l_cam_param))
+
+    print("\n왼쪽 카메라의 카메라 파라미터 주성분:")
+    print(pca_l_cam.components_)
+    print("왼쪽 카메라의 카메라 파라미터 설명된 분산 비율:")
+    print(pca_l_cam.explained_variance_ratio_)
+
+    # 오른쪽 카메라의 데이터에 대해 PCA 분석
+    pca_r_points = PCA(n_components=3)
+    pca_r_points.fit(np.vstack(r_points_3d))
+
+    print("\n오른쪽 카메라의 3D 포인트 주성분:")
+    print(pca_r_points.components_)
+    print("오른쪽 카메라의 3D 포인트 설명된 분산 비율:")
+    print(pca_r_points.explained_variance_ratio_)
+
+    pca_r_cam = PCA(n_components=min(6, len(r_cam_param)))
+    pca_r_cam.fit(np.vstack(r_cam_param))
+
+    print("\n오른쪽 카메라의 카메라 파라미터 주성분:")
+    print(pca_r_cam.components_)
+    print("오른쪽 카메라의 카메라 파라미터 설명된 분산 비율:")
+    print(pca_r_cam.explained_variance_ratio_)
+
+    # plt.show()
 
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
@@ -1078,3 +1283,4 @@ if __name__ == "__main__":
     # test_result()
     # solvePnP_std_test()
     BA()
+    # BA_std_test()
