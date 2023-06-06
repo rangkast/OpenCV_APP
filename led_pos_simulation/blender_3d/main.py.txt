@@ -1,0 +1,314 @@
+import bpy
+
+# "functions.py" 텍스트를 모듈로 가져옵니다.
+functions = bpy.data.texts["functions.py"].as_module()
+# definitions 모듈 내의 모든 이름을 가져옵니다.
+names = dir(functions)
+# 모든 이름에 대해 전역 변수를 설정합니다.
+globals().update({name: getattr(functions, name) for name in names})
+
+'''
+Rendering Configuration
+'''
+# 카메라 해상도 설정 (예: 1920x1080)
+bpy.context.scene.render.resolution_x = 1280
+bpy.context.scene.render.resolution_y = 960
+
+# 렌더링 결과의 픽셀 밀도를 100%로 설정 (기본값은 50%)
+bpy.context.scene.render.resolution_percentage = 100
+bpy.context.scene.render.film_transparent = False  # 렌더링 배경을 불투명하게 설정
+bpy.context.scene.unit_settings.system = 'METRIC'
+bpy.context.scene.unit_settings.scale_length = 1.0
+bpy.context.scene.unit_settings.length_unit = 'METERS'
+#bpy.context.scene.render.engine = 'CYCLES'
+# 렌더링 엔진을 Eevee로 설정합니다.
+bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+bpy.context.scene.eevee.use_bloom = True
+# 월드 배경을 어둡게 설정합니다.
+set_up_dark_world_background()
+
+
+
+
+
+
+'''
+TEST START
+'''
+print('\n\n\n')
+print('TEST START')
+
+# delte objects
+exclude_object_names = ["Oculus_L_05.002",
+                        "EMPTY_CAMERA_0",
+                        "EMPTY_CAMERA_1",
+                        "sine_wave",
+                        "circle_curve",
+                        "quad_circle_curve_2_45",
+                        "quad_circle_curve_3_45"]
+delete_all_objects_except(exclude_object_names)
+
+
+if shape == 'real':
+    try:
+        led_data = origin_led_data
+        real_camera_data = pickle_data(READ, camera_pickle_file, None)
+        # Real Controller
+        #########################
+        #led_objects = create_circle_leds_on_surface(origin_led_data, led_size, shape)
+        #model_obj = bpy.data.objects['Oculus_L_05.002']
+        #origin = np.array([0, 0, 0])
+        # 여기서 오브젝트 깎음
+        #for led_obj in led_objects:
+        #    apply_boolean_modifier(model_obj, led_obj)
+
+    #    create_filled_emission_circle_on_plane(led_data, origin_led_dir, led_size)
+        create_filled_emission_sphere(led_data, origin_led_dir, led_size)
+        #########################
+
+        # Draw Direction
+        for i in range(len(led_data)):
+            start = tuple(led_data[i])
+            end = tuple(led_data[i] + origin_led_dir[i])
+            draw_line(start, end, (1, 0, 0, 1), f"line_{i+len(origin_led_dir)}")
+        
+        # Use Real Camera R|T from Python Simulator
+        LRVEC = real_camera_data['L_CAM']['rvec'][0]
+        LTVEC = real_camera_data['L_CAM']['tvec'][0]
+        RRVEC = real_camera_data['R_CAM']['rvec'][0]
+        RTVEC = real_camera_data['R_CAM']['tvec'][0]
+
+
+        # Test Code
+        # RANSAC     
+    #    LRVEC = np.array([ 0.81026609,  -1.37769916, 0.81499515])
+    #    LTVEC = np.array([ 0.01484074,  -0.00573229, 0.32886194])
+    #    RRVEC = np.array([ 0.97059194,  -0.99557178, 0.56715415])
+    #    RTVEC = np.array([ 0.0941876,  -0.01644025, 0.31315632])
+        
+        # AP3P
+    #    LRVEC = np.array([ 0.81020314,  -1.37769844, 0.81501192])
+    #    LTVEC = np.array([ 0.01483947,  -0.00573095, 0.32885115])
+    #    RRVEC = np.array([ 0.97101654,  -0.99558202, 0.56694585])
+    #    RTVEC = np.array([ 0.09420666,  -0.01645185, 0.31320413])
+    #    
+        print('LRVEC\n', LRVEC)
+        print('LTVEC\n', LTVEC)
+        print('RRVEC\n', RRVEC)
+        print('RTVEC\n', RTVEC)
+
+        make_cameras("CAMERA_0", LRVEC, LTVEC, cam_0_matrix)
+        make_cameras("CAMERA_1", RRVEC, RTVEC, cam_1_matrix)
+    #    make_cameras("CAMERA_0", default_rvec_left, default_tvec_left, cam_0_matrix)
+    #    make_cameras("CAMERA_1", default_rvec_right, default_tvec_right, cam_1_matrix)
+    except:
+        print('exception')
+else:
+    model_data = pickle_data(READ, model_pickle_file, None)
+    led_data = model_data['LED_INFO']
+    model_data = model_data['MODEL_INFO']
+
+    for i, leds in enumerate(led_data):
+        print(f"{i}, led: {leds}")  
+    # Simulator
+    #########################
+    # numpy 배열로부터 좌표 데이터를 가져옵니다.
+    model_data = np.array(model_data)
+    # led_data를 numpy 배열로 변환합니다.
+    led_data = np.array(led_data)
+    # 이 함수 호출로 메시 객체를 생성하고 표면을 그립니다.
+    create_mesh_object(model_data, name=MESH_OBJ_NAME, padding=padding)
+
+    # # 모델 오브젝트를 찾습니다.
+    model_obj = bpy.data.objects[MESH_OBJ_NAME]
+    led_objects = create_circle_leds_on_surface(led_data, led_size, shape)
+
+    # 여기서 오브젝트 깎음
+    for led_obj in led_objects:
+        apply_boolean_modifier(model_obj, led_obj)
+    #########################
+
+    make_cameras("CAMERA_0", rvec_left, tvec_left, cam_0_matrix)
+    make_cameras("CAMERA_1", rvec_right, tvec_right, cam_0_matrix)
+#    make_cameras_default("CAMERA_0", rvec_left, tvec_left)
+#    make_cameras_default("CAMERA_1", rvec_right, tvec_right)
+
+
+json_data = OrderedDict()
+json_data['CAMERA_0'] = {'Vertex': [], 'Project': [], 'OpenCV': [], 'Obj_Util': [], 'points3D': []}
+json_data['CAMERA_1'] = {'Vertex': [], 'Project': [], 'OpenCV': [], 'Obj_Util': [], 'points3D': []}
+
+#for cam_name in camera_names:
+#    if cam_name not in bpy.data.objects or bpy.data.objects[cam_name].type != 'CAMERA':
+#        print({'ERROR'}, f"No camera found with name {camera_name}")
+#        break;    
+#    try:
+#        print(f"\n\n{cam_name}")
+#        print('--------TEST 1-----------')        
+#        points3D = led_data
+#        print('points3D\n', points3D)
+#        points3D = np.array(points3D, dtype=np.float64)
+#        cam = bpy.data.objects[cam_name]
+#        # 이제 active object를 원하는 object로 변경
+#        bpy.context.view_layer.objects.active = cam
+#        # 선택한 오브젝트를 선택 상태
+#        cam.select_set(True)
+#        active_obj = bpy.context.active_object
+#        print('active_obj', active_obj)
+
+#        scene = bpy.context.scene
+#        scene.camera = cam  # 현재 씬의 카메라로 설정
+
+#        
+#        width = scene.render.resolution_x
+#        height = scene.render.resolution_y
+#        
+#        print('width', width, 'height', height)
+#        
+#        location = cam.location
+#        rotation = cam.rotation_euler
+#        quat = cam.rotation_quaternion
+#        # XYZ 오일러 각도를 degree 단위로 변환
+#        rotation_degrees = tuple(degrees(angle) for angle in rotation)
+#        # 결과 출력
+#        print(f"{cam} 위치: ", location)
+#        print(f"{cam} XYZ 오일러 회전 (도): ", rotation_degrees)
+#        print(f"{cam} XYZ 쿼너티온: ", quat)
+
+#        # print projection M
+#        P = get_3x4_P_matrix_from_blender_OpenCV(cam)
+#        projectionMatrix = np.matrix(P)
+#        print('projection M', projectionMatrix)
+
+#        # print R|T
+#        _, rvec, tvec = get_3x4_RT_matrix_from_blender_OpenCV(cam)
+#        R, _ = cv2.Rodrigues(rvec)
+#        rvec = np.array(R.ravel())
+#        tvec = np.array(tvec)
+#        print('rvec', rvec)
+#        print('tvec', tvec)
+
+#        intrinsic, rotationMatrix, homogeneousTranslationVector = cv2.decomposeProjectionMatrix(
+#            projectionMatrix)[:3]
+#        camT = -cv2.convertPointsFromHomogeneous(homogeneousTranslationVector.T)
+#        camR = Rot.from_matrix(rotationMatrix)
+#        blender_tvec = camR.apply(camT.ravel())
+#        blender_rvec = camR.as_rotvec()
+#        blender_rvec = blender_rvec.reshape(-1, 1)
+#        blender_tvec = blender_tvec.reshape(-1, 1)
+
+#        blender_image_points, _ = cv2.projectPoints(points3D, blender_rvec, blender_tvec,
+#                                                    cameraMatrix=intrinsic,
+#                                                    distCoeffs=None)
+#        blender_image_points = blender_image_points.reshape(-1, 2)
+
+#        print("Projected 2D image points <Projection>")
+#        print(blender_image_points)
+#        json_data[cam_name]['OpenCV'] = np.array(blender_image_points).tolist()
+#        json_data[cam_name]['points3D'] = np.array(points3D).tolist()
+
+#        print('\n\n')
+#        print('--------TEST 2-----------')
+#        # Insert your camera name here
+#        P, K, RT = get_3x4_P_matrix_from_blender(cam)
+#        print("K")
+#        print(K)
+#        print("RT")
+#        print(RT)
+#        print("P")
+#        print(P)
+
+#        for i, point in enumerate(points3D):
+#            point_3D = Vector(point)  # Convert tuple to Vector
+#            p = P @ Vector((point_3D.x, point_3D.y, point_3D.z, 1))  # Append 1 to the vector for matrix multiplication
+#            p /= p[2]
+
+#            print(f"Projected point {i}")
+#            print(p[:2])
+#            json_data[cam_name]['Project'].append(p[:2])
+#            print("proj by object_utils")
+#            obj_coords = project_by_object_utils(cam, point_3D)
+#            json_data[cam_name]['Obj_Util'].append(obj_coords)
+#            print(obj_coords)        
+
+#        # save png file
+#        scene.render.image_settings.file_format = 'PNG'
+#        scene.render.filepath = base_file_path + f"{cam_name}" + '_blender_test_image'
+#        bpy.ops.render.render(write_still=1)
+#        
+#    except KeyError:
+#        print('camera not found', camera_name)   
+
+#print('json_data\n', json_data)
+#jfile = base_file_path + 'blender_test_image.json'
+#rw_json_data(1, jfile, json_data)
+
+
+## List of camera names
+#for camera_name in camera_names:
+#    # Get the camera object
+#    camera = bpy.data.objects[camera_name]
+#    # Create an empty object at the origin
+#    bpy.ops.object.add(type='EMPTY', location=(0, 0, 0))
+#    empty_obj = bpy.context.active_object
+#    empty_obj.name = f"EMPTY_{camera_name}"
+
+
+# Make NurbsPath
+#make_camera_path('sine_wave')
+#make_camera_path('circle_curve', radius=0.3)
+#make_camera_path('quadrant_segment_circle', quadrant=3, start_angle_degrees=45, radius=0.3)
+#make_camera_path('quadrant_segment_circle', quadrant=2, start_angle_degrees=45, radius=0.3)
+
+
+# Camera 0 Attach to PATH
+#make_camera_follow_path(bpy.data.objects['CAMERA_0'], bpy.data.objects['quad_circle_curve_2_45'])
+#make_camera_track_to(bpy.data.objects['CAMERA_0'], bpy.data.objects['EMPTY_CAMERA_0'])
+
+## Camera 1 Attach to PATH
+#make_camera_follow_path(bpy.data.objects['CAMERA_1'], bpy.data.objects['quad_circle_curve_3_45'])
+#make_camera_track_to(bpy.data.objects['CAMERA_1'], bpy.data.objects['EMPTY_CAMERA_1'])
+
+
+# DRAW Camera pos and dir
+
+#camera_info_path = "D:/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/rt_std.pickle"
+#deviation_data = pickle_data(READ, camera_info_path, None)
+
+#scale_factor = 0.5  # Scale factor for adjusting quiver length
+
+## Create a new material
+#mat = bpy.data.materials.new(name="RedMaterial")
+#mat.diffuse_color = (1.0, 0.0, 0.0, 1.0)  # Red color
+
+#for key, camera_info in deviation_data['CAMERA_INFO'].items():
+#    if 'RE' in key:
+#        cam_id = int(key.split('_')[1])
+#        rvec = camera_info['rt']['rvec']
+#        tvec = camera_info['rt']['tvec']
+#        
+#        # Add Camera Position
+#        position, rotation_quat = blender_location_rotation_from_opencv(rvec, tvec)        
+#        # Convert quaternion rotation to Euler rotation
+#        rotation_mat = rotation_quat.to_matrix().to_4x4()
+#        rotation_euler = rotation_mat.to_euler()
+#        
+#        # Create a small sphere at the camera position
+#        bpy.ops.mesh.primitive_uv_sphere_add(location=position, radius=0.0005)
+#        sphere = bpy.context.object
+#        sphere.data.materials.append(mat)  # Assign the material to the sphere 
+
+#        # Adjust start position of the cylinderl
+#        start_position = position + rotation_quat @ Vector((0, 0, 0.0005))        
+#        # Create quiver
+#        bpy.ops.mesh.primitive_cylinder_add(radius=0.0001, depth=np.linalg.norm(rotation_euler)*scale_factor,
+#                                         location=start_position, rotation=rotation_euler)
+#        
+#        points3d = camera_info['remake_3d']
+#        for blobs in points3d:
+#            bpy.ops.mesh.primitive_uv_sphere_add(location=blobs, radius=0.001)
+#            blob_sphere = bpy.context.object
+#            blob_sphere.data.materials.append(mat)  # Assign the material to the sphere 
+
+#        print('position', position)
+#        print('rotation', rotation_euler)
