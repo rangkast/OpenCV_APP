@@ -12,7 +12,7 @@ from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes, mark_inset
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-CV_MIN_THRESHOLD = 100
+CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 default_cameraK = np.eye(3).astype(np.float64)
 default_distCoeff = np.zeros((4, 1)).astype(np.float64)

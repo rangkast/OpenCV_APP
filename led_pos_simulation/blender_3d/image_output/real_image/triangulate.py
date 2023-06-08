@@ -50,7 +50,7 @@ from scipy.sparse import lil_matrix
 #     [0.03006234, 0.00378822, -0.01297127],
 #     [0.02000199, -0.00388647, -0.014973]
 # ])
-#
+
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -69,6 +69,7 @@ origin_led_data = np.array([
     [0.03006234, 0.00378822, -0.01297127],
     [0.02000199, -0.00388647, -0.014973]
 ])
+
 origin_led_dir = np.array([
     [-0.52706841, -0.71386452, -0.46108171],
     [-0.71941994, -0.53832866, -0.43890456],
@@ -86,15 +87,19 @@ origin_led_dir = np.array([
     [0.67315478, -0.5810967, -0.45737213],
     [0.49720891, -0.70839529, -0.5009585]
 ])
+
 camera_matrix = [
-    [np.array([[716.896, 0.0, 668.902],
-               [0.0, 716.896, 460.618],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)],
+
     [np.array([[712.623, 0.0, 653.448],
                [0.0, 712.623, 475.572],
                [0.0, 0.0, 1.0]], dtype=np.float64),
      np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
+
+    [np.array([[716.896, 0.0, 668.902],
+               [0.0, 716.896, 460.618],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)],
+
 ]
 default_dist_coeffs = np.zeros((4, 1))
 default_cameraK = np.eye(3).astype(np.float64)
@@ -107,14 +112,14 @@ DONE = 1
 NOT_SET = -1
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-CV_MIN_THRESHOLD = 100
+CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 
 show_plt = 1
 undistort = 1
 
-json_file = './blob_area.json'
-std_file = './blob_area_all.json'
+json_file = 'blob_area.json'
+std_file = 'blob_area_all.json'
 # 이미지 파일 경로를 지정합니다.
 blend_image_l = "./CAMERA_0_blender_test_image.png"
 real_image_l = "./left_frame.png"
@@ -208,6 +213,7 @@ SOLVE_PNP_FUNCTION = {
     POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
     POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
 }
+METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 def pickle_data(rw_mode, path, data):
     import pickle
     import gzip
@@ -611,14 +617,14 @@ def triangulate_test():
             print('capture mode')
 
     cv2.destroyAllWindows()
-    file = './camera_info.pickle'
+    file = 'camera_info.pickle'
     data = OrderedDict()
     data['CAMERA_INFO'] = CAMERA_INFO
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
 def test_result():
-    pickle_file = './camera_info.pickle'
+    pickle_file = 'camera_info.pickle'
     data = pickle_data(READ, pickle_file, None)
     CAMERA_INFO = data['CAMERA_INFO']
 
@@ -677,8 +683,6 @@ def solve_pnp_and_plot(CAMERA_INFO, keys_to_process):
     for keys in keys_to_process:
         cam_data = CAMERA_INFO[keys]
         cam_id = int(keys.split('_')[1])
-
-        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
         points2D = np.array(cam_data['points2D']['greysum'], dtype=np.float64)
         cam_data['points2D_U']['greysum'] = np.array(cv2.undistortPoints(points2D, camera_matrix[cam_id][0], camera_matrix[cam_id][1])).reshape(-1, 2)
@@ -961,14 +965,14 @@ def solvePnP_std_test():
             print('capture mode')
 
     cv2.destroyAllWindows()
-    file = './rt_std.pickle'
+    file = 'rt_std.pickle'
     data = OrderedDict()
     data['CAMERA_INFO'] = CAMERA_INFO
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
 def BA():
-    pickle_file = './rt_std.pickle'
+    pickle_file = 'rt_std.pickle'
     data = pickle_data(READ, pickle_file, None)
     CAMERA_INFO = data['CAMERA_INFO']
     camera_indices = []
@@ -1092,26 +1096,136 @@ def BA():
     print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
     print("Optimized camera parameters: ", n_cam_params)
 
-    file = './result_ba.pickle'
+    file = 'result_ba.pickle'
     data = OrderedDict()
-    data['BA_RESULT'] = res
+    # data['BA_RESULT'] = res
+    data['3d_point'] = n_points_3d
+    data['cam_params'] = n_cam_params
     data['LR_POS'] = LR_POSITION
-    data['n_cameras'] = n_cameras
-    data['n_points'] = n_points
+    # data['n_cameras'] = n_cameras
+    # data['n_points'] = n_points
     data['led_number'] = LED_NUMBER
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
+def BA_3D_POINT():
+    pickle_file = 'rt_std.pickle'
+    data = pickle_data(READ, pickle_file, None)
+    CAMERA_INFO = data['CAMERA_INFO']
+    camera_indices = []
+    point_indices = []
+    estimated_RTs = []
+    POINTS_2D = []
+    POINTS_3D = []
+    LR_POSITION = []
+    LED_NUMBER = []
+    n_points = 0
+    cam_id = 0
+    for key, camera_info in CAMERA_INFO.items():
+        if 'RE' in key:
+            LR_POS = int(key.split('_')[1])
+            # print('key', key)
+            # print(camera_info['points2D']['greysum'])
+            # print(camera_info['led_num'])
+            # print(camera_info['rt'])
 
+            # Extract the camera id
+            # cam_id = int(key.split('_')[-1])
+
+            # Save camera parameters for each camera
+            rvec = camera_info['rt']['rvec']
+            tvec = camera_info['rt']['tvec']
+            estimated_RTs.append((rvec.ravel(), tvec.ravel()))
+            LR_POSITION.append(LR_POS)
+            LED_NUMBER.append(camera_info['led_num'])
+            # Save 3D and 2D points for each LED in the current camera
+            for led_num in range(len(camera_info['led_num'])):
+                POINTS_3D.append(camera_info['remake_3d'][led_num])
+                POINTS_2D.append(camera_info['points2D']['greysum'][led_num])
+                camera_indices.append(cam_id)
+                point_indices.append(len(POINTS_3D) - 1)
+
+            cam_id += 1
+            # Add the number of 3D points in this camera to the total count
+            n_points += len(camera_info['led_num'])
+
+    def fun(params, n_points, camera_indices, point_indices, points_2d, camera_params, camera_matrix):
+        """Compute residuals.
+        `params` contains 3-D coordinates.
+        """
+        points_3d = params.reshape((n_points, 3))
+
+        points_proj = []
+        for i, POINT_3D in enumerate(points_3d[point_indices]):
+            camera_index = camera_indices[i]
+            # print('points_3d', POINT_3D, ' ', camera_index, ' ', i)
+            # print('R', np.array(camera_params[camera_indices][i][0]))
+            # print('T', np.array(camera_params[camera_indices][i][1]))
+            POINT_2D_PROJ, _ = cv2.projectPoints(POINT_3D,
+                                                 np.array(camera_params[camera_indices][i][0]),
+                                                 np.array(camera_params[camera_indices][i][1]),
+                                                 camera_matrix[camera_index % 2][0],
+                                                 camera_matrix[camera_index % 2][1])
+            points_proj.append(POINT_2D_PROJ[0][0])
+
+        points_proj = np.array(points_proj)
+        return (abs(points_proj - points_2d)).ravel()
+
+    def bundle_adjustment_sparsity(n_points, point_indices):
+        m = point_indices.size * 2
+        n = n_points * 3
+        A = lil_matrix((m, n), dtype=int)
+        i = np.arange(point_indices.size)
+        for s in range(3):
+            A[2 * i, point_indices * 3 + s] = 1
+            A[2 * i + 1, point_indices * 3 + s] = 1
+        return A
+
+    # Convert the lists to NumPy arrays
+    n_cameras = len(estimated_RTs)
+    camera_indices = np.array(camera_indices)
+    point_indices = np.array(point_indices)
+    camera_params = np.array(estimated_RTs)
+    POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
+    POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
+
+    # print('camera_params\n', camera_params.reshape(-1, 6))
+    x0 = POINTS_3D.ravel()
+
+    A = bundle_adjustment_sparsity(n_points, point_indices)
+    print('n_points', n_points)
+    res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
+                        args=(n_points, camera_indices, point_indices, POINTS_2D, camera_params, camera_matrix))
+
+    # You are only optimizing points, so the result only contains point data
+    n_points_3d = res.x.reshape((n_points, 3))
+
+    print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
+
+    file = 'result_ba_3d_point.pickle'
+    data = OrderedDict()
+    # data['BA_RESULT'] = res
+    data['3d_point'] = n_points_3d
+    data['cam_params'] = camera_params.reshape(-1, 6)
+    data['LR_POS'] = LR_POSITION
+    # data['n_cameras'] = n_cameras
+    # data['n_points'] = n_points
+    data['led_number'] = LED_NUMBER
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
 def BA_std_test():
     ba_data = pickle_data(READ, './result_ba.pickle', None)
-    BA_RESULT = ba_data['BA_RESULT']
-    n_cameras = ba_data['n_cameras']
-    n_points = ba_data['n_points']
+    # ba_data = pickle_data(READ, 'result_ba_3d_point.pickle', None)
+    # BA_RESULT = ba_data['BA_RESULT']
+    # n_cameras = ba_data['n_cameras']
+    # n_points = ba_data['n_points']
     LR_POSITION = ba_data['LR_POS']
     LED_NUMBER = ba_data['led_number']
+    n_cam_params = ba_data['cam_params']
+    n_points_3d = ba_data['3d_point']
     # print('LR_POSITION\n', LR_POSITION)
-    cam_data = pickle_data(READ, './rt_std.pickle', None)
+    cam_data = pickle_data(READ, 'rt_std.pickle', None)
     CAMERA_INFO = cam_data['CAMERA_INFO']
 
     root = tk.Tk()
@@ -1188,7 +1302,6 @@ def BA_std_test():
             LR_POS = int(key.split('_')[1])
             points2D = np.array(camera_info['points2D']['greysum'])
             points2D_opencv = np.array(camera_info['points2D']['opencv'])
-            remake_3d = np.array(camera_info['remake_3d'])
             if LR_POS == 1:
                 ax3.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o',
                             s=1)
@@ -1197,15 +1310,14 @@ def BA_std_test():
             else:
                 ax2.scatter(points2D[:, 0], points2D[:, 1], color='black', alpha=0.5, marker='o', s=1)
                 ax2.scatter(points2D_opencv[:, 0], points2D_opencv[:, 1], color='red', alpha=0.5, marker='o', s=1)
-                ax1.scatter(remake_3d[:, 0], remake_3d[:, 1], remake_3d[:, 2], color='red', alpha=0.5, marker='o', s=3)
 
-    n_cam_params = BA_RESULT.x[:n_cameras * 6].reshape((n_cameras, 6))
-    n_points_3d = BA_RESULT.x[n_cameras * 6:].reshape((n_points, 3))
+    # n_cam_params = BA_RESULT.x[:n_cameras * 6].reshape((n_cameras, 6))
+    # n_points_3d = BA_RESULT.x[n_cameras * 6:].reshape((n_points, 3))
     print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
     print("Optimized camera parameters: ", n_cam_params)
     ax1.scatter(n_points_3d[:, 0], n_points_3d[:, 1], n_points_3d[:, 2], color='blue', alpha=0.5, marker='o', s=3)
 
-    print('success:', BA_RESULT)
+    # print('success:', BA_RESULT)
 
     for i, camera_rt in enumerate(n_cam_params):
         rvec = camera_rt[:3]
@@ -1223,7 +1335,6 @@ def BA_std_test():
                         alpha=0.5, marker='o', s=1)
         else:
             ax2.scatter(rep_2d_points[:, 0], rep_2d_points[:, 1], color='blue', alpha=0.5, marker='o', s=1)
-
 
     l_cam_param = []
     r_cam_param = []
@@ -1254,15 +1365,23 @@ def BA_std_test():
     for led_num, points_3d in points_3d_dict.items():
         pca = PCA(n_components=3)  # 3차원 PCA를 계산합니다.
         pca.fit(points_3d)
-
         # PCA의 첫 번째 주성분의 중심을 계산합니다.
         center = pca.mean_
-
         # 이후에는 center를 원하는대로 사용하면 됩니다.
         # 예를 들면, 출력해보기
         print(f"Center of PCA for LED number {led_num}:\n{center}\n")
 
-    # plt.show()
+    file = 'bundle.pickle'
+    data = OrderedDict()
+    data['l_cam_param'] = l_cam_param
+    data['r_cam_param'] = r_cam_param
+    data['3d_point'] = n_points_3d
+
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+
+    plt.show()
 
 if __name__ == "__main__":
     for i, leds in enumerate(origin_led_data):
@@ -1271,6 +1390,7 @@ if __name__ == "__main__":
     print(os.getcwd())
     # triangulate_test()
     # test_result()
-    # solvePnP_std_test()
-    # BA()
+    solvePnP_std_test()
+    BA()
+    # BA_3D_POINT()
     BA_std_test()
