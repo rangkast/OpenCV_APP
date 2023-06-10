@@ -31,24 +31,15 @@ from typing import List, Dict
 from scipy.optimize import least_squares
 from scipy.sparse import lil_matrix
 
+
 # origin_led_data = np.array([
-#     [-0.0219925,  -0.0034213, -0.01381347],
-#     [-0.0320128,   0.00564988, -0.01205496],
-#     [-0.03666606,  0.00933568,  0.0032205 ],
-#     [-0.04266669,  0.02692627, -0.00198677],
-#     [-0.04119838,  0.03610836,  0.02002675],
-#     [-0.02790306,  0.06227605,  0.0163227 ],
+#     [-0.02162157, -0.00358,    -0.01408177],
+#     [-0.0319635, 0.00559827, -0.01226321],
+#     [-0.03690366, 0.00941594,  0.00302373],
+#     [-0.04286286, 0.02692716, -0.00218973],
+#     [-0.04176221, 0.03596417,  0.01979594],
+#     [-0.02935705, 0.06203682,  0.01593531],
 #
-#
-#     [-0.01456789, 0.06295633, 0.03659283],
-#     [0.00766914, 0.07115411, 0.0206431],
-#     [0.02992447, 0.05507271, 0.03108736],
-#     [0.03724313, 0.05268665, 0.01100446],
-#     [0.04265723, 0.03016438, 0.01624689],
-#     [0.04222733, 0.0228845, -0.00394005],
-#     [0.03300807, 0.00371497, 0.00026865],
-#     [0.03006234, 0.00378822, -0.01297127],
-#     [0.02000199, -0.00388647, -0.014973]
 # ])
 
 
@@ -118,13 +109,13 @@ CV_MAX_THRESHOLD = 255
 show_plt = 1
 undistort = 1
 
-json_file = 'blob_area.json'
-std_file = 'blob_area_all.json'
+json_file = './jsons/test_1/blob_area.json'
+std_file = './jsons/test_1/blob_area_all.json'
 # 이미지 파일 경로를 지정합니다.
-blend_image_l = "./CAMERA_0_blender_test_image.png"
-real_image_l = "./left_frame.png"
-blend_image_r = "./CAMERA_1_blender_test_image.png"
-real_image_r = "./right_frame.png"
+blend_image_l = "./images/CAMERA_0_blender_test_image_1.png"
+real_image_l = "./images/left_frame_1.png"
+blend_image_r = "./images/CAMERA_1_blender_test_image_1.png"
+real_image_r = "./images/right_frame_1.png"
 
 # data parsing
 CAMERA_INFO = {}
@@ -1122,6 +1113,8 @@ def BA_3D_POINT():
     n_points = 0
     cam_id = 0
     for key, camera_info in CAMERA_INFO.items():
+        # print('key:', key)
+        # print('rt:', camera_info['rt'])
         if 'RE' in key:
             LR_POS = int(key.split('_')[1])
             # print('key', key)
@@ -1133,9 +1126,9 @@ def BA_3D_POINT():
             # cam_id = int(key.split('_')[-1])
 
             # Save camera parameters for each camera
-            rvec = camera_info['rt']['rvec']
-            tvec = camera_info['rt']['tvec']
-            estimated_RTs.append((rvec.ravel(), tvec.ravel()))
+            # rvec = camera_info['rt']['rvec']
+            # tvec = camera_info['rt']['tvec']
+            # estimated_RTs.append((rvec.ravel(), tvec.ravel()))
             LR_POSITION.append(LR_POS)
             LED_NUMBER.append(camera_info['led_num'])
             # Save 3D and 2D points for each LED in the current camera
@@ -1148,6 +1141,14 @@ def BA_3D_POINT():
             cam_id += 1
             # Add the number of 3D points in this camera to the total count
             n_points += len(camera_info['led_num'])
+    for key, camera_info in CAMERA_INFO.items():
+        # print('key:', key)
+        # print('rt:', camera_info['rt'])
+        if 'BL' in key:
+            # Save camera parameters for each camera
+            rvec = camera_info['rt']['rvec']
+            tvec = camera_info['rt']['tvec']
+            estimated_RTs.append((rvec.ravel(), tvec.ravel()))
 
     def fun(params, n_points, camera_indices, point_indices, points_2d, camera_params, camera_matrix):
         """Compute residuals.
@@ -1215,8 +1216,8 @@ def BA_3D_POINT():
     if ret != ERROR:
         print('data saved')
 def BA_std_test():
-    ba_data = pickle_data(READ, './result_ba.pickle', None)
-    # ba_data = pickle_data(READ, 'result_ba_3d_point.pickle', None)
+    # ba_data = pickle_data(READ, './result_ba.pickle', None)
+    ba_data = pickle_data(READ, 'result_ba_3d_point.pickle', None)
     # BA_RESULT = ba_data['BA_RESULT']
     # n_cameras = ba_data['n_cameras']
     # n_points = ba_data['n_points']
@@ -1390,7 +1391,7 @@ if __name__ == "__main__":
     print(os.getcwd())
     # triangulate_test()
     # test_result()
-    solvePnP_std_test()
-    BA()
-    # BA_3D_POINT()
+    # solvePnP_std_test()
+    # BA()
+    BA_3D_POINT()
     BA_std_test()
