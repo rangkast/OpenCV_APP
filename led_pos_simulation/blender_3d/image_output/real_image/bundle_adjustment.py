@@ -90,12 +90,12 @@ CAMERA_INFO_STRUCTURE = {
     'points3D': [],
     'points3D_N': [],
     'rt': {'rvec': [], 'tvec': []},
+    'rt_B': {'rvec': [], 'tvec': []},
     'remake_3d': [],
     'distance': []
 }
 path = './bundle_area.json'
-# Read the video
-cap_0 = cv2.VideoCapture('./CAMERA_0_blender_test.mkv')
+
 
 
 class POSE_ESTIMATION_METHOD(Enum):
@@ -304,14 +304,48 @@ def click_event(event, x, y, flags, param, frame_0, blob_area_0, trackers):
                 id = input('Please enter ID for this bbox: ')
                 trackers[id] = {'bbox': bbox, 'tracker': None}
                 draw_blobs_and_ids(frame_0, blob_area_0, trackers)
+
+
+def read_camera_log(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    # print(lines)
+    camera_params = {}
+    for line in lines:
+        parts = line.split(',')
+        frame = int(parts[0].split(':')[1].strip())
+        rvec = list(map(float, parts[1].split(':')[1].strip()[1:-1].split()))
+        tvec = list(map(float, parts[2].split(':')[1].strip()[1:-1].split()))
+        camera_params[frame] = (rvec, tvec)
+
+
+    return camera_params
+
+
 def gathering_data():
+    VIDEO = 0
     # Read the first frame
-    ret_0, frame_0 = cap_0.read()
-    if not ret_0:
-        print("Cannot read the video")
-        cap_0.release()
-        cv2.destroyAllWindows()
-        exit()
+    # Read the video
+    if VIDEO:
+        cap_0 = cv2.VideoCapture('./CAMERA_0_blender_test.mkv')
+        ret_0, frame_0 = cap_0.read()
+        if not ret_0:
+            print("Cannot read the video")
+            cap_0.release()
+            cv2.destroyAllWindows()
+            exit()
+    else:
+        camera_params = read_camera_log('C:/Users/user/tmp/render/camera_log.txt')
+
+        # Read the images
+        image_files = sorted(glob.glob('C:/Users/user/tmp/render/*.png'))
+
+        frame_0 = cv2.imread(image_files[0])
+        if frame_0 is None:
+            print("Cannot read the first image")
+            cv2.destroyAllWindows()
+            exit()
 
     _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                cv2.THRESH_TOZERO)
@@ -351,75 +385,98 @@ def gathering_data():
     cv2.destroyAllWindows()
 
     frame_cnt = 0
-    while True:
-        # Read a new frame
-        ret_0, frame_0 = cap_0.read()
-        if not ret_0:
-            break
+    if VIDEO:
+    # read the video
+        while True:
+            # Read a new frame
+            ret_0, frame_0 = cap_0.read()
+            if not ret_0:
+                break
+    # read the image
+    else:
+        while frame_cnt < len(image_files):
+            # Read a new frame
+            frame_0 = cv2.imread(image_files[frame_cnt])
+            if frame_0 is None:
+                break
 
-        _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
-                                   cv2.THRESH_TOZERO)
-        draw_frame = frame_0.copy()
-        # Update trackers
-        tracking_failed = []
-        LED_NUMBER = []
-        CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+            _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                       cv2.THRESH_TOZERO)
+            draw_frame = frame_0.copy()
 
-        for id, data in trackers.items():
-            ok, bbox = data['tracker'].update(frame_0)
-            IDX = int(id)
-            # Draw bounding box
-            if ok:
-                (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-                cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-                cv2.putText(draw_frame, f'{IDX}',  (int(bbox[0]), int(bbox[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
-                cx, cy = find_center(frame_0, (x, y, w, h))
-                LED_NUMBER.append(IDX)
-                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'].append([cx, cy])
-                CAMERA_INFO[f"{frame_cnt}"]['points3D'].append(origin_led_data[IDX])
-                CAMERA_INFO[f"{frame_cnt}"]['points3D_N'].append(noisy_led_data[IDX])
+            # Draw the filename at the top-right corner
+            if VIDEO == 0:
+                filename = os.path.basename(image_files[frame_cnt])
+                cv2.putText(draw_frame, filename, (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
+                            1)
+
+
+            # Update trackers
+            tracking_failed = []
+            LED_NUMBER = []
+            CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+
+            for id, data in trackers.items():
+                ok, bbox = data['tracker'].update(frame_0)
+                IDX = int(id)
+                # Draw bounding box
+                if ok:
+                    (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+                    cv2.putText(draw_frame, f'{IDX}',  (int(bbox[0]), int(bbox[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
+                    cx, cy = find_center(frame_0, (x, y, w, h))
+                    LED_NUMBER.append(IDX)
+                    CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'].append([cx, cy])
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D'].append(origin_led_data[IDX])
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D_N'].append(noisy_led_data[IDX])
+                else:
+                    if id not in tracking_failed:
+                        tracking_failed.append(id)
+                    cv2.putText(draw_frame, f"Tracking failure detected {', '.join(map(str, tracking_failed))}", (100, 80),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
+            # Display result
+            cv2.imshow("Tracking", draw_frame)
+
+            if len(LED_NUMBER) >= 5:
+                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
             else:
-                if id not in tracking_failed:
-                    tracking_failed.append(id)
-                cv2.putText(draw_frame, f"Tracking failure detected {', '.join(map(str, tracking_failed))}", (100, 80),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
-        # Display result
-        cv2.imshow("Tracking", draw_frame)
+                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
-        if len(LED_NUMBER) >= 5:
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-        else:
-            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+            CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
+            points2D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'], dtype=np.float64)
+            points3D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D'], dtype=np.float64)
 
-        CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
-        points2D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'], dtype=np.float64)
-        points3D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D'], dtype=np.float64)
+            INPUT_ARRAY = [
+                CAM_ID,
+                points3D,
+                points2D,
+                camera_matrix[CAM_ID][0],
+                camera_matrix[CAM_ID][1]
+            ]
+            ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+            CAMERA_INFO[f"{frame_cnt}"]['rt']['rvec'] = rvec
+            CAMERA_INFO[f"{frame_cnt}"]['rt']['tvec'] = tvec
+            if VIDEO == 0:
+                brvec, btvec = camera_params[frame_cnt + 1]
+                print('brvec:', brvec)
+                print('btvec:', btvec)
 
-        INPUT_ARRAY = [
-            CAM_ID,
-            points3D,
-            points2D,
-            camera_matrix[CAM_ID][0],
-            camera_matrix[CAM_ID][1]
-        ]
-        ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-        CAMERA_INFO[f"{frame_cnt}"]['rt']['rvec'] = rvec
-        CAMERA_INFO[f"{frame_cnt}"]['rt']['tvec'] = tvec
 
-        # print('camera_info\n', CAMERA_INFO[f"{frame_cnt}"])
+            print('camera_info\n', CAMERA_INFO[f"{frame_cnt}"])
 
-        frame_cnt += 1
-        key = cv2.waitKey(1)
-        # Exit if ESC key is
-        if key & 0xFF == ord('q'):
-            break
-        elif key & 0xFF == 27:
-            print('ESC pressed')
-            cap_0.release()
-            cv2.destroyAllWindows()
-            return ERROR
-
-    cap_0.release()
+            frame_cnt += 1
+            key = cv2.waitKey(1)
+            # Exit if ESC key is
+            if key & 0xFF == ord('q'):
+                break
+            elif key & 0xFF == 27:
+                print('ESC pressed')
+                if VIDEO:
+                    cap_0.release()
+                cv2.destroyAllWindows()
+                return ERROR
+    if VIDEO:
+        cap_0.release()
     cv2.destroyAllWindows()
     file = 'bundle_adjustment.pickle'
     data = OrderedDict()
@@ -663,6 +720,6 @@ if __name__ == "__main__":
     for i, leds in enumerate(noisy_led_data):
         print(f"{i}, {leds}")
 
-    # gathering_data()
+    gathering_data()
     # BA()
-    BA_3D_POINT()
+    # BA_3D_POINT()
