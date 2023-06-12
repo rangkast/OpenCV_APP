@@ -40,7 +40,8 @@ ERROR = -1
 DONE = 1
 NOT_SET = -1
 CAM_ID = 0
-
+undistort = 0
+# 설계값
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
@@ -58,15 +59,54 @@ origin_led_data = np.array([
     [0.03006234, 0.00378822, -0.01297127],
     [0.02000199, -0.00388647, -0.014973]
 ])
-# Set the seed for Python's random module.
-random.seed(1)
-# Set the seed for NumPy's random module.
-np.random.seed(1)
-noise_std_dev = 0.001  # Noise standard deviation. Adjust this value to your needs.
-# Generate noise with the same shape as the original data.
-noise = np.random.normal(scale=noise_std_dev, size=origin_led_data.shape)
-# Add noise to the original data.
-noisy_led_data = origin_led_data + noise
+
+target_led_data = np.array([
+     [-0.01984326, -0.004046,   -0.01434656],
+     [-0.03294307,  0.00655128, -0.01436888],
+     [-0.03518444,  0.00854664,  0.00352975],
+     [-0.04312148,  0.02837558, -0.00400151],
+     [-0.0420226,  0.03571146,  0.02102641],
+     [-0.03033573,  0.06169719,  0.01531934],
+     [-0.01452568,  0.06353915,  0.03549221],
+     [ 0.00881386,  0.0720557,   0.02114559],
+     [ 0.03082533,  0.05438898,  0.03096447],
+     [ 0.03630736,  0.05241876,  0.01153482],
+     [ 0.04196557,  0.02976763,  0.01555972],
+     [ 0.04138212,  0.02221325, -0.00395271],
+     [ 0.03189076,  0.00394939,  0.00192845],
+     [ 0.03080438,  0.00359638, -0.0138589 ],
+     [ 0.01925483, -0.00219402, -0.01492219],
+])
+
+
+# 구해야할 캘값
+target_pose_led_data = np.array([
+     [-0.01108217, -0.00278021, -0.01373098],
+     [-0.02405356,  0.00777868, -0.0116913 ],
+     [-0.02471722,  0.00820648,  0.00643996],
+     [-0.03312733,  0.02861635,  0.0013793 ],
+     [-0.02980387,  0.03374299,  0.02675826],
+     [-0.0184596,  0.06012725,  0.02233215],
+     [-0.00094422,  0.06020401,  0.04113377],
+     [ 0.02112556,  0.06993855,  0.0256014 ],
+     [ 0.04377158,  0.05148328,  0.03189337],
+     [ 0.04753083,  0.05121397,  0.01196245],
+     [ 0.0533449,  0.02829823, 0.01349697],
+     [ 0.05101214,  0.02247323, -0.00647229],
+     [ 0.04192879,  0.00376628, -0.00139432],
+     [ 0.03947314,  0.00479058, -0.01699771],
+     [ 0.02783124, -0.00088511, -0.01754906],
+])
+
+# # Set the seed for Python's random module.
+# random.seed(1)
+# # Set the seed for NumPy's random module.
+# np.random.seed(1)
+# noise_std_dev = 0.001  # Noise standard deviation. Adjust this value to your needs.
+# # Generate noise with the same shape as the original data.
+# noise = np.random.normal(scale=noise_std_dev, size=origin_led_data.shape)
+# # Add noise to the original data.
+# noisy_led_data = origin_led_data + noise
 
 camera_matrix = [
     [np.array([[712.623, 0.0, 653.448],
@@ -88,11 +128,9 @@ CAMERA_INFO_STRUCTURE = {
     'points2D': {'greysum': [], 'opencv': [], 'blender': []},
     'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
-    'points3D_N': [],
-    'rt': {'rvec': [], 'tvec': []},
-    'rt_B': {'rvec': [], 'tvec': []},
-    'remake_3d': [],
-    'distance': []
+    'points3D_target': [],
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'remake_3d': [],  'distance_o': [], 'distance_t': []},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'remake_3d': [], 'distance_o': [], 'distance_t': []},
 }
 path = './bundle_area.json'
 
@@ -304,8 +342,6 @@ def click_event(event, x, y, flags, param, frame_0, blob_area_0, trackers):
                 id = input('Please enter ID for this bbox: ')
                 trackers[id] = {'bbox': bbox, 'tracker': None}
                 draw_blobs_and_ids(frame_0, blob_area_0, trackers)
-
-
 def read_camera_log(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -321,8 +357,18 @@ def read_camera_log(file_path):
 
 
     return camera_params
-
-
+def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
+    l_rotation, _ = cv2.Rodrigues(RT_0['rvec'])
+    r_rotation, _ = cv2.Rodrigues(RT_1['rvec'])
+    l_projection = np.dot(camera_k_0, np.hstack((l_rotation, RT_0['tvec'])))
+    r_projection = np.dot(camera_k_1, np.hstack((r_rotation, RT_1['tvec'])))
+    l_blob = np.reshape(BLOB_0, (1, len(BLOB_0), 2))
+    r_blob = np.reshape(BLOB_1, (1, len(BLOB_1), 2))
+    triangulation = cv2.triangulatePoints(l_projection, r_projection,
+                                          l_blob, r_blob)
+    homog_points = triangulation.transpose()
+    get_points = cv2.convertPointsFromHomogeneous(homog_points)
+    return get_points
 def gathering_data():
     VIDEO = 0
     # Read the first frame
@@ -336,10 +382,11 @@ def gathering_data():
             cv2.destroyAllWindows()
             exit()
     else:
-        camera_params = read_camera_log('C:/Users/user/tmp/render/camera_log.txt')
+        # camera_params = read_camera_log('C:/Users/user/tmp/render/camera_log.txt')
+        # image_files = sorted(glob.glob('C:/Users/user/tmp/render/*.png'))
 
-        # Read the images
-        image_files = sorted(glob.glob('C:/Users/user/tmp/render/*.png'))
+        camera_params = read_camera_log('./tmp/render/camera_log.txt')
+        image_files = sorted(glob.glob('./tmp/render/*.png'))
 
         frame_0 = cv2.imread(image_files[0])
         if frame_0 is None:
@@ -377,7 +424,8 @@ def gathering_data():
         elif key & 0xFF == 27:
             print('ESC pressed')
             cv2.destroyAllWindows()
-            cap_0.release()
+            if VIDEO:
+                cap_0.release()
             return ERROR
 
         draw_blobs_and_ids(draw_frame, blob_area_0, trackers)
@@ -399,10 +447,10 @@ def gathering_data():
             frame_0 = cv2.imread(image_files[frame_cnt])
             if frame_0 is None:
                 break
+            draw_frame = frame_0.copy()
 
             _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                        cv2.THRESH_TOZERO)
-            draw_frame = frame_0.copy()
 
             # Draw the filename at the top-right corner
             if VIDEO == 0:
@@ -428,14 +476,12 @@ def gathering_data():
                     LED_NUMBER.append(IDX)
                     CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'].append([cx, cy])
                     CAMERA_INFO[f"{frame_cnt}"]['points3D'].append(origin_led_data[IDX])
-                    CAMERA_INFO[f"{frame_cnt}"]['points3D_N'].append(noisy_led_data[IDX])
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D_target'].append(target_led_data[IDX])
                 else:
                     if id not in tracking_failed:
                         tracking_failed.append(id)
                     cv2.putText(draw_frame, f"Tracking failure detected {', '.join(map(str, tracking_failed))}", (100, 80),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
-            # Display result
-            cv2.imshow("Tracking", draw_frame)
 
             if len(LED_NUMBER) >= 5:
                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
@@ -444,25 +490,93 @@ def gathering_data():
 
             CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
             points2D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'], dtype=np.float64)
+            # TEST
             points3D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D'], dtype=np.float64)
+
+            CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = np.array(cv2.undistortPoints(points2D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
 
             INPUT_ARRAY = [
                 CAM_ID,
                 points3D,
-                points2D,
-                camera_matrix[CAM_ID][0],
-                camera_matrix[CAM_ID][1]
+                points2D if undistort == 0 else CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'],
+                camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
             ]
             ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-            CAMERA_INFO[f"{frame_cnt}"]['rt']['rvec'] = rvec
-            CAMERA_INFO[f"{frame_cnt}"]['rt']['tvec'] = tvec
+            CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec
+            CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec
             if VIDEO == 0:
                 brvec, btvec = camera_params[frame_cnt + 1]
                 print('brvec:', brvec)
                 print('btvec:', btvec)
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = np.array(brvec).reshape(-1,1)
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = np.array(btvec).reshape(-1,1)
+                image_points, _ = cv2.projectPoints(points3D,
+                                                    np.array(brvec),
+                                                    np.array(btvec),
+                                                    camera_matrix[CAM_ID][0],
+                                                    camera_matrix[CAM_ID][1])
+                image_points = image_points.reshape(-1, 2)
+                for point in image_points:
+                    # 튜플 형태로 좌표 변환
+                    pt = (int(point[0]), int(point[1]))
+                    cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)
 
+            if frame_cnt > 0:
+                # CALC Using Blender RT
+                if undistort == 0:
+                    remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                CAMERA_INFO['0']['BLENDER']['rt'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
+                                                CAMERA_INFO['0']['points2D']['greysum'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
+                else:
+                    remake_3d = remake_3d_point(default_cameraK, default_cameraK,
+                                                CAMERA_INFO['0']['BLENDER']['rt'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
+                                                CAMERA_INFO['0']['points2D_U']['greysum'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
+                TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
+                dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_t'] = dist_diff_t
+                dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_o'] = dist_diff_o
+                if frame_cnt == 1:
+                    CAMERA_INFO['0']['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
+                    CAMERA_INFO['0']['BLENDER']['distance_t'] = dist_diff_t
+                    CAMERA_INFO['0']['BLENDER']['distance_o'] = dist_diff_o
+
+                # CALC Using OpenCV RT
+                if undistort == 0:
+                    remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                CAMERA_INFO['0']['OPENCV']['rt'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
+                                                CAMERA_INFO['0']['points2D']['greysum'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
+                else:
+                    remake_3d = remake_3d_point(default_cameraK, default_cameraK,
+                                                CAMERA_INFO['0']['OPENCV']['rt'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
+                                                CAMERA_INFO['0']['points2D_U']['greysum'],
+                                                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
+                TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
+                dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_t'] = dist_diff_t
+                dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_o'] = dist_diff_o
+                if frame_cnt == 1:
+                    CAMERA_INFO['0']['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
+                    CAMERA_INFO['0']['OPENCV']['distance_t'] = dist_diff_t
+                    CAMERA_INFO['0']['OPENCV']['distance_o'] = dist_diff_o
 
             print('camera_info\n', CAMERA_INFO[f"{frame_cnt}"])
+
+            # Display result
+            cv2.imshow("Tracking", draw_frame)
 
             frame_cnt += 1
             key = cv2.waitKey(1)
@@ -484,6 +598,91 @@ def gathering_data():
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
+
+    root = tk.Tk()
+    width_px = root.winfo_screenwidth()
+    height_px = root.winfo_screenheight()
+
+    # 모니터 해상도에 맞게 조절
+    mpl.rcParams['figure.dpi'] = 120  # DPI 설정
+    monitor_width_inches = width_px / mpl.rcParams['figure.dpi']  # 모니터 너비를 인치 단위로 변환
+    monitor_height_inches = height_px / mpl.rcParams['figure.dpi']  # 모니터 높이를 인치 단위로 변환
+
+    fig = plt.figure(figsize=(monitor_width_inches, monitor_height_inches), num='Camera Simulator')
+
+    plt.rcParams.update({'font.size': 7})
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1, 1])
+    ax1 = plt.subplot(gs[0], projection='3d')
+    ax2 = plt.subplot(gs[1])
+    led_number = len(origin_led_data)
+    ax2.set_title('distance')
+    ax2.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
+    ax2.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
+    ax2.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
+
+    # ax1 설정
+    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+    target_pts = np.array(target_led_data).reshape(-1, 3)
+    ax1.set_title('3D plot')
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.7, marker='o', s=10)
+    ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='red', alpha=0.7, marker='o', s=10)
+    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax1.set_xlim([-0.1, 0.1])
+    ax1.set_xlabel('X')
+    ax1.set_ylim([-0.1, 0.1])
+    ax1.set_ylabel('Y')
+    ax1.set_zlim([-0.1, 0.1])
+    ax1.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax1, base_scale=scale)  # 이부분은 ax1이 zoom in, zoom out 기능을 가지게 해주는 코드입니다.
+    handles1 = []
+    handles2 = []
+    labels1 = []
+    labels2 = []
+
+    for key, cam_data in CAMERA_INFO.items():
+        led_index = np.array(cam_data['led_num'])
+
+        handle = ax1.scatter(cam_data['BLENDER']['remake_3d'][:, 0], cam_data['BLENDER']['remake_3d'][:, 1],
+                             cam_data['BLENDER']['remake_3d'][:, 2], color='blue', alpha=0.5, marker='o', s=5,
+                             label='BLENDER')
+        handles1.append(handle)
+
+        handle = ax1.scatter(cam_data['OPENCV']['remake_3d'][:, 0], cam_data['OPENCV']['remake_3d'][:, 1],
+                             cam_data['OPENCV']['remake_3d'][:, 2], color='green', alpha=0.5, marker='o', s=5,
+                             label='OPENCV')
+        handles1.append(handle)
+
+        handle = ax2.scatter(led_index, np.array(cam_data['BLENDER']['distance_o']), color='red', alpha=0.5,
+                             label='BLENDER distance_o')
+        handles2.append(handle)
+
+        handle = ax2.scatter(led_index, np.array(cam_data['BLENDER']['distance_t']), color='blue', alpha=0.5,
+                             label='BLENDER distance_t')
+        handles2.append(handle)
+
+        handle = ax2.scatter(led_index, np.array(cam_data['OPENCV']['distance_o']), color='magenta', alpha=0.5,
+                             label='OPENCV distance_o')
+        handles2.append(handle)
+
+        handle = ax2.scatter(led_index, np.array(cam_data['OPENCV']['distance_t']), color='green', alpha=0.5,
+                             label='OPENCV distance_t')
+        handles2.append(handle)
+
+    # Create a dictionary to remove duplicates
+    unique1 = {handle.get_label(): handle for handle in handles1}
+    unique2 = {handle.get_label(): handle for handle in handles2}
+
+    # Unpack the keys (labels) and values (handles) back into lists
+    labels1, handles1 = zip(*unique1.items())
+    labels2, handles2 = zip(*unique2.items())
+
+    # Create legend
+    ax1.legend(handles1, labels1)
+    ax2.legend(handles2, labels2)
+
+    plt.show()
+
 def BA():
     pickle_file = 'bundle_adjustment.pickle'
     data = pickle_data(READ, pickle_file, None)
@@ -507,14 +706,15 @@ def BA():
         # cam_id = int(key.split('_')[-1])
 
         # Save camera parameters for each camera
-        rvec = camera_info['rt']['rvec']
-        tvec = camera_info['rt']['tvec']
+        rvec = camera_info['BLENDER']['rt']['rvec']
+        tvec = camera_info['BLENDER']['rt']['tvec']
         estimated_RTs.append((rvec.ravel(), tvec.ravel()))
 
         LED_NUMBER.append(camera_info['led_num'])
         # Save 3D and 2D points for each LED in the current camera
         for i in range(len(camera_info['led_num'])):
-            POINTS_3D.append(camera_info['points3D_N'][i])
+            # POINTS_3D.append(camera_info['points3D'][i])
+            POINTS_3D.append(camera_info['BLENDER']['remake_3d'][i])
             POINTS_2D.append(camera_info['points2D']['greysum'][i])
             camera_indices.append(cam_id)
             point_indices.append(len(POINTS_3D) - 1)
@@ -545,7 +745,7 @@ def BA():
             # print('T', np.array(camera_params[camera_indices][i][3:6]))
 
         points_proj = np.array(points_proj)
-        return (abs(points_proj - points_2d)).ravel()
+        return (points_proj - points_2d).ravel()
 
     def bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indices):
         m = camera_indices.size * 2
@@ -622,14 +822,15 @@ def BA_3D_POINT():
         # cam_id = int(key.split('_')[-1])
 
         # Save camera parameters for each camera
-        rvec = camera_info['rt']['rvec']
-        tvec = camera_info['rt']['tvec']
+        rvec = camera_info['BLENDER']['rt']['rvec']
+        tvec = camera_info['BLENDER']['rt']['tvec']
         estimated_RTs.append((rvec.ravel(), tvec.ravel()))
 
         LED_NUMBER.append(camera_info['led_num'])
         # Save 3D and 2D points for each LED in the current camera
         for i in range(len(camera_info['led_num'])):
-            POINTS_3D.append(camera_info['points3D_N'][i])
+            # POINTS_3D.append(camera_info['points3D'][i])
+            POINTS_3D.append(camera_info['BLENDER']['remake_3d'][i])
             POINTS_2D.append(camera_info['points2D']['greysum'][i])
             camera_indices.append(cam_id)
             point_indices.append(len(POINTS_3D) - 1)
@@ -658,7 +859,7 @@ def BA_3D_POINT():
             points_proj.append(POINT_2D_PROJ[0][0])
 
         points_proj = np.array(points_proj)
-        return (abs(points_proj - points_2d)).ravel()
+        return (points_proj - points_2d).ravel()
 
     def bundle_adjustment_sparsity(n_points, point_indices):
         m = point_indices.size * 2
@@ -716,10 +917,10 @@ if __name__ == "__main__":
     print('origin')
     for i, leds in enumerate(origin_led_data):
         print(f"{i}, {leds}")
-    print('noise')
-    for i, leds in enumerate(noisy_led_data):
+    print('target')
+    for i, leds in enumerate(target_led_data):
         print(f"{i}, {leds}")
 
     gathering_data()
     # BA()
-    # BA_3D_POINT()
+    BA_3D_POINT()
