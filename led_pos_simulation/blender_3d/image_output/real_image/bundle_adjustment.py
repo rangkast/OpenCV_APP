@@ -624,8 +624,8 @@ def gathering_data():
     origin_pts = np.array(origin_led_data).reshape(-1, 3)
     target_pts = np.array(target_led_data).reshape(-1, 3)
     ax1.set_title('3D plot')
-    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.7, marker='o', s=10)
-    ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='red', alpha=0.7, marker='o', s=10)
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='black', alpha=0.5, marker='o', s=13)
+    ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='red', alpha=0.5, marker='o', s=13)
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
     ax1.set_xlim([-0.1, 0.1])
     ax1.set_xlabel('X')
@@ -637,19 +637,16 @@ def gathering_data():
     f = zoom_factory(ax1, base_scale=scale)  # 이부분은 ax1이 zoom in, zoom out 기능을 가지게 해주는 코드입니다.
     handles1 = []
     handles2 = []
-    labels1 = []
-    labels2 = []
-
     for key, cam_data in CAMERA_INFO.items():
         led_index = np.array(cam_data['led_num'])
 
         handle = ax1.scatter(cam_data['BLENDER']['remake_3d'][:, 0], cam_data['BLENDER']['remake_3d'][:, 1],
-                             cam_data['BLENDER']['remake_3d'][:, 2], color='blue', alpha=0.5, marker='o', s=5,
+                             cam_data['BLENDER']['remake_3d'][:, 2], color='blue', alpha=0.5, marker='o', s=10,
                              label='BLENDER')
         handles1.append(handle)
 
         handle = ax1.scatter(cam_data['OPENCV']['remake_3d'][:, 0], cam_data['OPENCV']['remake_3d'][:, 1],
-                             cam_data['OPENCV']['remake_3d'][:, 2], color='green', alpha=0.5, marker='o', s=5,
+                             cam_data['OPENCV']['remake_3d'][:, 2], color='green', alpha=0.5, marker='o', s=10,
                              label='OPENCV')
         handles1.append(handle)
 
