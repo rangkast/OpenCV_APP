@@ -78,8 +78,6 @@ target_led_data = np.array([
      [ 0.01925483, -0.00219402, -0.01492219],
 ])
 
-
-# 구해야할 캘값
 target_pose_led_data = np.array([
      [-0.01108217, -0.00278021, -0.01373098],
      [-0.02405356,  0.00777868, -0.0116913 ],
@@ -371,6 +369,7 @@ def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     return get_points
 def gathering_data():
     VIDEO = 0
+    SHOW_IMG_ONLY = 1
     # Read the first frame
     # Read the video
     if VIDEO:
@@ -457,20 +456,23 @@ def gathering_data():
                 filename = os.path.basename(image_files[frame_cnt])
                 cv2.putText(draw_frame, filename, (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
                             1)
-
-
             # Update trackers
             tracking_failed = []
             LED_NUMBER = []
             CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
 
+            blob_area_0 = detect_led_lights(frame_0, 5)
+            for bbox in blob_area_0:
+                p1 = (int(bbox[0]), int(bbox[1]))
+                p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+                cv2.rectangle(draw_frame, p1, p2, (255, 255, 255), 1, 1)
             for id, data in trackers.items():
                 ok, bbox = data['tracker'].update(frame_0)
                 IDX = int(id)
                 # Draw bounding box
                 if ok:
                     (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 255, 0), 1, 1)
                     cv2.putText(draw_frame, f'{IDX}',  (int(bbox[0]), int(bbox[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
                     cx, cy = find_center(frame_0, (x, y, w, h))
                     LED_NUMBER.append(IDX)
@@ -482,96 +484,96 @@ def gathering_data():
                         tracking_failed.append(id)
                     cv2.putText(draw_frame, f"Tracking failure detected {', '.join(map(str, tracking_failed))}", (100, 80),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
-
-            if len(LED_NUMBER) >= 5:
-                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-            else:
-                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-
-            CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
-            points2D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'], dtype=np.float64)
-            # TEST
-            points3D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D'], dtype=np.float64)
-
-            CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = np.array(cv2.undistortPoints(points2D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
-
-            INPUT_ARRAY = [
-                CAM_ID,
-                points3D,
-                points2D if undistort == 0 else CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'],
-                camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-            ]
-            ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-            CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec
-            CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec
-            if VIDEO == 0:
-                brvec, btvec = camera_params[frame_cnt + 1]
-                print('brvec:', brvec)
-                print('btvec:', btvec)
-                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = np.array(brvec).reshape(-1,1)
-                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = np.array(btvec).reshape(-1,1)
-                image_points, _ = cv2.projectPoints(points3D,
-                                                    np.array(brvec),
-                                                    np.array(btvec),
-                                                    camera_matrix[CAM_ID][0],
-                                                    camera_matrix[CAM_ID][1])
-                image_points = image_points.reshape(-1, 2)
-                for point in image_points:
-                    # 튜플 형태로 좌표 변환
-                    pt = (int(point[0]), int(point[1]))
-                    cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)
-
-            if frame_cnt > 0:
-                # CALC Using Blender RT
-                if undistort == 0:
-                    remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                CAMERA_INFO['0']['BLENDER']['rt'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
-                                                CAMERA_INFO['0']['points2D']['greysum'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
+            if SHOW_IMG_ONLY == 0:
+                if len(LED_NUMBER) >= 5:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                 else:
-                    remake_3d = remake_3d_point(default_cameraK, default_cameraK,
-                                                CAMERA_INFO['0']['BLENDER']['rt'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
-                                                CAMERA_INFO['0']['points2D_U']['greysum'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
-                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
-                TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
-                dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
-                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_t'] = dist_diff_t
-                dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
-                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_o'] = dist_diff_o
-                if frame_cnt == 1:
-                    CAMERA_INFO['0']['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
-                    CAMERA_INFO['0']['BLENDER']['distance_t'] = dist_diff_t
-                    CAMERA_INFO['0']['BLENDER']['distance_o'] = dist_diff_o
+                CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
+                points2D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'], dtype=np.float64)
+                # TEST
+                points3D = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D'], dtype=np.float64)
 
-                # CALC Using OpenCV RT
-                if undistort == 0:
-                    remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                CAMERA_INFO['0']['OPENCV']['rt'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
-                                                CAMERA_INFO['0']['points2D']['greysum'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
-                else:
-                    remake_3d = remake_3d_point(default_cameraK, default_cameraK,
-                                                CAMERA_INFO['0']['OPENCV']['rt'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
-                                                CAMERA_INFO['0']['points2D_U']['greysum'],
-                                                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = np.array(cv2.undistortPoints(points2D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
 
-                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
-                TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
-                dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
-                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_t'] = dist_diff_t
-                dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
-                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_o'] = dist_diff_o
-                if frame_cnt == 1:
-                    CAMERA_INFO['0']['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
-                    CAMERA_INFO['0']['OPENCV']['distance_t'] = dist_diff_t
-                    CAMERA_INFO['0']['OPENCV']['distance_o'] = dist_diff_o
+                INPUT_ARRAY = [
+                    CAM_ID,
+                    points3D,
+                    points2D if undistort == 0 else CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'],
+                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                ]
+                ret, rvec, tvec, inliers = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec
+                if VIDEO == 0:
+                    brvec, btvec = camera_params[frame_cnt + 1]
+                    print('brvec:', brvec)
+                    print('btvec:', btvec)
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = np.array(brvec).reshape(-1,1)
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = np.array(btvec).reshape(-1,1)
+                    image_points, _ = cv2.projectPoints(points3D,
+                                                        np.array(brvec),
+                                                        np.array(btvec),
+                                                        camera_matrix[CAM_ID][0],
+                                                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+                    for point in image_points:
+                        # 튜플 형태로 좌표 변환
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)
+
+                if frame_cnt > 0:
+                    # CALC Using Blender RT
+                    if undistort == 0:
+                        remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                    CAMERA_INFO['0']['BLENDER']['rt'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
+                                                    CAMERA_INFO['0']['points2D']['greysum'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
+                    else:
+                        remake_3d = remake_3d_point(default_cameraK, default_cameraK,
+                                                    CAMERA_INFO['0']['BLENDER']['rt'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt'],
+                                                    CAMERA_INFO['0']['points2D_U']['greysum'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
+                    TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
+                    dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_t'] = dist_diff_t
+                    dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['remake_3d'], axis=1)
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['distance_o'] = dist_diff_o
+                    if frame_cnt == 1:
+                        CAMERA_INFO['0']['BLENDER']['remake_3d'] = remake_3d.reshape(-1, 3)
+                        CAMERA_INFO['0']['BLENDER']['distance_t'] = dist_diff_t
+                        CAMERA_INFO['0']['BLENDER']['distance_o'] = dist_diff_o
+
+                    # CALC Using OpenCV RT
+                    if undistort == 0:
+                        remake_3d = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                    CAMERA_INFO['0']['OPENCV']['rt'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
+                                                    CAMERA_INFO['0']['points2D']['greysum'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum']).reshape(-1, 3)
+                    else:
+                        remake_3d = remake_3d_point(default_cameraK, default_cameraK,
+                                                    CAMERA_INFO['0']['OPENCV']['rt'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt'],
+                                                    CAMERA_INFO['0']['points2D_U']['greysum'],
+                                                    CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum']).reshape(-1, 3)
+
+                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
+                    TARGET = np.array(CAMERA_INFO[f"{frame_cnt}"]['points3D_target'], dtype=np.float64)
+                    dist_diff_t = np.linalg.norm(TARGET.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
+                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_t'] = dist_diff_t
+                    dist_diff_o = np.linalg.norm(points3D.reshape(-1, 3) - CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['remake_3d'], axis=1)
+                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['distance_o'] = dist_diff_o
+                    if frame_cnt == 1:
+                        CAMERA_INFO['0']['OPENCV']['remake_3d'] = remake_3d.reshape(-1, 3)
+                        CAMERA_INFO['0']['OPENCV']['distance_t'] = dist_diff_t
+                        CAMERA_INFO['0']['OPENCV']['distance_o'] = dist_diff_o
 
             print('camera_info\n', CAMERA_INFO[f"{frame_cnt}"])
 
@@ -920,4 +922,4 @@ if __name__ == "__main__":
 
     gathering_data()
     # BA()
-    BA_3D_POINT()
+    # BA_3D_POINT()
