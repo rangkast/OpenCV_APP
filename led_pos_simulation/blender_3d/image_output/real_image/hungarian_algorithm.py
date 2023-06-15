@@ -48,3 +48,5 @@ row_ind, col_ind = linear_sum_assignment(dist_matrix)
 
 for led_num, img_coord in zip(row_ind, image_coordinates[col_ind]):
     print(f"LED 번호 {led_num + 1}는 2D 이미지 좌표 {img_coord}에 매칭됩니다.")
+
+

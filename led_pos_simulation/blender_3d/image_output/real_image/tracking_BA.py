@@ -435,7 +435,7 @@ def gathering_data():
                     1)
         LED_NUMBER = []
         CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-        blob_area_0 = detect_led_lights(frame_0, 5, 5, 500)
+        blob_area_0 = detect_led_lights(frame_0, 2, 10, 500)
         blob_centers = []
         for blob_id, bbox in enumerate(blob_area_0):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
