@@ -1,0 +1,2 @@
+/usr/bin/ar qc liblibpnp.a CMakeFiles/libpnp.dir/utils/mlibtime.cpp.o CMakeFiles/libpnp.dir/pnp_ransac.cpp.o CMakeFiles/libpnp.dir/p4p.cpp.o
+/usr/bin/ranlib liblibpnp.a
