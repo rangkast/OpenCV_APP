@@ -8,9 +8,9 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import pickle
 import gzip
+import os
 import cv2
 import glob
-import os
 import matplotlib as mpl
 import tkinter as tk
 import matplotlib.patches as patches
@@ -415,14 +415,13 @@ def view_camera_infos(frame, text, x, y):
     cv2.putText(frame, text,
                 (x, y),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
-def blob_setting():
+def blob_setting(script_dir):
     bboxes = []
-    json_file = ''.join(['./blob_area.json'])
+    json_file = os.path.join(script_dir, './blob_area.json')
     json_data = rw_json_data(READ, json_file, None)
     if json_data != ERROR:
         bboxes = json_data['bboxes']
-
-    image_files = sorted(glob.glob('./tmp/render/*.png'))
+    image_files = sorted(glob.glob(os.path.join(script_dir, './tmp/render/*.png')))
     frame_0 = cv2.imread(image_files[0])
     if frame_0 is None:
         print("Cannot read the first image")
@@ -535,9 +534,9 @@ def gathering_data_multi(bboxes):
                     break
 
     cv2.destroyAllWindows()
-def gathering_data_single(bboxes):
-    camera_params = read_camera_log('./tmp/render/camera_log.txt')
-    image_files = sorted(glob.glob('./tmp/render/*.png'))
+def gathering_data_single(script_dir, bboxes):
+    camera_params = read_camera_log(os.path.join(script_dir, './tmp/render/camera_log.txt'))
+    image_files = sorted(glob.glob(os.path.join(script_dir, './tmp/render/*.png')))
     BLOB_SIZE = 50
     THRESHOLD_DISTANCE = 5
     frame_cnt = 0
@@ -650,6 +649,8 @@ def gathering_data_single(bboxes):
 
 
 if __name__ == "__main__":
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
     print('origin')
     for i, leds in enumerate(origin_led_data):
@@ -659,5 +660,6 @@ if __name__ == "__main__":
         print(f"{i}, {leds}")
 
     # trackers = init_blob_area()
-    bboxes = blob_setting()
-    gathering_data_single(bboxes)
+    
+    bboxes = blob_setting(script_dir)
+    gathering_data_single(script_dir, bboxes)
