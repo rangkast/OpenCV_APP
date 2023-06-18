@@ -1,4 +1,9 @@
 import sys
-sys.path.append('extensions/')  # .so 파일이 있는 디렉토리를 sys.path에 추가합니다.
+import os
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.realpath(__file__))
+# Add the directory containing poselib to the module search path
+sys.path.append('EXTERNALS')
 
 import lamda_pnp_solver
