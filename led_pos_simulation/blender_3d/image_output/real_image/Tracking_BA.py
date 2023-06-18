@@ -42,6 +42,7 @@ NOT_SET = -1
 CAM_ID = 0
 undistort = 0
 # 설계값
+# TEST code
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
