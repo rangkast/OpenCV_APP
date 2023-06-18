@@ -8,9 +8,9 @@ from collections import OrderedDict
 from dataclasses import dataclass
 import pickle
 import gzip
+import os
 import cv2
 import glob
-import os
 import matplotlib as mpl
 import tkinter as tk
 import matplotlib.patches as patches
@@ -42,6 +42,7 @@ NOT_SET = -1
 CAM_ID = 0
 undistort = 0
 # 설계값
+# TEST code
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
@@ -131,9 +132,7 @@ CAMERA_INFO_STRUCTURE = {
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'remake_3d': [], 'distance_o': [], 'distance_t': []},
 }
 path = './bundle_area.json'
-
-
-
+trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 class POSE_ESTIMATION_METHOD(Enum):
     # Opencv legacy
     SOLVE_PNP_RANSAC = auto()
@@ -270,12 +269,9 @@ def find_center(frame, SPEC_AREA):
         g_c_y = y_sum / t_sum
 
     if g_c_x == 0 or g_c_y == 0:
-        return 0, 0
+        return 0, 0, 0
 
-    result_data_str = f'{g_c_x} ' + f'{g_c_y}'
-    # print(result_data_str)
-
-    return g_c_x, g_c_y
+    return g_c_x, g_c_y, m_count
 def detect_led_lights(image, padding=5, min_area=100, max_area=1000):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
@@ -297,13 +293,13 @@ def detect_led_lights(image, padding=5, min_area=100, max_area=1000):
     return blob_info
 def point_in_bbox(x, y, bbox):
     return bbox[0] <= x <= bbox[0] + bbox[2] and bbox[1] <= y <= bbox[1] + bbox[3]
-def draw_blobs_and_ids(frame, blobs, trackers):
+def draw_blobs_and_ids(frame, blobs, bboxes):
     for bbox in blobs:
         p1 = (int(bbox[0]), int(bbox[1]))
         p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
         cv2.rectangle(frame, p1, p2, (255, 0, 0), 1, 1)
-    for id, data in trackers.items():
-        cv2.putText(frame, f'{id}',  (int(data['bbox'][0]), int(data['bbox'][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
+    for box in bboxes:
+        cv2.putText(frame, f"{box['idx']}", (int(box['bbox'][0]), int(box['bbox'][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 1)
 def rw_json_data(rw_mode, path, data=None):
     try:
         if rw_mode == READ:
@@ -339,13 +335,13 @@ def init_trackers(trackers, frame):
         tracker = cv2.TrackerCSRT_create()
         ok = tracker.init(frame, data['bbox'])
         data['tracker'] = tracker
-def click_event(event, x, y, flags, param, frame_0, blob_area_0, trackers):
+def click_event(event, x, y, flags, param, frame_0, blob_area_0, bboxes):
     if event == cv2.EVENT_LBUTTONDOWN:
         for i, bbox in enumerate(blob_area_0):
             if point_in_bbox(x, y, bbox):
-                id = input('Please enter ID for this bbox: ')
-                trackers[id] = {'bbox': bbox, 'tracker': None}
-                draw_blobs_and_ids(frame_0, blob_area_0, trackers)
+                input_number = input('Please enter ID for this bbox: ')
+                bboxes.append({'idx': input_number, 'bbox': bbox})
+                draw_blobs_and_ids(frame_0, blob_area_0, bboxes)
 def read_camera_log(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -373,8 +369,60 @@ def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
     homog_points = triangulation.transpose()
     get_points = cv2.convertPointsFromHomogeneous(homog_points)
     return get_points
-def gathering_data():
-    image_files = sorted(glob.glob('./tmp/render/*.png'))
+def mapping_id_blob(blob_centers, tcx, tcy):
+    # Find blobs at the same position as the tracker
+    same_position_blob = [
+        (idx, math.sqrt((blob_centers[idx][0] - tcx) ** 2 + (blob_centers[idx][1] - tcy) ** 2)) for
+        idx in range(len(blob_centers))]
+    same_position_blob.sort(key=lambda x: x[1])
+    if same_position_blob:
+        # if the distance is within a certain threshold
+        # Find blobs to the right of the tracker and sort them by their distances from the tracker
+        led_candidates = [(idx,
+                           blob_centers[idx][0],
+                           blob_centers[idx][1],  # adding y coordinate
+                           math.sqrt((blob_centers[idx][0] - tcx) ** 2 + (blob_centers[idx][1] - tcy) ** 2))
+                          for idx in range(len(blob_centers)) if blob_centers[idx][0]]
+        led_candidates.sort(key=lambda x: x[3])  # remember to change the sort key as well
+
+        return led_candidates
+def createTrackerByName(trackerType):
+    # Create a tracker based on tracker name
+    if trackerType == trackerTypes[0]:
+        tracker = cv2.legacy.TrackerBoosting_create()
+    elif trackerType == trackerTypes[1]:
+        tracker = cv2.legacy.TrackerMIL_create()
+    elif trackerType == trackerTypes[2]:
+        tracker = cv2.legacy.TrackerKCF_create()
+    elif trackerType == trackerTypes[3]:
+        tracker = cv2.legacy.TrackerTLD_create()
+    elif trackerType == trackerTypes[4]:
+        tracker = cv2.legacy.TrackerMedianFlow_create()
+    elif trackerType == trackerTypes[5]:
+        tracker = cv2.legacy.TrackerGOTURN_create()
+    elif trackerType == trackerTypes[6]:
+        tracker = cv2.TrackerMOSSE_create()
+    elif trackerType == trackerTypes[7]:
+        tracker = cv2.legacy.TrackerCSRT_create()
+    else:
+        tracker = None
+        print('Incorrect tracker name')
+        print('Available trackers are:')
+        for t in trackerTypes:
+            print(t)
+
+    return tracker
+def view_camera_infos(frame, text, x, y):
+    cv2.putText(frame, text,
+                (x, y),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
+def blob_setting(script_dir):
+    bboxes = []
+    json_file = os.path.join(script_dir, './blob_area.json')
+    json_data = rw_json_data(READ, json_file, None)
+    if json_data != ERROR:
+        bboxes = json_data['bboxes']
+    image_files = sorted(glob.glob(os.path.join(script_dir, './tmp/render/*.png')))
     frame_0 = cv2.imread(image_files[0])
     if frame_0 is None:
         print("Cannot read the first image")
@@ -384,42 +432,48 @@ def gathering_data():
     _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                cv2.THRESH_TOZERO)
     draw_frame = frame_0.copy()
-    prev_data = rw_json_data(READ, path)
-    if prev_data != ERROR:
-        trackers = prev_data
-        init_trackers(trackers, frame_0)
-    else:
-        trackers = {}
-    blob_area_0 = detect_led_lights(draw_frame, 5, 5, 500)
+    blob_area = detect_led_lights(draw_frame, 5, 5, 500)
     cv2.namedWindow('image')
-    partial_click_event = functools.partial(click_event, frame_0=frame_0, blob_area_0=blob_area_0, trackers=trackers)
+    partial_click_event = functools.partial(click_event, frame_0=frame_0, blob_area_0=blob_area, bboxes=bboxes)
     cv2.setMouseCallback('image', partial_click_event)
+
     while True:
         key = cv2.waitKey(1)
-        if key & 0xFF == ord('q'):
-            break
-        elif key & 0xFF == ord('c'):
-            trackers = {}
-            draw_frame = frame_0.copy()
-        elif key & 0xFF == ord('s'):
-            save_data = {id: {'bbox': data['bbox']} for id, data in trackers.items()}
-            rw_json_data(WRITE, path, save_data)
-            init_trackers(trackers, frame_0)
+        if key == ord('c'):
+            print('clear area')
+            bboxes.clear()
+        elif key == ord('s'):
+            print('save blob area')
+            json_data = OrderedDict()
+            json_data['bboxes'] = bboxes
+            # Write json data
+            rw_json_data(WRITE, json_file, json_data)
+
         elif key & 0xFF == 27:
             print('ESC pressed')
             cv2.destroyAllWindows()
-            return ERROR
+            return
 
-        draw_blobs_and_ids(draw_frame, blob_area_0, trackers)
+        elif key == ord('q'):
+            print('go next step')
+            break
+
+        draw_blobs_and_ids(draw_frame, blob_area, bboxes)
         cv2.imshow('image', draw_frame)
     cv2.destroyAllWindows()
 
-    THRESHOLD_DISTANCE = 10  # Define your threshold distance here
-    previous_positions = {}  # Store the previous positions of the trackers
+    return bboxes
+def gathering_data_multi(bboxes):
+    camera_params = read_camera_log('./tmp/render/camera_log.txt')
+    image_files = sorted(glob.glob('./tmp/render/*.png'))
+    BLOB_SIZE = 100
     frame_cnt = 0
 
-    last_led_number = int(next(iter(trackers)))
-    print('last_led_number:', last_led_number)
+    trackerType = "CSRT"
+    # Create MultiTracker object
+    multiTracker = cv2.legacy.MultiTracker_create()
+
+    tracker_start = 0
 
     while frame_cnt < len(image_files):
         frame_0 = cv2.imread(image_files[frame_cnt])
@@ -430,118 +484,43 @@ def gathering_data():
         draw_frame = frame_0.copy()
         _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
-        filename = os.path.basename(image_files[frame_cnt])
-        cv2.putText(draw_frame, filename, (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255),
-                    1)
-        LED_NUMBER = []
-        CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-        blob_area_0 = detect_led_lights(frame_0, 2, 10, 500)
+        cv2.putText(draw_frame, os.path.basename(image_files[frame_cnt]), (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1)
+
+        blob_area = detect_led_lights(frame_0, 5, 5, 500)
         blob_centers = []
-        for blob_id, bbox in enumerate(blob_area_0):
+
+        # Find Blob Area with findContours
+        for blob_id, bbox in enumerate(blob_area):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+            gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
+            # cv2.putText(draw_frame, f"{int(gcx)},{int(gcy)},{gsize}", (x, y + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+            if gsize < BLOB_SIZE:
+                continue
             cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-            gcx, gcy = find_center(frame_0, (x, y, w, h))
-            blob_centers.append((gcx, gcy))
-            cv2.putText(draw_frame, f'{blob_id}', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                        (255, 255, 255), 1)
+            blob_centers.append((gcx, gcy, bbox))
 
-        tracking_success = False
-        # Make a copy of the trackers dictionary
-        trackers_copy = trackers.copy()
 
-        print('frame_cnt:', frame_cnt)
-        print('trackers_copy:', trackers_copy)
-        print('1.previous_positions:', previous_positions)
-        for id, data in trackers_copy.items():
-            ok, bbox = data['tracker'].update(frame_0)
-            IDX = int(id)
-            if ok:
-                (tx, ty, tw, th) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-                cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
-                cv2.putText(draw_frame, f'{IDX}', (int(bbox[0]), int(bbox[1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
-                            (0, 255, 0), 1)
-                tcx, tcy = find_center(frame_0, (tx, ty, tw, th))
-                # Check if the current position is far from the previous position
-                if id in previous_positions:
-                    dx = previous_positions[id][0] - tcx
-                    dy = previous_positions[id][1] - tcy
-                    euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
-                    if euclidean_distance > THRESHOLD_DISTANCE:
-                        del trackers[id]
-                        del previous_positions[id]
+        # Initialize MultiTracker
+        if tracker_start == 0:
+            for i, data in enumerate(bboxes):
+                multiTracker.add(createTrackerByName(trackerType), frame_0, data['bbox'])
 
-                        PREV_LED_NUMBER = CAMERA_INFO[f"{frame_cnt - 1}"]['led_num']
-                        (last_led_number_area, last_led_number, last_points) = copy.deepcopy(PREV_LED_NUMBER[2])
+        tracker_start = 1
+        # get updated location of objects in subsequent frames
+        qq, boxes = multiTracker.update(frame_0)
 
-                        print('number,area:', last_led_number, last_led_number_area, euclidean_distance, last_points)
-                        if last_led_number >= 0:
+        # draw tracked objects
+        for i, newbox in enumerate(boxes):
+            p1 = (int(newbox[0]), int(newbox[1]))
+            p2 = (int(newbox[0] + newbox[2]), int(newbox[1] + newbox[3]))
+            cv2.rectangle(draw_frame, p1, p2, (0, 255, 0), 1)
+            IDX = bboxes[i]['idx']
+            view_camera_infos(draw_frame, ''.join([f'{IDX}']), int(newbox[0]), int(newbox[1]) - 10)
 
-                            print('blob_centers:', blob_centers)
-                            # Get the coordinates of the last point
-                            last_x, last_y = last_points
-                            # Calculate Euclidean distances from the last point to all blob centers
-                            distances = [np.sqrt((x - last_x) ** 2 + (y - last_y) ** 2) for x, y in blob_centers]
-                            # Get the index of the blob center with the smallest distance
-                            closest_blob_index = np.argmin(distances)
-                            # Get the bounding box of the closest blob
-                            led_bbox = blob_area_0[closest_blob_index]
-
-                            trackers[last_led_number] = {'bbox': led_bbox, 'tracker': None}
-                            init_trackers(trackers, frame_0)
-
-                        print('trackers:', trackers)
-                        ntcx, ntcy = find_center(frame_0, led_bbox)
-                        previous_positions[last_led_number] = (ntcx, ntcy)
-                        # print('2.previous_positions:', previous_positions)
-
-                        break
-
-                # Save the current position for the next frame
-                previous_positions[id] = (tcx, tcy)
-                tracking_success = True
-                print(f"IDX {IDX}, last_led_number {last_led_number}")
-                if IDX == last_led_number:  # Using the dynamic last LED number
-                    # Find blobs at the same position as the tracker
-                    same_position_blob = [
-                        (idx, math.sqrt((blob_centers[idx][0] - tcx) ** 2 + (blob_centers[idx][1] - tcy) ** 2)) for
-                        idx in range(len(blob_area_0))]
-                    same_position_blob.sort(key=lambda x: x[1])
-
-                    print('same_position_blob:', same_position_blob)
-                    if same_position_blob:
-                        _, dist_tracker_blob = same_position_blob[0]
-                        # if the distance is within a certain threshold
-                        if dist_tracker_blob < 1:  # assuming 1 as threshold distance
-                            # Find blobs to the right of the tracker and sort them by their distances from the tracker
-                            led_candidates = [(idx, blob_centers[idx][0],
-                                               math.sqrt((blob_centers[idx][0] - tcx) ** 2 + (
-                                                           blob_centers[idx][1] - tcy) ** 2))
-                                              for idx in range(len(blob_area_0)) if blob_centers[idx][0] > tcx]
-                            led_candidates.sort(key=lambda x: x[2])
-
-                            # Assign LED numbers in descending order from the closest blob
-                            for i in range(min(3, len(led_candidates))):
-                                if last_led_number - i - 1 >= 0:  # Ensuring the LED number doesn't go below 11
-                                    LED_NUMBER.append((blob_area_0[led_candidates[i][0]],
-                                                       last_led_number - i - 1, blob_centers[i]))  # LEDs to the right of the tracker
-                    else:
-                        print('same_pos_not_found:', same_position_blob)
-
-        for led_area, number, points in LED_NUMBER:
-            (x, y, w, h) = led_area
-            cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)  # Draw box in red for selected LEDs
-            cv2.putText(draw_frame, f'{number}', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 1)  # Draw LED number in red
-
-        if not tracking_success:  # If no trackers are successfully updated, break the loop
-            continue
-
-        print('LED_NUMBER:', LED_NUMBER)
-        CAMERA_INFO[f"{frame_cnt}"]['led_num'] = LED_NUMBER
-
-        # print('camera_info\n', CAMERA_INFO[f"{frame_cnt}"])
-        cv2.imshow("Tracking", draw_frame)
         frame_cnt += 1
-        key = cv2.waitKey(100)
+
+        cv2.imshow("Tracking", draw_frame)
+        key = cv2.waitKey(16)
         # Exit if ESC key is
         if key & 0xFF == ord('q'):
             break
@@ -549,10 +528,130 @@ def gathering_data():
             print('ESC pressed')
             cv2.destroyAllWindows()
             return ERROR
+        elif key & 0xFF == ord('c'):
+            while True:
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'):
+                    break
+
+    cv2.destroyAllWindows()
+def gathering_data_single(script_dir, bboxes):
+    camera_params = read_camera_log(os.path.join(script_dir, './tmp/render/camera_log.txt'))
+    image_files = sorted(glob.glob(os.path.join(script_dir, './tmp/render/*.png')))
+    BLOB_SIZE = 50
+    THRESHOLD_DISTANCE = 5
+    frame_cnt = 0
+    CURR_TRACKER = {}
+    PREV_TRACKER = {}
+    print('bboxes:', bboxes)
+    if bboxes is None:
+        return
+    CURR_TRACKER[bboxes[0]['idx']] = {'bbox': bboxes[0]['bbox'], 'tracker': None}
+    TRACKING_START = NOT_SET
+
+    while frame_cnt < len(image_files):
+        frame_0 = cv2.imread(image_files[frame_cnt])
+        if frame_0 is None or frame_0.size == 0:
+            print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
+            continue
+
+        draw_frame = frame_0.copy()
+        _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                   cv2.THRESH_TOZERO)
+        cv2.putText(draw_frame, os.path.basename(image_files[frame_cnt]), (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 1)
+        blob_area = detect_led_lights(frame_0, 5, 5, 500)
+        if TRACKING_START == NOT_SET:
+            init_trackers(CURR_TRACKER, frame_0)
+        TRACKING_START = DONE
+
+        CURR_TRACKER_CPY = CURR_TRACKER.copy()
+        blob_centers = []
+        print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
+
+        # Find Blob Area with findContours
+        for blob_id, bbox in enumerate(blob_area):
+            (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+            gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
+            if gsize < BLOB_SIZE:
+                continue
+            cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+            cv2.putText(draw_frame, f"{len(blob_centers)}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            blob_centers.append((gcx, gcy, bbox))
+
+
+        if len(CURR_TRACKER_CPY) > 0:
+            Tracking_ANCHOR, Tracking_DATA = list(CURR_TRACKER_CPY.items())[0]
+            ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
+            if ret:
+                cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
+                cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
+                # cv2.putText(draw_frame, f"{int(tcx)},{int(tcy)},{tsize}", (tx, ty + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+
+                if Tracking_ANCHOR in PREV_TRACKER:
+                    dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
+                    dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
+                    euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
+                    if euclidean_distance > THRESHOLD_DISTANCE or tsize < BLOB_SIZE:
+                        print('euclidean_distance:', euclidean_distance, ' tsize:', tsize)
+                        print('CUR_txy:', tcx, tcy)
+                        print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
+                        curr_pos_candidates = mapping_id_blob(blob_centers, tcx, tcy)
+                        prev_pos_candidates = mapping_id_blob(blob_centers, PREV_TRACKER[Tracking_ANCHOR][0], PREV_TRACKER[Tracking_ANCHOR][1])
+                        print('curr_pos_candidates:', curr_pos_candidates[0])
+                        print('prev_pos_candidates:', prev_pos_candidates[0])
+                        for bid, data in enumerate(blob_centers):
+                            print(bid, ':', data)
+
+                        del CURR_TRACKER[Tracking_ANCHOR]
+                        del PREV_TRACKER[Tracking_ANCHOR]
+                        print(f"tracker[{Tracking_ANCHOR}] deleted")
+
+                        cv2.imshow("Tracking", draw_frame)
+                        while True:
+                            key = cv2.waitKey(1)
+                            if key & 0xFF == ord('q'):
+                                break
+                        continue
+
+                led_candidates = mapping_id_blob(blob_centers, tcx, tcy)
+                if led_candidates != ERROR:
+                    for i in range(min(3, len(led_candidates))):
+                        if int(Tracking_ANCHOR) - i - 1 >= 0:
+                            NEW_BLOB_ID = int(Tracking_ANCHOR) - i - 1
+                            (cx, cy, cw, ch) = blob_centers[led_candidates[i][0]][2]
+                            cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (0, 0, 255), 1, 1)
+                            cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                        (0, 0, 255), 1)
+                PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy)
+
+            else:
+                print('tracking failed')
+                break
+
+        frame_cnt += 1
+
+        cv2.imshow("Tracking", draw_frame)
+        key = cv2.waitKey(16)
+        # Exit if ESC key is
+        if key & 0xFF == ord('q'):
+            break
+        elif key & 0xFF == 27:
+            print('ESC pressed')
+            cv2.destroyAllWindows()
+            return ERROR
+        elif key & 0xFF == ord('c'):
+            while True:
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('q'):
+                    break
+
     cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
     print('origin')
     for i, leds in enumerate(origin_led_data):
@@ -561,4 +660,7 @@ if __name__ == "__main__":
     for i, leds in enumerate(target_led_data):
         print(f"{i}, {leds}")
 
-    gathering_data()
+    # trackers = init_blob_area()
+    
+    bboxes = blob_setting(script_dir)
+    gathering_data_single(script_dir, bboxes)
