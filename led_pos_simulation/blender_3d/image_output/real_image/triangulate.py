@@ -32,25 +32,25 @@ from scipy.optimize import least_squares
 from scipy.sparse import lil_matrix
 
 
-origin_led_data = np.array([
-    [-0.02146761, -0.00338068, -0.01452609],
-    [-0.0318701,  0.0056534,  -0.01280416],
-    [-0.03692925,  0.00851113,  0.00131286],
-    [-0.04287211,  0.02633948, -0.00218811],
-    [-0.04170018,  0.0351938,   0.0201169 ],
-    [-0.02923584,  0.0621018,   0.01633358],
-
-])
 # origin_led_data = np.array([
-#     [-0.021694, - 0.00343949, - 0.01382317],
-#     [-0.03214488,  0.00565171, -0.01205724],
-#     [-0.03664481,  0.00933376,  0.00323258],
-#     [-0.04251254,  0.02695509, -0.00198855],
-#     [-0.04160133, 0.03601583,  0.01995078],
-#     [-0.02816196,  0.06226372,  0.01623387],
+#     [-0.02146761, -0.00338068, -0.01452609],
+#     [-0.0318701,  0.0056534,  -0.01280416],
+#     [-0.03692925,  0.00851113,  0.00131286],
+#     [-0.04287211,  0.02633948, -0.00218811],
+#     [-0.04170018,  0.0351938,   0.0201169 ],
+#     [-0.02923584,  0.0621018,   0.01633358],
 #
 # ])
+origin_led_data = np.array([
+    [-0.021694, - 0.00343949, - 0.01382317],
+    [-0.03214488,  0.00565171, -0.01205724],
+    [-0.03664481,  0.00933376,  0.00323258],
+    [-0.04251254,  0.02695509, -0.00198855],
+    [-0.04160133, 0.03601583,  0.01995078],
+    [-0.02816196,  0.06226372,  0.01623387],
 
+])
+#
 # origin_led_data = np.array([
 #     [-0.02146761, -0.00343424, -0.01381839],
 #     [-0.0318701, 0.00568587, -0.01206734],
@@ -119,11 +119,19 @@ undistort = 1
 
 json_file = './jsons/test_1/blob_area.json'
 std_file = './jsons/test_1/blob_area_all.json'
-# 이미지 파일 경로를 지정합니다.
 blend_image_l = "./images/CAMERA_0_blender_test_image_1.png"
 real_image_l = "./images/left_frame_1.png"
 blend_image_r = "./images/CAMERA_1_blender_test_image_1.png"
 real_image_r = "./images/right_frame_1.png"
+
+
+# json_file = './jsons/test_2/blob_area.json'
+# std_file = './jsons/test_2/blob_area_all.json'
+# blend_image_l = "./images/CAMERA_0_blender_test_image_2.png"
+# real_image_l = "./images/left_frame_2.png"
+# blend_image_r = "./images/CAMERA_1_blender_test_image_2.png"
+# real_image_r = "./images/right_frame_2.png"
+
 
 # data parsing
 CAMERA_INFO = {}
@@ -871,6 +879,7 @@ def solvePnP_std_test():
     # 모델과 카메라 ID별로 rvec, tvec 값 저장할 딕셔너리 초기화
     rvecs = {}
     tvecs = {}
+
     while True:
         B_img_l = cv2.imread(blend_image_l)
         B_img_r = cv2.imread(blend_image_r)
@@ -904,6 +913,31 @@ def solvePnP_std_test():
             ax2.imshow(IMG_GRAY_BL, cmap='gray')
             ax3.set_title('Projection RE')
             ax3.imshow(IMG_GRAY_RE, cmap='gray')
+
+            rvecs_RE_0 = []
+            tvecs_RE_0 = []
+
+            for keys, cam_data in CAMERA_INFO.items():
+                model_cam_id = keys.split('-')[1]  # 'BL_0', 'BL_1', 'RE_0', 'RE_1' 등 추출
+                if model_cam_id == 'RE_0':
+                    rvec = cam_data['rt']['rvec']  # rvec 벡터 계산
+                    tvec = cam_data['rt']['tvec']  # tvec 벡터 계산
+                    rvecs_RE_0.append(rvec)
+                    tvecs_RE_0.append(tvec)
+
+            # 'RE_0'에 해당하는 rvec과 tvec 값들을 출력하고, 각 인자별로 평균값을 계산
+            rvecs_RE_0 = np.array(rvecs_RE_0)
+            tvecs_RE_0 = np.array(tvecs_RE_0)
+
+            print("rvecs for 'RE_0':", rvecs_RE_0)
+            print("tvecs for 'RE_0':", tvecs_RE_0)
+
+            # 평균값 계산
+            rvecs_RE_0_mean = np.mean(rvecs_RE_0, axis=0)
+            tvecs_RE_0_mean = np.mean(tvecs_RE_0, axis=0)
+
+            print("Average rvec for 'RE_0':", rvecs_RE_0_mean.flatten())
+            print("Average tvec for 'RE_0':", tvecs_RE_0_mean.flatten())
 
             for keys, cam_data in CAMERA_INFO.items():
                 cam_id = int(keys.split('_')[1])
@@ -946,6 +980,7 @@ def solvePnP_std_test():
 
             # 각 모델과 카메라 ID에 대해 rvec, tvec의 평균과 표준편차 계산
             for idx, model_cam_id in enumerate(rvecs.keys()):
+
                 rvec_arr = np.array(rvecs[model_cam_id])
                 tvec_arr = np.array(tvecs[model_cam_id])
                 rvec_mean = np.mean(rvec_arr)
@@ -965,12 +1000,12 @@ def solvePnP_std_test():
 
     cv2.destroyAllWindows()
 
-    # file = 'rt_std.pickle'
-    # data = OrderedDict()
-    # data['CAMERA_INFO'] = CAMERA_INFO
-    # ret = pickle_data(WRITE, file, data)
-    # if ret != ERROR:
-    #     print('data saved')
+    file = 'rt_std.pickle'
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
 def BA():
     pickle_file = 'rt_std.pickle'
     data = pickle_data(READ, pickle_file, None)
