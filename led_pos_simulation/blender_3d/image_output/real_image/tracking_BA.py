@@ -471,8 +471,8 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
                     else:
                         BLOB_ID = POSITION_SEARCH
                         # Skip the id if it is marked as missing in the blob_status dictionary
-                        if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
-                            BLOB_ID = -1
+                        # if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
+                        #     BLOB_ID = -1
                         break
                 elif status == BOTTOM:
                     if temp_id != BOTTOM:
@@ -480,8 +480,8 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
                     else:
                         BLOB_ID = POSITION_SEARCH
                         # Skip the id if it is marked as missing in the blob_status dictionary
-                        if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
-                            BLOB_ID = -1
+                        # if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
+                        #     BLOB_ID = -1
                         break
         return BLOB_ID                
     # Insert Blob ID here
