@@ -39,12 +39,14 @@ import pprint
 from sklearn.decomposition import PCA
 from scipy.spatial.transform import Rotation as R
 from data_class import *
+from itertools import combinations, permutations
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
 print(script_dir)
 sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
+# poselib only working in LINUX or WSL (window )
 import poselib
 
 READ = 0
@@ -71,6 +73,42 @@ HOPPING_CNT = 2
 BLOB_CNT = 15
 camera_log_path = "./tmp/render/camera_log.txt"
 camera_img_path = "./tmp/render/"
+
+calibrated_led_data_PCA = np.array([
+    [-0.01877262, -0.00452623, -0.01352097],
+    [-0.03336187, 0.0065097, -0.01435915],
+    [-0.03396993, 0.00784779, 0.00479474],
+    [-0.04319664, 0.02852955, -0.00390652],
+    [-0.04187346, 0.03518956, 0.02260948],
+    [-0.03078489, 0.06120705, 0.01559879],
+    [-0.01422014, 0.06373706, 0.03533373],
+    [0.00931506, 0.07250631, 0.0214917],
+    [0.0314761, 0.05412158, 0.03063118],
+    [0.03573392, 0.05229837, 0.01156705],
+    [0.04169767, 0.0297437, 0.01498933],
+    [0.04078753, 0.02192572, -0.00403997],
+    [0.03120371, 0.00398597, 0.00283019],
+    [0.03103517, 0.0035018, -0.01407839],
+    [0.0190811, -0.00160445, -0.01450876],
+])
+
+calibrated_led_data_IQR = np.array([
+    [-0.01882079, -0.00453099, -0.01353282],
+    [-0.03344758, 0.00651409, -0.01437504],
+    [-0.03396893, 0.00784552, 0.00479117],
+    [-0.04320414, 0.02853483, -0.00391307],
+    [-0.04186971, 0.03518948, 0.0226095],
+    [-0.03080832, 0.06120029, 0.01558957],
+    [-0.01421201, 0.06372101, 0.03533532],
+    [0.00935991, 0.07247287, 0.02147127],
+    [0.0314523, 0.05414508, 0.03065527],
+    [0.03573327, 0.05228266, 0.01156364],
+    [0.04169618, 0.02972643, 0.01499662],
+    [0.04076925, 0.02189879, -0.00404007],
+    [0.03147189, 0.00411067, 0.00289948],
+    [0.03103653, 0.00348794, -0.01408463],
+    [0.01896287, -0.0016252, -0.0145338],
+])
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -152,13 +190,14 @@ default_cameraK = np.eye(3).astype(np.float64)
 blob_status = [[0, 'new'] for _ in range(BLOB_CNT)]
 CAMERA_INFO = {}
 CAMERA_INFO_STRUCTURE = {
-    'led_num': [],
+    'LED_NUMBER': [],
     'points2D': {'greysum': [], 'opencv': [], 'blender': []},
     'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
-    'points3D_target': [],
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'remake_3d': [], 'distance_o': [], 'distance_t': []},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'remake_3d': [], 'distance_o': [], 'distance_t': []},
+    'points3D_PCA': [],
+    'points3D_IQR': [],
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
 }
 BLOB_INFO = {}
 BLOB_INFO_STRUCTURE = {
@@ -1010,8 +1049,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
         height, width = frame_0.shape
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
-        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
-        
+        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)        
         # print('CURR_TRACKER', CURR_TRACKER)
 
         if TRACKING_START == NOT_SET:
@@ -1044,7 +1082,6 @@ def gathering_data_single(ax1, script_dir, bboxes):
 
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
         # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
-
 
         if len(CURR_TRACKER_CPY) > 0:
             brvec, btvec = camera_params[frame_cnt + 1]
@@ -1090,10 +1127,8 @@ def gathering_data_single(ax1, script_dir, bboxes):
                                         break
                                 break
 
-
                     PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
                     led_candidates_left, led_candidates_right = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER) 
-
 
                     for i in range(len(led_candidates_left)):
                         NEW_BLOB_ID = led_candidates_left[i][4]
@@ -1118,8 +1153,6 @@ def gathering_data_single(ax1, script_dir, bboxes):
                         points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
                         TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_right[i][0]][0], blob_centers[led_candidates_right[i][0]][1]],
                         'U': points2D_U}
-
-
                 else:
                     print(f"No tracker initialized for id: {Tracking_ANCHOR}")
                     break
@@ -1130,30 +1163,49 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 continue
 
             # Algorithm Added
+            CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
             LED_NUMBER = []
             points2D = []
+            points2D_U = []
             points3D = []
+            
+            # TEST CODE
+            points3D_PCA = []
+            points3D_IQR = []            
+            
             TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
             for blob_id, blob_data in TEMP_BLOBS.items():
                 LED_NUMBER.append(int(blob_id))
-                if undistort == 0:
-                    points2D.append(blob_data['D'])
-                else:
-                    points2D.append(blob_data['U'])
-                points3D.append(origin_led_data[int(blob_id)])
+                points2D.append(blob_data['D'])
+                points2D_U.append(blob_data['U'])
+                
                 BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
                 BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
                 BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
                 BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
-
-          
+                
+                points3D.append(origin_led_data[int(blob_id)])
+                points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
+                points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
             
             print('START Pose Estimation')
-            points2D = np.array(points2D, dtype=np.float64)
+            points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
+            points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
             points3D = np.array(points3D, dtype=np.float64)
+            points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
+            points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
             print('LED_NUMBER: ', LED_NUMBER)
-            # print('points2D\n', points2D.reshape(len(points2D), -1))
+            # print('points2D\n', points2D)
             # print('points3D\n', points3D)
+            
+            # Make CAMERA_INFO data for check rt STD
+            CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+            
+            CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
+            CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
+            CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
 
             LENGTH = len(LED_NUMBER)
             if LENGTH >= 4:
@@ -1165,7 +1217,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 INPUT_ARRAY = [
                     CAM_ID,
                     points3D,
-                    points2D,
+                    points2D if undistort == 0 else points2D_U,
                     camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
                     camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
                 ]
@@ -1192,9 +1244,9 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 mutex.acquire()
                 try:
                     print('P3P LamdaTwist')
-                    points2D = np.array(points2D.reshape(len(points2D), -1))                   
+                    points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
                     X = np.array(points3D)   
-                    x = np.hstack((points2D, np.ones((points2D.shape[0], 1))))
+                    x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
                     # print('normalized x\n', x)
                     poselib_result = poselib.p3p(x, X)
                     visible_detection = NOT_SET
@@ -1287,12 +1339,14 @@ def gathering_data_single(ax1, script_dir, bboxes):
             print('go back IMAGE')
     cv2.destroyAllWindows()
 
-    file = 'BLOB_INFO.pickle'
     data = OrderedDict()
     data['BLOB_INFO'] = BLOB_INFO
-    ret = pickle_data(WRITE, file, data)
-    if ret != ERROR:
-        print('data saved')
+    pickle_data(WRITE, 'BLOB_INFO.pickle', data)
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
+    
+        
 def remake_3d_for_blob_info(undistort):
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = {}
@@ -1378,7 +1432,7 @@ def draw_result(ax1, ax2):
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
     BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
     LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
-
+    origin_pts = np.array(origin_led_data).reshape(-1, 3)
 
     for blob_id, data_list in REMADE_3D_INFO_B.items():
         distances_remade = []
@@ -1441,6 +1495,7 @@ def draw_result(ax1, ax2):
         PCA_ARRAY.append(center)
     
     PCA_ARRAY_LSM = module_lsm(PCA_ARRAY)
+    PCA_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in PCA_ARRAY_LSM]
     print('PCA_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(PCA_ARRAY_LSM):
         print(f"{points_3d},")   
@@ -1478,6 +1533,7 @@ def draw_result(ax1, ax2):
         print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")           
 
     IQR_ARRAY_LSM = module_lsm(IQR_ARRAY)
+    IQR_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM]
     print('IQR_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
         print(f"{points_3d},")    
@@ -1600,17 +1656,114 @@ def BA_3D_POINT():
     if ret != ERROR:
         print('data saved')
 
-if __name__ == "__main__":
-    # Get the directory of the current script
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    print(os.getcwd())
-    print('origin')
-    for i, leds in enumerate(origin_led_data):
-        print(f"{i}, {leds}")
-    print('target')
-    for i, leds in enumerate(target_led_data):
-        print(f"{i}, {leds}")
+def Check_Calibration_data():
+    def STD_Analysis(points3D_data, label):
+        CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']
+        
+        frame_counts = []
+        rvec_std_arr = []
+        tvec_std_arr = []
+        reproj_err_rates = []
+        
+        for frame_cnt, cam_data in CAMERA_INFO.items():
+            frame_counts.append(frame_cnt)
+            
+            rvec_list = []
+            tvec_list = []
+            reproj_err_list = []
+            
+            LED_NUMBER = cam_data['LED_NUMBER']
+            points3D = cam_data[points3D_data]
+            points2D = cam_data['points2D']['greysum']
+            points2D_U = cam_data['points2D_U']['greysum']
+            
+            LENGTH = len(LED_NUMBER)
+            
+            if LENGTH >= 4:
+                for comb in combinations(range(LENGTH), 4):
+                    for perm in permutations(comb):
+                        points3D_perm = points3D[list(perm), :]
+                        points2D_perm = points2D[list(perm), :]
+                        points2D_U_perm = points2D_U[list(perm), :]
+                        
+                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                        INPUT_ARRAY = [
+                            CAM_ID,
+                            points3D_perm,
+                            points2D_perm if undistort == 0 else points2D_U_perm,
+                            camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                            camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                        ]
+                        _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                        
+                        rvec_list.append(np.linalg.norm(rvec))
+                        tvec_list.append(np.linalg.norm(tvec))
+                        
+                        image_points, _ = cv2.projectPoints(points3D_perm, np.array(rvec), np.array(tvec), camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])
+                        image_points = image_points.reshape(-1, 2)
+                        
+                        reproj_err = np.mean(np.abs(points2D_perm - image_points))
+                        reproj_err_list.append(reproj_err)
+                        
+            rvec_std = np.std(rvec_list) if rvec_list else 0
+            tvec_std = np.std(tvec_list) if tvec_list else 0
+            reproj_err_rate = np.mean(reproj_err_list) if reproj_err_list else 0
+            
+            rvec_std_arr.append(rvec_std)
+            tvec_std_arr.append(tvec_std)
+            reproj_err_rates.append(reproj_err_rate)
+        
+        return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label
 
+
+    fig, axs = plt.subplots(3, 1, figsize=(15, 15))
+
+    points3D_datas = ['points3D', 'points3D_PCA', 'points3D_IQR']
+    colors = ['b', 'g', 'r']
+    summary_text = ""
+
+    for idx, points3D_data in enumerate(points3D_datas):
+        frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data)
+
+        axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}')
+        axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}')
+        axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}')
+        
+        # Calculate and store the average and standard deviation for each data set
+        avg_rvec_std = np.mean(rvec_std_arr)
+        std_rvec_std = np.std(rvec_std_arr)
+        avg_tvec_std = np.mean(tvec_std_arr)
+        std_tvec_std = np.std(tvec_std_arr)
+        avg_reproj_err = np.mean(reproj_err_rates)
+        std_reproj_err = np.std(reproj_err_rates)
+
+        summary_text += f"== {label} ==\n"
+        summary_text += f"Rvec Std: Mean = {avg_rvec_std:.2f}, Std = {std_rvec_std:.2f}\n"
+        summary_text += f"Tvec Std: Mean = {avg_tvec_std:.2f}, Std = {std_tvec_std:.2f}\n"
+        summary_text += f"Reproj Err: Mean = {avg_reproj_err:.2f}, Std = {std_reproj_err:.2f}\n"
+        summary_text += "\n"
+
+    axs[0].legend()
+    axs[0].set_xlabel('frame_cnt')
+    axs[0].set_ylabel('std')
+    axs[0].set_title('Standard Deviation of rvec and tvec Magnitude per Frame')
+
+    axs[1].legend()
+    axs[1].set_xlabel('frame_cnt')
+    axs[1].set_ylabel('error rate')
+    axs[1].set_title('Mean Reprojection Error Rate per Frame')
+    
+    axs[2].axis('off')  # Hide axes for the text plot
+    axs[2].text(0, 0, summary_text, fontsize=10)
+
+    # Reducing the number of X-ticks to avoid crowding
+    for ax in axs[:2]:
+        ax.set_xticks(ax.get_xticks()[::5])
+
+    plt.subplots_adjust(hspace=0.3)  # Add space between subplots
+    plt.show()
+
+def init_plot():
     root = tk.Tk()
     width_px = root.winfo_screenwidth()
     height_px = root.winfo_screenheight()
@@ -1637,6 +1790,7 @@ if __name__ == "__main__":
     target_pts = np.array(target_led_data).reshape(-1, 3)
     target_pts_pose = np.array(target_pose_led_data).reshape(-1, 3)
     ax1.set_title('3D plot')
+    
     # ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
     # ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='black', alpha=1.0, marker='o', s=10, label='TARGET')
     # ax1.scatter(target_pts_pose[:, 0], target_pts_pose[:, 1], target_pts_pose[:, 2], color='magenta', alpha=1.0, marker='o', s=10, label='TARGET_POSE')
@@ -1650,9 +1804,25 @@ if __name__ == "__main__":
     ax1.set_zlabel('Z')
     scale = 1.5
     f = zoom_factory(ax1, base_scale=scale)
+    
+    return ax1, ax2
 
+if __name__ == "__main__":
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    print(os.getcwd())
+    print('origin')
+    for i, leds in enumerate(origin_led_data):
+        print(f"{i}, {leds}")
+    print('target')
+    for i, leds in enumerate(target_led_data):
+        print(f"{i}, {leds}")
+
+    # ax1, ax2 = init_plot()
     # bboxes = blob_setting(script_dir)
     # gathering_data_single(ax1, script_dir, bboxes)
-    remake_3d_for_blob_info(undistort)
-    BA_3D_POINT()
-    draw_result(ax1, ax2)
+    # remake_3d_for_blob_info(undistort)
+    # BA_3D_POINT()
+    # draw_result(ax1, ax2)
+
+    Check_Calibration_data()
