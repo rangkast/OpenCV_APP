@@ -55,16 +55,22 @@ DONE = 1
 NOT_SET = -1
 CAM_ID = 0
 
-AUTO_LOOP = 0
+AUTO_LOOP = 1
 undistort = 1
 BLOB_SIZE = 45
 THRESHOLD_DISTANCE = 12
 max_level = 3
+SHOW_PLOT = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
+TRACKER_PADDING = 2
+HOPPING_CNT = 2
+BLOB_CNT = 15
+camera_log_path = "./tmp/render/camera_log.txt"
+camera_img_path = "./tmp/render/"
 
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
@@ -143,8 +149,7 @@ camera_matrix = [
 ]
 default_dist_coeffs = np.zeros((4, 1))
 default_cameraK = np.eye(3).astype(np.float64)
-# Initialize the array to store count and status for each blob
-blob_status = [[0, 'new'] for _ in range(15)]
+blob_status = [[0, 'new'] for _ in range(BLOB_CNT)]
 CAMERA_INFO = {}
 CAMERA_INFO_STRUCTURE = {
     'led_num': [],
@@ -162,8 +167,7 @@ BLOB_INFO_STRUCTURE = {
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
 }
-camera_log_path = "./tmp/render/camera_log.txt"
-camera_img_path = "./tmp/render/"
+
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 class POSE_ESTIMATION_METHOD(Enum):
     # Opencv legacy
@@ -367,7 +371,8 @@ def pickle_data(rw_mode, path, data):
 def init_trackers(trackers, frame):
     for id, data in trackers.items():
         tracker = cv2.TrackerCSRT_create()
-        ok = tracker.init(frame, data['bbox'])
+        (x, y, w, h) = data['bbox']        
+        ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
         data['tracker'] = tracker
 def click_event(event, x, y, flags, param, frame_0, blob_area_0, bboxes):
     if event == cv2.EVENT_LBUTTONDOWN:
@@ -416,7 +421,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
 
     # Get blobs to the left of the tracker and sort them
     led_candidates_left = sorted(
-        (blob for blob in blob_distances if blob[1] < tcx),
+        (blob for blob in blob_distances if blob[1] <= tcx),
         key=lambda blob: (-blob[1], blob[3])
     )
     # For blobs that are very close in x, prioritize the one closer to the tracker in y
@@ -426,7 +431,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
                 led_candidates_left[i], led_candidates_left[i + 1] = led_candidates_left[i + 1], led_candidates_left[i]
     # Do the same for blobs to the right of the tracker
     led_candidates_right = sorted(
-        (blob for blob in blob_distances if blob[1] > tcx),
+        (blob for blob in blob_distances if blob[1] >= tcx),
         key=lambda blob: (blob[1], blob[3])
     )
     for i in range(len(led_candidates_right) - 1):
@@ -434,13 +439,14 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
             if led_candidates_right[i][3] > led_candidates_right[i + 1][3]:
                 led_candidates_right[i], led_candidates_right[i + 1] = led_candidates_right[i + 1], led_candidates_right[i]
     LEDS_POSITION = [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1]
+    ANCHOR_POS = LEDS_POSITION[Tracking_ANCHOR]
     clockwise = 0
     counterclockwise = 1
     TOP = 0
     BOTTOM = 1
     def BLOB_ID_SEARCH(status, position, direction):
-        print(f"{status} {position} {direction}")
-        COUNT = 1        
+        # print(f"{status} {position} {direction}")
+        COUNT = 1 
         BLOB_ID = -1
         while True:
             if direction == clockwise:
@@ -470,67 +476,73 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
                         COUNT += 1
                     else:
                         BLOB_ID = POSITION_SEARCH
-                        # Skip the id if it is marked as missing in the blob_status dictionary
-                        # if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
-                        #     BLOB_ID = -1
                         break
                 elif status == BOTTOM:
                     if temp_id != BOTTOM:
                         COUNT += 1
                     else:
                         BLOB_ID = POSITION_SEARCH
-                        # Skip the id if it is marked as missing in the blob_status dictionary
-                        # if BLOB_ID in blob_status and blob_status[BLOB_ID][1] == 'disappeared':
-                        #     BLOB_ID = -1
                         break
         return BLOB_ID                
     # Insert Blob ID here
-    print('BEFORE')
-    print('left_data')
+    # print('BEFORE')
+    # print('left_data')
     LEFT_BLOB_INFO = [-1, -1]
     led_candidates_left = [list(t) for t in led_candidates_left]
     for left_data in led_candidates_left:
-        print(left_data)
+        # print(left_data)
+        if left_data[3] < 2:
+            left_data[4] = Tracking_ANCHOR
+            continue
         # TOP Searching and clockwise
-        if left_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
-            CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[TOP] == -1 else LEFT_BLOB_INFO[TOP]
-            NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise)
-            left_data[4] = NEW_BLOB_ID
-            LEFT_BLOB_INFO[TOP] = NEW_BLOB_ID
-        # BOTTOM Searching and clockwise
+        if ANCHOR_POS == TOP:
+            if left_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
+                CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[TOP] == -1 else LEFT_BLOB_INFO[TOP]
+                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise)
+                left_data[4] = NEW_BLOB_ID
+                LEFT_BLOB_INFO[TOP] = NEW_BLOB_ID
         else:
-            CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[BOTTOM] == -1 else LEFT_BLOB_INFO[BOTTOM]
-            NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise)
-            left_data[4] = NEW_BLOB_ID
-            LEFT_BLOB_INFO[BOTTOM] = NEW_BLOB_ID
-        print('NEW_BLOB_ID: ', NEW_BLOB_ID)
+            # BOTTOM Searching and clockwise
+            if left_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
+                CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[BOTTOM] == -1 else LEFT_BLOB_INFO[BOTTOM]
+                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise)
+                left_data[4] = NEW_BLOB_ID
+                LEFT_BLOB_INFO[BOTTOM] = NEW_BLOB_ID
         
-    print('right_data')
+    # print('right_data')
     led_candidates_right = [list(t) for t in led_candidates_right]
     RIGHT_BLOB_INFO = [-1, -1]
     for right_data in led_candidates_right:
-        print(right_data)
-        # TOP Searching and counterclockwise
-        if right_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
-            CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[TOP] == -1 else RIGHT_BLOB_INFO[TOP]
-            NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise)
-            right_data[4] = NEW_BLOB_ID
-            RIGHT_BLOB_INFO[TOP] = copy.deepcopy(NEW_BLOB_ID)
-        # BOTTOM Searching and counterclockwise
-        else:
-            CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[BOTTOM] == -1 else RIGHT_BLOB_INFO[BOTTOM]
-            NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise)
-            right_data[4] = NEW_BLOB_ID
-            RIGHT_BLOB_INFO[BOTTOM] = copy.deepcopy(NEW_BLOB_ID)
+        # print(right_data)
+        if right_data[3] < 2:
+            right_data[4] = Tracking_ANCHOR
+            continue
 
-    print('AFTER')
-    print('left_data')
-    for left_data in led_candidates_left:
-        print(left_data)
-    print('right_data')
-    for right_data in led_candidates_right:
-        print(right_data)
-            
+        if ANCHOR_POS == TOP:
+            if right_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
+                CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[TOP] == -1 else RIGHT_BLOB_INFO[TOP]
+                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise)
+                right_data[4] = NEW_BLOB_ID
+                RIGHT_BLOB_INFO[TOP] = copy.deepcopy(NEW_BLOB_ID)
+        else:
+            if right_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
+                CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[BOTTOM] == -1 else RIGHT_BLOB_INFO[BOTTOM]
+                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise)
+                right_data[4] = NEW_BLOB_ID
+                RIGHT_BLOB_INFO[BOTTOM] = copy.deepcopy(NEW_BLOB_ID)
+
+    # Remove rows where the 4th value is -1 or the 3rd value is less than or equal to 1
+    led_candidates_left = [row for row in led_candidates_left if row[4] != -1]
+    led_candidates_right = [row for row in led_candidates_right if row[4] != -1]
+
+    # print('AFTER')
+    # print('left_data')
+    # for left_data in led_candidates_left:
+    #     print(left_data)
+    # print('right_data')
+    # for right_data in led_candidates_right:
+    #     print(right_data)
+
     return led_candidates_left, led_candidates_right
 def createTrackerByName(trackerType):
     # Create a tracker based on tracker name
@@ -669,22 +681,22 @@ def init_new_tracker(frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
     #     print(bid, ':', data)
 
     NEW_Tracking_ANCHOR = -1
-    NEW_Tracking_bbox = None
-    for i in range(min(3, len(prev_pos_candidates))):
-        NEW_BLOB_ID = prev_pos_candidates[i][4]
-        # BLOB_IDX = int(Tracking_ANCHOR) + i + 1
-        # if BLOB_IDX <= 14:
-        #     NEW_BLOB_ID = copy.deepcopy(BLOB_IDX)
-        # else:
-        #     NEW_BLOB_ID = copy.deepcopy(BLOB_IDX) - (14 + 1)
-        (cx, cy, cw, ch) = blob_centers[prev_pos_candidates[i][0]][2]
-        # cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (0, 0, 255), 1, 1)
-        # cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-        #             (0, 0, 255), 1)
+    NEW_Tracking_bbox = None    
 
+    for i in range(min(HOPPING_CNT, len(prev_pos_candidates))):
+        NEW_BLOB_ID = prev_pos_candidates[i][4]
+        NEW_Tracking_bbox = blob_centers[prev_pos_candidates[i][0]][2]
         NEW_Tracking_ANCHOR = NEW_BLOB_ID
-        NEW_Tracking_bbox = (cx, cy, cw, ch)
     if NEW_Tracking_ANCHOR != -1 and NEW_Tracking_bbox is not None:
+        CURR_TRACKER_CPY = CURR_TRACKER.copy()
+        for Other_side_Tracking_ANCHOR, _ in CURR_TRACKER_CPY.items():
+            if Other_side_Tracking_ANCHOR != Tracking_ANCHOR:
+                Other_Tracking_bbox = PREV_TRACKER[Other_side_Tracking_ANCHOR][2]
+                CURR_TRACKER[Other_side_Tracking_ANCHOR] = {'bbox': Other_Tracking_bbox, 'tracker': None}
+                init_trackers(CURR_TRACKER, prev_frame)
+
+
+
         # print(f"UPDATE NEW_Tracking_ANCHOR {NEW_Tracking_ANCHOR} NEW_Tracking_bbox {NEW_Tracking_bbox}")
         CURR_TRACKER[NEW_Tracking_ANCHOR] = {'bbox': NEW_Tracking_bbox, 'tracker': None}
         init_trackers(CURR_TRACKER, prev_frame)
@@ -692,6 +704,8 @@ def init_new_tracker(frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
         # PREV_TRACKER[NEW_Tracking_ANCHOR] = (tcx, tcy)
         # cv2.imshow('TRACKER change', draw_frame)
         # cv2.waitKey(0)
+        
+
         return SUCCESS, CURR_TRACKER
     else:
         return ERROR, None
@@ -962,19 +976,22 @@ def gathering_data_single(ax1, script_dir, bboxes):
     print('bboxes:', bboxes)
     if bboxes is None:
         return
-    CURR_TRACKER[bboxes[0]['idx']] = {'bbox': bboxes[0]['bbox'], 'tracker': None}
+    
+    for i in range(len(bboxes)):
+        CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
 
     # Init Multi Tracker
     TRACKING_START = NOT_SET
-    trackerType = "CSRT"
-    multiTracker = cv2.legacy.MultiTracker_create()
+    # trackerType = "CSRT"
+    # multiTracker = cv2.legacy.MultiTracker_create()
 
     mutex = threading.Lock()
     # Initialize each blob ID with a copy of the structure
-    for blob_id in range(15):  # blob IDs: 0 to 14
+    for blob_id in range(BLOB_CNT):  # blob IDs: 0 to 14
         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
-    while frame_cnt < len(image_files):
+    # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )
+    while frame_cnt < len(image_files) - 1:
         print('\n')
         print(f"########## Frame {frame_cnt} ##########")
 
@@ -994,17 +1011,18 @@ def gathering_data_single(ax1, script_dir, bboxes):
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
+        
+        # print('CURR_TRACKER', CURR_TRACKER)
 
-        # Multi Tracker ADD
         if TRACKING_START == NOT_SET:
             init_trackers(CURR_TRACKER, frame_0)
-            for i, data in enumerate(bboxes):
-                multiTracker.add(createTrackerByName(trackerType), frame_0, data['bbox'])
+            # for i, data in enumerate(bboxes):
+            #     multiTracker.add(createTrackerByName(trackerType), frame_0, data['bbox'])
         TRACKING_START = DONE
 
         # find Blob area by findContours
         blob_area = detect_led_lights(frame_0, 2, 5, 500)
-        blob_centers = []
+        blob_centers = []    
         for blob_id, bbox in enumerate(blob_area):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
             gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
@@ -1025,244 +1043,223 @@ def gathering_data_single(ax1, script_dir, bboxes):
             print(f"{blob_id} : {gcx}, {gcy}")
 
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
-        # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)     
+        # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
+
+
         if len(CURR_TRACKER_CPY) > 0:
+            brvec, btvec = camera_params[frame_cnt + 1]
+            brvec_reshape = np.array(brvec).reshape(-1, 1)
+            btvec_reshape = np.array(btvec).reshape(-1, 1)
+            print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
+
+            TEMP_BLOBS = {}
+            TRACKER_BROKEN_STATUS = NOT_SET
             for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
-                ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
+                if Tracking_DATA['tracker'] is not None:
+                    print('Tracking_ANCHOR:', Tracking_ANCHOR)
+                    ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
+                    # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
+                    cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
+                    tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
+                    if Tracking_ANCHOR in PREV_TRACKER:
+                        dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
+                        dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
+                        euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
+                        if euclidean_distance > THRESHOLD_DISTANCE or tsize < BLOB_SIZE or not ret:
+                            print('Tracker Broken')
+                            print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret)
+                            print('CUR_txy:', tcx, tcy)
+                            print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
+                            # del CURR_TRACKER[Tracking_ANCHOR]
+                            ret, CURR_TRACKER = init_new_tracker(image_files[frame_cnt - 1], Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER)
 
-                cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
-                cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0),
-                            1)
-                tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
-                # cv2.putText(draw_frame, f"{int(tcx)},{int(tcy)}, {tsize}", (tx, ty + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
+                            if ret == SUCCESS:
+                                del CURR_TRACKER[Tracking_ANCHOR]
+                                del PREV_TRACKER[Tracking_ANCHOR]
+                                # 여기서 PREV에 만들어진 위치를 집어넣어야 바로 안튕김
+                                print(f"tracker[{Tracking_ANCHOR}] deleted")
+                                frame_cnt -= 1
+                                TRACKER_BROKEN_STATUS = DONE
+                                break
+                            else:
+                                print('Tracker Change Failed')
+                                cv2.imshow("Tracking", draw_frame)
+                                while True:
+                                    key = cv2.waitKey(1)
+                                    if key & 0xFF == ord('q'):
+                                        break
+                                break
 
-                brvec, btvec = camera_params[frame_cnt + 1]
-                brvec_reshape = np.array(brvec).reshape(-1, 1)
-                btvec_reshape = np.array(btvec).reshape(-1, 1)
-                print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
-                if Tracking_ANCHOR in PREV_TRACKER:
-                    dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
-                    dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
-                    euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
-                    if euclidean_distance > THRESHOLD_DISTANCE or tsize < BLOB_SIZE or not ret:
-                        print('Tracker Broken')
-                        print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret)
-                        # print('CUR_txy:', tcx, tcy)
-                        # print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
 
-                        # del CURR_TRACKER[Tracking_ANCHOR]
-                        ret, CURR_TRACKER = init_new_tracker(image_files[frame_cnt - 1], Tracking_ANCHOR, CURR_TRACKER,
-                                                             PREV_TRACKER)
-                        if ret == SUCCESS:
-                            del CURR_TRACKER[Tracking_ANCHOR]
-                            del PREV_TRACKER[Tracking_ANCHOR]
-                            # 여기서 PREV에 만들어진 위치를 집어넣어야 바로 안튕김
-                            print(f"tracker[{Tracking_ANCHOR}] deleted")
-                            frame_cnt -= 1
-                            continue
-                        else:
-                            print('Tracker Change Failed')
-                            cv2.imshow("Tracking", draw_frame)
-                            while True:
-                                key = cv2.waitKey(1)
-                                if key & 0xFF == ord('q'):
-                                    break
-                            break
+                    PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
+                    led_candidates_left, led_candidates_right = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER) 
 
-                PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy)
-                led_candidates_left, led_candidates_right = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER)
-                
 
-                # check_array = []
-                # # Count the blobs and update their status
-                # for i in range(len(led_candidates_right)):
-                #     NEW_BLOB_ID = led_candidates_right[i][4]
-                #     check_array.append(NEW_BLOB_ID)
-                #     # If this blob is not in the status yet, initialize its count and status
-                #     if blob_status[NEW_BLOB_ID][0] == 0:
-                #         blob_status[NEW_BLOB_ID][0] = 1
-                #         blob_status[NEW_BLOB_ID][1] = 'new'
-                #     else:
-                #         # If this blob was already there, increment its count and update the status
-                #         if blob_status[NEW_BLOB_ID][1] != 'disappeared':
-                #             blob_status[NEW_BLOB_ID][0] += 1
-                #             blob_status[NEW_BLOB_ID][1] = 'existing'
-                # prev_blob_status = [[0, 'new'] for _ in range(15)]
-                # for i, data in enumerate(blob_status):
-                #     if data[0] != prev_blob_status[i][0]:
-                #         blob_status[i][1] = 'disappeared'
-                # # Store current status for the next iteration
-                # prev_blob_status = blob_status.copy()
-                
-                # for check in check_array:
-                #     if blob_status[check][1] == 'disappeared':
-                #         _, led_candidates_right = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER)
-                #         break               
-                         
-                TEMP_BLOBS = {}
-                for i in range(len(led_candidates_left)):
-                    NEW_BLOB_ID = led_candidates_left[i][4]
-                    (cx, cy, cw, ch) = blob_centers[led_candidates_left[i][0]][2]
-                    cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (255, 0, 0), 1, 1)
-                    cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                (255, 255, 255), 1)
-                    points2D_D = np.array([blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]], dtype=np.float64)
-                    points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
-                    TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]],
-                                                'U': points2D_U} 
-                
-                for i in range(len(led_candidates_right)):
-                    NEW_BLOB_ID = led_candidates_right[i][4]
-                    (cx, cy, cw, ch) = blob_centers[led_candidates_right[i][0]][2]
-                    if NEW_BLOB_ID != -1:
+                    for i in range(len(led_candidates_left)):
+                        NEW_BLOB_ID = led_candidates_left[i][4]
+                        (cx, cy, cw, ch) = blob_centers[led_candidates_left[i][0]][2]                        
                         cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (255, 0, 0), 1, 1)
+                        if NEW_BLOB_ID != int(Tracking_ANCHOR):
+                            cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                        (255, 255, 255), 1)
+                        points2D_D = np.array([blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]], dtype=np.float64)
+                        points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
+                        TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]],
+                        'U': points2D_U} 
+
+                    for i in range(len(led_candidates_right)):
+                        NEW_BLOB_ID = led_candidates_right[i][4]
+                        (cx, cy, cw, ch) = blob_centers[led_candidates_right[i][0]][2]
+                        cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (255, 0, 0), 1, 1)
+                        if NEW_BLOB_ID != int(Tracking_ANCHOR):
+                            cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                                (255, 255, 255), 1) 
                         points2D_D = np.array([blob_centers[led_candidates_right[i][0]][0], blob_centers[led_candidates_right[i][0]][1]], dtype=np.float64)
                         points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
                         TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_right[i][0]][0], blob_centers[led_candidates_right[i][0]][1]],
-                                                    'U': points2D_U}
-                    else:
-                        cv2.rectangle(draw_frame, (cx, cy), (cx + cw, cy + ch), (0, 0, 255), 1, 1)
-                    cv2.putText(draw_frame, f'{NEW_BLOB_ID}', (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                                (255, 255, 255), 1)
-                
+                        'U': points2D_U}
 
 
-                                
-                points2D_D = np.array([tcx, tcy], dtype=np.float64)
-                points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
-
-                LED_NUMBER = []
-                points2D = []
-                points3D = []
-                TEMP_BLOBS[int(Tracking_ANCHOR)] = {'D': [tcx, tcy], 'U': points2D_U}
-                TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
-                for blob_id, blob_data in TEMP_BLOBS.items():
-                    LED_NUMBER.append(int(blob_id))
-                    if undistort == 0:
-                        points2D.append(blob_data['D'])
-                    else:
-                        points2D.append(blob_data['U'])
-                    points3D.append(origin_led_data[int(blob_id)])
-                    BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
-                    BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
-                    BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
-                    BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
-
-                
-
-                
-                print('START Pose Estimation')
-                points2D = np.array(points2D, dtype=np.float64)
-                points3D = np.array(points3D, dtype=np.float64)
-                print('LED_NUMBER: ', LED_NUMBER)
-                # print('points2D\n', points2D.reshape(len(points2D), -1))
-                # print('points3D\n', points3D)
-
-                LENGTH = len(LED_NUMBER)
-                if LENGTH >= 4:
-                    print('PnP Solver OpenCV')
-                    if LENGTH >= 5:
-                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                    elif LENGTH == 4:
-                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-                    INPUT_ARRAY = [
-                        CAM_ID,
-                        points3D,
-                        points2D,
-                        camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                        camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                    ]
-                    ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                    print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
-                    for blob_id in LED_NUMBER:
-                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
-
-                    image_points, _ = cv2.projectPoints(points3D,
-                                                        np.array(rvec),
-                                                        np.array(tvec),
-                                                        camera_matrix[CAM_ID][0],
-                                                        camera_matrix[CAM_ID][1])
-                    image_points = image_points.reshape(-1, 2)
-
-                    for point in image_points:
-                        # 튜플 형태로 좌표 변환
-                        pt = (int(point[0]), int(point[1]))
-                        cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
-
-                elif LENGTH == 3:
-                    #P3P
-                    mutex.acquire()
-                    try:
-                        print('P3P LamdaTwist')
-                        points2D = np.array(points2D.reshape(len(points2D), -1))                   
-                        X = np.array(points3D)   
-                        x = np.hstack((points2D, np.ones((points2D.shape[0], 1))))
-                        # print('normalized x\n', x)
-                        poselib_result = poselib.p3p(x, X)
-                        visible_detection = NOT_SET
-                        for solution_idx, pose in enumerate(poselib_result):
-                            colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
-                            colorstr = ['blue', 'green', 'purple', 'yellow']
-                            if is_valid_pose(pose):
-                                quat = pose.q
-                                tvec = pose.t
-                                rotm = quat_to_rotm(quat)
-                                rvec, _ = cv2.Rodrigues(rotm)
-                                print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
-                                image_points, _ = cv2.projectPoints(np.array(origin_led_data),
-                                    np.array(rvec),
-                                    np.array(tvec),
-                                    camera_matrix[CAM_ID][0],
-                                    camera_matrix[CAM_ID][1])
-                                image_points = image_points.reshape(-1, 2)
-                                # print('image_points\n', image_points)
-                                cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
-                                ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
-                                ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
-                                
-                                ###############################            
-                                visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
-                                # print('visible_result:', visible_result)
-                                visible_status = SUCCESS
-                                for blob_id, status in visible_result.items():
-                                    if status == False:
-                                        visible_status = ERROR
-                                        print(f"{solution_idx} pose unvisible led {blob_id}")
-                                        break                                
-                                if visible_status == SUCCESS:
-                                    visible_detection = DONE
-                                    for blob_id in LED_NUMBER:
-                                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
-                                ###############################
-                                    
-                                for idx, point in enumerate(image_points):
-                                    # 튜플 형태로 좌표 변환
-                                    pt = (int(point[0]), int(point[1]))
-                                    if idx in LED_NUMBER:
-                                        cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
-                                    else:
-                                        cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
-                                    
-                                    text_offset = (5, -5)
-                                    text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
-                                    cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
-
-                        if visible_detection == NOT_SET:
-                            for blob_id in LED_NUMBER:
-                                # Use an 'empty' numpy array as our NOT_SET value
-                                BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
-                                BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
-
-                    finally:
-                        mutex.release()
                 else:
-                    print('NOT Enough blobs')
-                    if AUTO_LOOP == 1:
-                        frame_cnt += 1
-                    continue
+                    print(f"No tracker initialized for id: {Tracking_ANCHOR}")
+                    break
+            
 
+            if TRACKER_BROKEN_STATUS == DONE:
+                print(f"{frame_cnt} rollback")
+                continue
+
+            # Algorithm Added
+            LED_NUMBER = []
+            points2D = []
+            points3D = []
+            TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
+            for blob_id, blob_data in TEMP_BLOBS.items():
+                LED_NUMBER.append(int(blob_id))
+                if undistort == 0:
+                    points2D.append(blob_data['D'])
+                else:
+                    points2D.append(blob_data['U'])
+                points3D.append(origin_led_data[int(blob_id)])
+                BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
+                BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
+                BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
+                BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
+
+          
+            
+            print('START Pose Estimation')
+            points2D = np.array(points2D, dtype=np.float64)
+            points3D = np.array(points3D, dtype=np.float64)
+            print('LED_NUMBER: ', LED_NUMBER)
+            # print('points2D\n', points2D.reshape(len(points2D), -1))
+            # print('points3D\n', points3D)
+
+            LENGTH = len(LED_NUMBER)
+            if LENGTH >= 4:
+                print('PnP Solver OpenCV')
+                if LENGTH >= 5:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                elif LENGTH == 4:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                INPUT_ARRAY = [
+                    CAM_ID,
+                    points3D,
+                    points2D,
+                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                ]
+                ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
+                for blob_id in LED_NUMBER:
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+
+                image_points, _ = cv2.projectPoints(points3D,
+                                                    np.array(rvec),
+                                                    np.array(tvec),
+                                                    camera_matrix[CAM_ID][0],
+                                                    camera_matrix[CAM_ID][1])
+                image_points = image_points.reshape(-1, 2)
+
+                for point in image_points:
+                    # 튜플 형태로 좌표 변환
+                    pt = (int(point[0]), int(point[1]))
+                    cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
+
+            elif LENGTH == 3:
+                #P3P
+                mutex.acquire()
+                try:
+                    print('P3P LamdaTwist')
+                    points2D = np.array(points2D.reshape(len(points2D), -1))                   
+                    X = np.array(points3D)   
+                    x = np.hstack((points2D, np.ones((points2D.shape[0], 1))))
+                    # print('normalized x\n', x)
+                    poselib_result = poselib.p3p(x, X)
+                    visible_detection = NOT_SET
+                    for solution_idx, pose in enumerate(poselib_result):
+                        colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
+                        colorstr = ['blue', 'green', 'purple', 'yellow']
+                        if is_valid_pose(pose):
+                            quat = pose.q
+                            tvec = pose.t
+                            rotm = quat_to_rotm(quat)
+                            rvec, _ = cv2.Rodrigues(rotm)
+                            print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
+                            image_points, _ = cv2.projectPoints(np.array(origin_led_data),
+                                np.array(rvec),
+                                np.array(tvec),
+                                camera_matrix[CAM_ID][0],
+                                camera_matrix[CAM_ID][1])
+                            image_points = image_points.reshape(-1, 2)
+                            # print('image_points\n', image_points)
+                            cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
+                            ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
+                            ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
+                            
+                            ###############################            
+                            visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
+                            # print('visible_result:', visible_result)
+                            visible_status = SUCCESS
+                            for blob_id, status in visible_result.items():
+                                if status == False:
+                                    visible_status = ERROR
+                                    print(f"{solution_idx} pose unvisible led {blob_id}")
+                                    break                                
+                            if visible_status == SUCCESS:
+                                visible_detection = DONE
+                                for blob_id in LED_NUMBER:
+                                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                            ###############################
+                                
+                            for idx, point in enumerate(image_points):
+                                # 튜플 형태로 좌표 변환
+                                pt = (int(point[0]), int(point[1]))
+                                if idx in LED_NUMBER:
+                                    cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
+                                else:
+                                    cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
+                                
+                                text_offset = (5, -5)
+                                text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
+                                cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
+
+                    if visible_detection == NOT_SET:
+                        for blob_id in LED_NUMBER:
+                            # Use an 'empty' numpy array as our NOT_SET value
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
+
+                finally:
+                    mutex.release()
+            else:
+                print('NOT Enough blobs')
+                if AUTO_LOOP == 1:
+                    frame_cnt += 1
+                continue
+ 
         if AUTO_LOOP == 1:
             frame_cnt += 1
 
@@ -1297,6 +1294,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
     if ret != ERROR:
         print('data saved')
 def remake_3d_for_blob_info(undistort):
+    BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = {}
     REMADE_3D_INFO_O = {}
     # Create a pretty printer
@@ -1304,7 +1302,7 @@ def remake_3d_for_blob_info(undistort):
     
     print('#################### CNT for BLOB ID  ####################')
     # Iterate over the blob_ids in BLOB_INFO
-    for blob_id in range(15):  # Assuming BLOB_ID range from 0 to 14
+    for blob_id in range(BLOB_CNT):  # Assuming BLOB_ID range from 0 to 14       
         CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
         print(f"BLOB_ID: {blob_id}, CNT {CNT}")
         # pp.pprint(BLOB_INFO[blob_id])
@@ -1321,9 +1319,13 @@ def remake_3d_for_blob_info(undistort):
         }
         points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
         points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
+        # print('points2D_U_first: ', points2D_U_first)
+        # print('rt_first_B: ', rt_first_B)
+
         # Iterate over the 2D coordinates for this blob_id
+        # 마지막 이미지가 시작 이미지와 같아 remake에서 이상치가 발현됨
         for i in range(1, CNT):
-            # Get the 2D coordinates for the first and current frame
+             # Get the 2D coordinates for the first and current frame
             points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
             points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
             status_B = BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i]
@@ -1331,7 +1333,7 @@ def remake_3d_for_blob_info(undistort):
             # Check if 'rvec' is NOT_SET for BLENDER and OPENCV separately
             if (status_B != NOT_SET).all():
                 rt_current_B = {
-                    'rvec': status_B,
+                    'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
                     'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
                 }
                 if undistort == 0:
@@ -1343,10 +1345,15 @@ def remake_3d_for_blob_info(undistort):
                                                 rt_first_B, rt_current_B,
                                                 points2D_U_first, points2D_U_current).reshape(-1, 3)
                 REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
+                
+                # print('cnt: ', i)
+                # print('points2D_U_current: ', points2D_U_current)
+                # print('rt_current_B: ', rt_current_B)
+                # print(remake_3d_B.reshape(-1, 3))
             
             if (status_O != NOT_SET).all():
                 rt_current_O = {
-                    'rvec': status_O,
+                    'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][i],
                     'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][i]
                 }
                 if undistort == 0:
@@ -1358,8 +1365,6 @@ def remake_3d_for_blob_info(undistort):
                                                 rt_first_O, rt_current_O,
                                                 points2D_U_first, points2D_U_current).reshape(-1, 3)
                 REMADE_3D_INFO_O[blob_id].append(remake_3d_O.reshape(-1, 3))
-
-            
 
     file = 'REMADE_3D_INFO.pickle'
     data = OrderedDict()
@@ -1438,7 +1443,7 @@ def draw_result(ax1, ax2):
     PCA_ARRAY_LSM = module_lsm(PCA_ARRAY)
     print('PCA_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(PCA_ARRAY_LSM):
-        print(f"LSM for PCA blob_id {blob_id}: {points_3d}")   
+        print(f"{points_3d},")   
         
     print('\n')
     print('#################### IQR  ####################')
@@ -1475,7 +1480,7 @@ def draw_result(ax1, ax2):
     IQR_ARRAY_LSM = module_lsm(IQR_ARRAY)
     print('IQR_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
-        print(f"LSM for IQR blob_id {blob_id}: {points_3d}")    
+        print(f"{points_3d},")    
     
     
     # Remove duplicate labels in legend
@@ -1487,10 +1492,20 @@ def draw_result(ax1, ax2):
     by_label2 = dict(zip(labels2, handles2))
     ax2.legend(by_label2.values(), by_label2.keys())
 
-    plt.show()
+    file = 'RIGID_3D_TRANSFORM.pickle'
+    data = OrderedDict()
+    data['PCA_ARRAY_LSM'] = PCA_ARRAY_LSM
+    data['IQR_ARRAY_LSM'] = IQR_ARRAY_LSM
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+
+    if SHOW_PLOT == 1:
+        plt.show()
 def BA_3D_POINT():
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
+    REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
     camera_indices = []
     point_indices = []
     estimated_RTs = []
@@ -1623,8 +1638,8 @@ if __name__ == "__main__":
     target_pts_pose = np.array(target_pose_led_data).reshape(-1, 3)
     ax1.set_title('3D plot')
     # ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
-    ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='black', alpha=1.0, marker='o', s=10, label='TARGET')
-    ax1.scatter(target_pts_pose[:, 0], target_pts_pose[:, 1], target_pts_pose[:, 2], color='magenta', alpha=1.0, marker='o', s=10, label='TARGET_POSE')
+    # ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='black', alpha=1.0, marker='o', s=10, label='TARGET')
+    # ax1.scatter(target_pts_pose[:, 0], target_pts_pose[:, 1], target_pts_pose[:, 2], color='magenta', alpha=1.0, marker='o', s=10, label='TARGET_POSE')
 
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
     ax1.set_xlim([-0.2, 0.2])
@@ -1636,8 +1651,8 @@ if __name__ == "__main__":
     scale = 1.5
     f = zoom_factory(ax1, base_scale=scale)
 
-    bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes)
+    # bboxes = blob_setting(script_dir)
+    # gathering_data_single(ax1, script_dir, bboxes)
     remake_3d_for_blob_info(undistort)
     BA_3D_POINT()
     draw_result(ax1, ax2)
