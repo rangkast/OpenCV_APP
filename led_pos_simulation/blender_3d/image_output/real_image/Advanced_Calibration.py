@@ -49,6 +49,10 @@ sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
 # poselib only working in LINUX or WSL (window )
 import poselib
 
+RIFTS_PATTERN = [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1]
+ARCTURAS_PATTERN = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
+LEDS_POSITION = ARCTURAS_PATTERN
+
 READ = 0
 WRITE = 1
 SUCCESS = 0
@@ -59,7 +63,7 @@ CAM_ID = 0
 
 AUTO_LOOP = 1
 undistort = 1
-BLOB_SIZE = 45
+BLOB_SIZE = 70
 THRESHOLD_DISTANCE = 12
 max_level = 3
 SHOW_PLOT = 1
@@ -69,12 +73,12 @@ CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
-HOPPING_CNT = 2
-BLOB_CNT = 15
+HOPPING_CNT = 3
+BLOB_CNT = -1
 camera_log_path = "./tmp/render/camera_log.txt"
 camera_img_path = "./tmp/render/"
 
-
+DO_CALIBRATION_TEST = 0
 calibrated_led_data_PCA = np.array([
     [-0.01877262, -0.00452623, -0.01352097],
     [-0.03336187, 0.0065097, -0.01435915],
@@ -109,78 +113,6 @@ calibrated_led_data_IQR = np.array([
     [0.03103653, 0.00348794, -0.01408463],
     [0.01896287, -0.0016252, -0.0145338],
 ])
-origin_led_data = np.array([
-    [-0.02146761, -0.00343424, -0.01381839],
-    [-0.0318701, 0.00568587, -0.01206734],
-    [-0.03692925, 0.00930785, 0.00321071],
-    [-0.04287211, 0.02691347, -0.00194137],
-    [-0.04170018, 0.03609551, 0.01989264],
-    [-0.02923584, 0.06186962, 0.0161972],
-    [-0.01456789, 0.06295633, 0.03659283],
-    [0.00766914, 0.07115411, 0.0206431],
-    [0.02992447, 0.05507271, 0.03108736],
-    [0.03724313, 0.05268665, 0.01100446],
-    [0.04265723, 0.03016438, 0.01624689],
-    [0.04222733, 0.0228845, -0.00394005],
-    [0.03300807, 0.00371497, 0.00026865],
-    [0.03006234, 0.00378822, -0.01297127],
-    [0.02000199, -0.00388647, -0.014973]
-])
-
-MODEL_DATA = origin_led_data
-
-
-origin_led_dir = np.array([
-    [-0.52706841, -0.71386452, -0.46108171],
-    [-0.71941994, -0.53832866, -0.43890456],
-    [-0.75763735, -0.6234486, 0.19312559],
-    [-0.95565641, 0.00827838, -0.29436762],
-    [-0.89943476, -0.04857372, 0.43434745],
-    [-0.57938915, 0.80424722, -0.13226727],
-    [-0.32401356, 0.5869508, 0.74195955],
-    [0.14082806, 0.97575588, -0.16753482],
-    [0.66436362, 0.41503629, 0.62158335],
-    [0.77126662, 0.61174447, -0.17583089],
-    [0.90904575, -0.17393345, 0.37865945],
-    [0.9435189, -0.10477919, -0.31431419],
-    [0.7051038, -0.6950803, 0.14032818],
-    [0.67315478, -0.5810967, -0.45737213],
-    [0.49720891, -0.70839529, -0.5009585]
-])
-target_led_data = np.array(
-    [[-0.01903109, -0.00435187, -0.01461065],
-     [-0.03347955, 0.00698398, -0.01551965],
-     [-0.03431203, 0.00816604, 0.00368927],
-     [-0.04324617, 0.02910663, -0.00503158],
-     [-0.04218381, 0.03551943, 0.02159329],
-     [-0.03088568, 0.06161098, 0.01488041],
-     [-0.01450457, 0.06383055, 0.0349419],
-     [0.00938623, 0.0725065, 0.02139684],
-     [0.03127575, 0.05404712, 0.03090302],
-     [0.03583948, 0.05228482, 0.01179999],
-     [0.04161974, 0.02956925, 0.01521613],
-     [0.04095952, 0.02187763, -0.00395905],
-     [0.0313321, 0.00406659, 0.00275835],
-     [0.03117541, 0.00350047, -0.01430271],
-     [0.01888125, -0.00134779, -0.01489679]]
-)
-target_pose_led_data = np.array(
-    [[-1.02983395e-02, -3.06191258e-03, -1.40903994e-02],
-     [-2.46846343e-02, 8.31003174e-03, -1.27490032e-02],
-     [-2.38371701e-02, 7.81342445e-03, 6.48918669e-03],
-     [-3.33354187e-02, 2.94344036e-02, 4.31390494e-04],
-     [-2.99167087e-02, 3.35022867e-02, 2.73182143e-02],
-     [-1.90462178e-02, 6.00796159e-02, 2.19370026e-02],
-     [-9.68764635e-04, 6.05422709e-02, 4.06111069e-02],
-     [2.17209847e-02, 7.03657294e-02, 2.58399980e-02],
-     [4.42123628e-02, 5.11480765e-02, 3.17634543e-02],
-     [4.70867284e-02, 5.10574212e-02, 1.22547671e-02],
-     [5.29690486e-02, 2.81305566e-02, 1.31689138e-02],
-     [5.05880497e-02, 2.21394335e-02, -6.47088308e-03],
-     [4.14452052e-02, 3.81071260e-03, -5.11851512e-04],
-     [3.98034913e-02, 4.73370995e-03, -1.74788166e-02],
-     [2.74677126e-02, -4.43187031e-05, -1.74178180e-02]]
-)
 
 camera_matrix = [
     [np.array([[712.623, 0.0, 653.448],
@@ -480,7 +412,6 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
         if abs(led_candidates_right[i][1] - led_candidates_right[i + 1][1]) == 0:
             if led_candidates_right[i][3] > led_candidates_right[i + 1][3]:
                 led_candidates_right[i], led_candidates_right[i + 1] = led_candidates_right[i + 1], led_candidates_right[i]
-    LEDS_POSITION = [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1]
     ANCHOR_POS = LEDS_POSITION[Tracking_ANCHOR]
     clockwise = 0
     counterclockwise = 1
@@ -737,8 +668,6 @@ def init_new_tracker(frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
                 CURR_TRACKER[Other_side_Tracking_ANCHOR] = {'bbox': Other_Tracking_bbox, 'tracker': None}
                 init_trackers(CURR_TRACKER, prev_frame)
 
-
-
         # print(f"UPDATE NEW_Tracking_ANCHOR {NEW_Tracking_ANCHOR} NEW_Tracking_bbox {NEW_Tracking_bbox}")
         CURR_TRACKER[NEW_Tracking_ANCHOR] = {'bbox': NEW_Tracking_bbox, 'tracker': None}
         init_trackers(CURR_TRACKER, prev_frame)
@@ -747,7 +676,6 @@ def init_new_tracker(frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
         # cv2.imshow('TRACKER change', draw_frame)
         # cv2.waitKey(0)
         
-
         return SUCCESS, CURR_TRACKER
     else:
         return ERROR, None
@@ -974,7 +902,7 @@ def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, threshold_angle
         # Blob의 위치
         blob_pos = points3D[pts3D_idx]        
         # Blob의 방향 벡터
-        blob_dir = origin_led_dir[blob_id]
+        blob_dir = DIRECTION[blob_id]
         # Blob의 위치와 방향 벡터를 카메라 pose에 맞게 변환
         temp = transfer_point(vector3(*blob_pos), cam_pose)
         ori = rotate_point(vector3(*blob_dir), cam_pose)
@@ -1188,24 +1116,27 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
                 
                 points3D.append(MODEL_DATA[int(blob_id)])
-                points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
-                points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
+                if DO_CALIBRATION_TEST == 1:
+                    points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
+                    points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
             
             print('START Pose Estimation')
             points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
             points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
             points3D = np.array(points3D, dtype=np.float64)
-            points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
-            points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
+            if DO_CALIBRATION_TEST == 1:
+                points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
+                points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
             print('LED_NUMBER: ', LED_NUMBER)
             # print('points2D\n', points2D)
             # print('points3D\n', points3D)
             
             # Make CAMERA_INFO data for check rt STD
             CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
-            CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
-            CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
-            
+            if DO_CALIBRATION_TEST == 1:
+                CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+                CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+                
             CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
             CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
             CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
@@ -1909,14 +1840,9 @@ def init_plot():
     ax2.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
 
     origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
-    target_pts = np.array(target_led_data).reshape(-1, 3)
-    target_pts_pose = np.array(target_pose_led_data).reshape(-1, 3)
-    ax1.set_title('3D plot')
-    
+    ax1.set_title('3D plot')    
     # ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
-    # ax1.scatter(target_pts[:, 0], target_pts[:, 1], target_pts[:, 2], color='black', alpha=1.0, marker='o', s=10, label='TARGET')
-    # ax1.scatter(target_pts_pose[:, 0], target_pts_pose[:, 1], target_pts_pose[:, 2], color='magenta', alpha=1.0, marker='o', s=10, label='TARGET_POSE')
-
+    
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
     ax1.set_xlim([-0.2, 0.2])
     ax1.set_xlabel('X')
@@ -1928,23 +1854,86 @@ def init_plot():
     f = zoom_factory(ax1, base_scale=scale)
     
     return ax1, ax2
+def init_coord_json(file):
+    print(init_coord_json.__name__)
+    try:
+        json_file = open(f'{file}')
+        jsonObject = json.load(json_file)
+        model_points = jsonObject.get('TrackedObject').get('ModelPoints')
+        pts = [0 for i in range(len(model_points))]
+        dir = [0 for i in range(len(model_points))]
+        for data in model_points:
+            idx = data.split('Point')[1]
+            x = model_points.get(data)[0]
+            y = model_points.get(data)[1]
+            z = model_points.get(data)[2]
+            u = model_points.get(data)[3]
+            v = model_points.get(data)[4]
+            w = model_points.get(data)[5]
+            r1 = model_points.get(data)[6]
+            r2 = model_points.get(data)[7]
+            r3 = model_points.get(data)[8]
+
+            pts[int(idx)] = np.array([x, y, z])
+            dir[int(idx)] = np.array([u, v, w])
+
+            # print(''.join(['{ .pos = {{', f'{x}', ',', f'{y}', ',', f'{z}',
+            #                     ' }}, .dir={{', f'{u}', ',', f'{v}', ',', f'{w}', ' }}, .pattern=', f'{idx}', '},']))
+    except:
+        print('exception')
+        traceback.print_exc()
+    finally:
+        print('done')
+    return pts, dir
+def show_calibrate_data(model_data, direction):    
+    # 3D plot 생성
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # 점들을 plot에 추가
+    ax.scatter(model_data[:, 0], model_data[:, 1], model_data[:, 2])
+
+    # 각 점에 대한 인덱스를 추가
+    for i in range(model_data.shape[0]):
+        ax.text(model_data[i, 0], model_data[i, 1], model_data[i, 2], str(i))
+
+    # 각 점에서 방향 벡터를 나타내는 화살표를 그림
+    for i in range(model_data.shape[0]):
+        ax.quiver(model_data[i, 0], model_data[i, 1], model_data[i, 2], 
+                direction[i, 0], direction[i, 1], direction[i, 2],
+                color='b',length=0.01)
+
+
+    ax.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax.set_xlim([-0.2, 0.2])
+    ax.set_xlabel('X')
+    ax.set_ylim([-0.2, 0.2])
+    ax.set_ylabel('Y')
+    ax.set_zlim([-0.2, 0.2])
+    ax.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax, base_scale=scale)
+
+    plt.show()
 
 if __name__ == "__main__":
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
-    print('origin')
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, './jsons/specs/arcturas_left.json'))    
+    BLOB_CNT = len(MODEL_DATA)
+    print('PTS')
     for i, leds in enumerate(MODEL_DATA):
-        print(f"{i}, {leds}")
-    print('target')
-    for i, leds in enumerate(target_led_data):
-        print(f"{i}, {leds}")
+        print(f"{np.array2string(leds, separator=', ')},")
+    print('DIR')
+    for i, dir in enumerate(DIRECTION):
+        print(f"{np.array2string(dir, separator=', ')},")
+    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
-    # ax1, ax2 = init_plot()
-    # bboxes = blob_setting(script_dir)
-    # gathering_data_single(ax1, script_dir, bboxes)
-    # remake_3d_for_blob_info(undistort)
-    # BA_3D_POINT()
-    # draw_result(ax1, ax2)
-
-    Check_Calibration_data_combination()
+    ax1, ax2 = init_plot()
+    bboxes = blob_setting(script_dir)
+    gathering_data_single(ax1, script_dir, bboxes)
+    remake_3d_for_blob_info(undistort)
+    BA_3D_POINT()
+    draw_result(ax1, ax2)
+    # Check_Calibration_data_combination()
