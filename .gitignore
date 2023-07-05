@@ -1,0 +1,4 @@
+*.png
+*.tmp
+*.blend1
+__pycache__/

@@ -74,6 +74,7 @@ BLOB_CNT = 15
 camera_log_path = "./tmp/render/camera_log.txt"
 camera_img_path = "./tmp/render/"
 
+
 calibrated_led_data_PCA = np.array([
     [-0.01877262, -0.00452623, -0.01352097],
     [-0.03336187, 0.0065097, -0.01435915],
@@ -91,7 +92,6 @@ calibrated_led_data_PCA = np.array([
     [0.03103517, 0.0035018, -0.01407839],
     [0.0190811, -0.00160445, -0.01450876],
 ])
-
 calibrated_led_data_IQR = np.array([
     [-0.01882079, -0.00453099, -0.01353282],
     [-0.03344758, 0.00651409, -0.01437504],
@@ -109,7 +109,6 @@ calibrated_led_data_IQR = np.array([
     [0.03103653, 0.00348794, -0.01408463],
     [0.01896287, -0.0016252, -0.0145338],
 ])
-
 origin_led_data = np.array([
     [-0.02146761, -0.00343424, -0.01381839],
     [-0.0318701, 0.00568587, -0.01206734],
@@ -127,6 +126,10 @@ origin_led_data = np.array([
     [0.03006234, 0.00378822, -0.01297127],
     [0.02000199, -0.00388647, -0.014973]
 ])
+
+MODEL_DATA = origin_led_data
+
+
 origin_led_dir = np.array([
     [-0.52706841, -0.71386452, -0.46108171],
     [-0.71941994, -0.53832866, -0.43890456],
@@ -875,7 +878,7 @@ def module_lsm(blob_data):
     led_array = []
     for led_id, points in enumerate(blob_data):
         led_array.append(led_id)
-        origin_pts.append(origin_led_data[led_id])
+        origin_pts.append(MODEL_DATA[led_id])
         before_pts.append(points)
 
     origin_pts = np.array(origin_pts)
@@ -1184,7 +1187,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
                 BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
                 
-                points3D.append(origin_led_data[int(blob_id)])
+                points3D.append(MODEL_DATA[int(blob_id)])
                 points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
                 points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
             
@@ -1259,7 +1262,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                             rotm = quat_to_rotm(quat)
                             rvec, _ = cv2.Rodrigues(rotm)
                             print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
-                            image_points, _ = cv2.projectPoints(np.array(origin_led_data),
+                            image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
                                 np.array(rvec),
                                 np.array(tvec),
                                 camera_matrix[CAM_ID][0],
@@ -1344,9 +1347,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
     pickle_data(WRITE, 'BLOB_INFO.pickle', data)
     data = OrderedDict()
     data['CAMERA_INFO'] = CAMERA_INFO
-    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
-    
-        
+    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)   
 def remake_3d_for_blob_info(undistort):
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = {}
@@ -1432,7 +1433,7 @@ def draw_result(ax1, ax2):
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
     BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
     LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
-    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
 
     for blob_id, data_list in REMADE_3D_INFO_B.items():
         distances_remade = []
@@ -1655,18 +1656,25 @@ def BA_3D_POINT():
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-
-def Check_Calibration_data():
+def Check_Calibration_data_combination():
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
+    def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
+        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
+        # Squeeze the points2D_reprojection to match the dimensionality of points2D
+        points2D_reprojection = points2D_reprojection.squeeze()
+        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+        # print('points2D:\n', points2D)
+        # print('points2D_reprojection:\n', points2D_reprojection)
+        # print('RER:', RER)
+        return RER
     def STD_Analysis(points3D_data, label):
-        CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']
-        
+        print(f"{points3D_data}")
         frame_counts = []
         rvec_std_arr = []
         tvec_std_arr = []
         reproj_err_rates = []
         
-        for frame_cnt, cam_data in CAMERA_INFO.items():
-            frame_counts.append(frame_cnt)
+        for frame_cnt, cam_data in CAMERA_INFO.items():           
             
             rvec_list = []
             tvec_list = []
@@ -1680,42 +1688,48 @@ def Check_Calibration_data():
             LENGTH = len(LED_NUMBER)
             
             if LENGTH >= 4:
-                for comb in combinations(range(LENGTH), 4):
-                    for perm in permutations(comb):
-                        points3D_perm = points3D[list(perm), :]
-                        points2D_perm = points2D[list(perm), :]
-                        points2D_U_perm = points2D_U[list(perm), :]
+                for r in range(4, LENGTH + 1):
+                    for comb in combinations(range(LENGTH), r):
+                        for perm in permutations(comb):
+                            points3D_perm = points3D[list(perm), :]
+                            points2D_perm = points2D[list(perm), :]
+                            points2D_U_perm = points2D_U[list(perm), :]
+                            if r >= 5:
+                                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                            elif r == 4:
+                                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                            INPUT_ARRAY = [
+                                CAM_ID,
+                                points3D_perm,
+                                points2D_perm if undistort == 0 else points2D_U_perm,
+                                camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                                camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                            ]
+                            _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                            
+                            rvec_list.append(np.linalg.norm(rvec))
+                            tvec_list.append(np.linalg.norm(tvec))
+
+                            RER = reprojection_error(points3D_perm,
+                                                    points2D_perm,
+                                                    rvec, tvec,
+                                                    camera_matrix[CAM_ID][0],
+                                                    camera_matrix[CAM_ID][1])                        
+                            reproj_err_list.append(RER)
+
+                        frame_counts.append(frame_cnt)
+                        rvec_std = np.std(rvec_list)
+                        tvec_std = np.std(tvec_list)
+                        reproj_err_rate = np.mean(reproj_err_list)
                         
-                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                        INPUT_ARRAY = [
-                            CAM_ID,
-                            points3D_perm,
-                            points2D_perm if undistort == 0 else points2D_U_perm,
-                            camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                            camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                        ]
-                        _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                        
-                        rvec_list.append(np.linalg.norm(rvec))
-                        tvec_list.append(np.linalg.norm(tvec))
-                        
-                        image_points, _ = cv2.projectPoints(points3D_perm, np.array(rvec), np.array(tvec), camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])
-                        image_points = image_points.reshape(-1, 2)
-                        
-                        reproj_err = np.mean(np.abs(points2D_perm - image_points))
-                        reproj_err_list.append(reproj_err)
-                        
-            rvec_std = np.std(rvec_list) if rvec_list else 0
-            tvec_std = np.std(tvec_list) if tvec_list else 0
-            reproj_err_rate = np.mean(reproj_err_list) if reproj_err_list else 0
-            
-            rvec_std_arr.append(rvec_std)
-            tvec_std_arr.append(tvec_std)
-            reproj_err_rates.append(reproj_err_rate)
-        
+                        rvec_std_arr.append(rvec_std)
+                        tvec_std_arr.append(tvec_std)
+                        reproj_err_rates.append(reproj_err_rate)
+
         return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label
 
 
+    
     fig, axs = plt.subplots(3, 1, figsize=(15, 15))
 
     points3D_datas = ['points3D', 'points3D_PCA', 'points3D_IQR']
@@ -1762,7 +1776,115 @@ def Check_Calibration_data():
 
     plt.subplots_adjust(hspace=0.3)  # Add space between subplots
     plt.show()
+def Check_Calibration_data():
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
+    def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
+        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
+        # Squeeze the points2D_reprojection to match the dimensionality of points2D
+        points2D_reprojection = points2D_reprojection.squeeze()
+        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+        # print('points2D:\n', points2D)
+        # print('points2D_reprojection:\n', points2D_reprojection)
+        # print('RER:', RER)
+        return RER
 
+    def STD_Analysis(points3D_data, label):
+        frame_counts_rvec = []
+        frame_counts_tvec = []
+        frame_counts_reproj_err = []
+        rvec_std_arr = []
+        tvec_std_arr = []
+        reproj_err_rates = []
+
+        for frame_cnt, cam_data in CAMERA_INFO.items():
+            LED_NUMBER = cam_data['LED_NUMBER']
+            points3D = cam_data[points3D_data]
+            points2D = cam_data['points2D']['greysum']
+            points2D_U = cam_data['points2D_U']['greysum']
+
+            LENGTH = len(LED_NUMBER)
+
+            if LENGTH >= 4:
+                print('PnP Solver OpenCV')
+                if LENGTH >= 5:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                elif LENGTH == 4:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+
+                INPUT_ARRAY = [
+                    CAM_ID,
+                    points3D,
+                    points2D if undistort == 0 else points2D_U,
+                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                ]
+                _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+
+                RER = reprojection_error(points3D,
+                                         points2D,
+                                         rvec, tvec,
+                                         camera_matrix[CAM_ID][0],
+                                         camera_matrix[CAM_ID][1])
+ 
+
+                frame_counts_rvec.append(frame_cnt)
+                rvec_std_arr.append(np.linalg.norm(rvec))
+                                    
+                frame_counts_tvec.append(frame_cnt)
+                tvec_std_arr.append(np.linalg.norm(tvec))
+
+                reproj_err_rates.append(RER)
+                frame_counts_reproj_err.append(frame_cnt)
+                
+
+        return frame_counts_rvec, rvec_std_arr, frame_counts_tvec, tvec_std_arr, frame_counts_reproj_err, reproj_err_rates, label
+
+    fig, axs = plt.subplots(3, 1, figsize=(15, 15))
+
+    points3D_datas = ['points3D','points3D_PCA','points3D_IQR']
+    colors = ['b', 'g', 'r']
+    summary_text = ""
+
+    for idx, points3D_data in enumerate(points3D_datas):
+        frame_counts_rvec, rvec_std_arr, frame_counts_tvec, tvec_std_arr, frame_counts_reproj_err, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data)
+
+        axs[0].plot(frame_counts_rvec, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}')
+        axs[0].plot(frame_counts_tvec, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}')
+        axs[1].plot(frame_counts_reproj_err, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}')
+
+        # Calculate and store the average and standard deviation for each data set
+        avg_rvec_std = np.mean(rvec_std_arr)
+        std_rvec_std = np.std(rvec_std_arr)
+        avg_tvec_std = np.mean(tvec_std_arr)
+        std_tvec_std = np.std(tvec_std_arr)
+        avg_reproj_err = np.mean(reproj_err_rates)
+        std_reproj_err = np.std(reproj_err_rates)
+
+        summary_text += f"== {label} ==\n"
+        summary_text += f"Rvec Std: Mean = {avg_rvec_std:.2f}, Std = {std_rvec_std:.2f}\n"
+        summary_text += f"Tvec Std: Mean = {avg_tvec_std:.2f}, Std = {std_tvec_std:.2f}\n"
+        summary_text += f"Reproj Err: Mean = {avg_reproj_err:.2f}, Std = {std_reproj_err:.2f}\n"
+        summary_text += "\n"
+
+    axs[0].legend()
+    axs[0].set_xlabel('frame_cnt')
+    axs[0].set_ylabel('std')
+    axs[0].set_title('Standard Deviation of rvec and tvec Magnitude per Frame')
+
+    axs[1].legend()
+    axs[1].set_xlabel('frame_cnt')
+    axs[1].set_ylabel('error rate')
+    axs[1].set_title('Mean Reprojection Error Rate per Frame')
+
+    axs[2].axis('off')  # Hide axes for the text plot
+    axs[2].text(0, 0, summary_text, fontsize=10)
+
+    # Reducing the number of X-ticks to avoid crowding
+    for ax in axs[:2]:
+        ax.set_xticks(ax.get_xticks()[::5])
+
+    plt.subplots_adjust(hspace=0.3)  # Add space between subplots
+    plt.show()
 def init_plot():
     root = tk.Tk()
     width_px = root.winfo_screenwidth()
@@ -1780,13 +1902,13 @@ def init_plot():
     ax1 = plt.subplot(gs[0], projection='3d')
     ax2 = plt.subplot(gs[1])
 
-    led_number = len(origin_led_data)
+    led_number = len(MODEL_DATA)
     ax2.set_title('distance')
     ax2.set_xlim([0, led_number])  # x축을 LED 번호의 수 만큼 설정합니다. 이 경우 14개로 설정됩니다.
     ax2.set_xticks(range(led_number))  # x축에 표시되는 눈금을 LED 번호의 수 만큼 설정합니다.
     ax2.set_xticklabels(range(led_number))  # x축에 표시되는 눈금 라벨을 LED 번호의 수 만큼 설정합니다.
 
-    origin_pts = np.array(origin_led_data).reshape(-1, 3)
+    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
     target_pts = np.array(target_led_data).reshape(-1, 3)
     target_pts_pose = np.array(target_pose_led_data).reshape(-1, 3)
     ax1.set_title('3D plot')
@@ -1812,7 +1934,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
     print('origin')
-    for i, leds in enumerate(origin_led_data):
+    for i, leds in enumerate(MODEL_DATA):
         print(f"{i}, {leds}")
     print('target')
     for i, leds in enumerate(target_led_data):
@@ -1825,4 +1947,4 @@ if __name__ == "__main__":
     # BA_3D_POINT()
     # draw_result(ax1, ax2)
 
-    Check_Calibration_data()
+    Check_Calibration_data_combination()
