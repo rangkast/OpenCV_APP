@@ -51,7 +51,7 @@ import poselib
 
 RIFTS_PATTERN = [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1]
 ARCTURAS_PATTERN = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
-LEDS_POSITION = ARCTURAS_PATTERN
+LEDS_POSITION = RIFTS_PATTERN
 
 READ = 0
 WRITE = 1
@@ -63,56 +63,119 @@ CAM_ID = 0
 
 AUTO_LOOP = 1
 undistort = 1
-BLOB_SIZE = 70
-THRESHOLD_DISTANCE = 12
+THRESHOLD_DISTANCE = 10
+TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
+
+FULL_COMBINATION_SEARCH = 0
+DO_CALIBRATION_TEST = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
-HOPPING_CNT = 3
+HOPPING_CNT = 4
 BLOB_CNT = -1
-camera_log_path = "./tmp/render/camera_log.txt"
-camera_img_path = "./tmp/render/"
+# camera_log_path = "./tmp/render/ARCTURAS/camera_log.txt"
+# camera_img_path = "./tmp/render/ARCTURAS/"
+# BLOB_SIZE = 60
+camera_log_path = "./tmp/render/RIFTS/camera_log.txt"
+camera_img_path = "./tmp/render/RIFTS/"
+BLOB_SIZE = 45
 
-DO_CALIBRATION_TEST = 0
+
+
+#Rift_S
 calibrated_led_data_PCA = np.array([
-    [-0.01877262, -0.00452623, -0.01352097],
-    [-0.03336187, 0.0065097, -0.01435915],
-    [-0.03396993, 0.00784779, 0.00479474],
-    [-0.04319664, 0.02852955, -0.00390652],
-    [-0.04187346, 0.03518956, 0.02260948],
-    [-0.03078489, 0.06120705, 0.01559879],
-    [-0.01422014, 0.06373706, 0.03533373],
-    [0.00931506, 0.07250631, 0.0214917],
-    [0.0314761, 0.05412158, 0.03063118],
-    [0.03573392, 0.05229837, 0.01156705],
-    [0.04169767, 0.0297437, 0.01498933],
-    [0.04078753, 0.02192572, -0.00403997],
-    [0.03120371, 0.00398597, 0.00283019],
-    [0.03103517, 0.0035018, -0.01407839],
-    [0.0190811, -0.00160445, -0.01450876],
+[-0.0196017, -0.00410068, -0.0135735],
+[-0.03277113, 0.00628887, -0.0135832],
+[-0.03490691, 0.00833338, 0.00426659],
+[-0.04303106, 0.0280018, -0.00324782],
+[-0.04180463, 0.03545028, 0.02165716],
+[-0.03023752, 0.06136769, 0.01576647],
+[-0.01427574, 0.06341851, 0.03570797],
+[0.00877676, 0.07193878, 0.02118695],
+[0.03089874, 0.05445536, 0.03078265],
+[0.03621063, 0.05241772, 0.01139059],
+[0.04202049, 0.02990856, 0.01540787],
+[0.04120085, 0.02222786, -0.00400265],
+[0.03191536, 0.00400903, 0.00200633],
+[0.03058087, 0.00350974, -0.01371021],
+[0.01917571, -0.00225342, -0.01462277],
 ])
 calibrated_led_data_IQR = np.array([
-    [-0.01882079, -0.00453099, -0.01353282],
-    [-0.03344758, 0.00651409, -0.01437504],
-    [-0.03396893, 0.00784552, 0.00479117],
-    [-0.04320414, 0.02853483, -0.00391307],
-    [-0.04186971, 0.03518948, 0.0226095],
-    [-0.03080832, 0.06120029, 0.01558957],
-    [-0.01421201, 0.06372101, 0.03533532],
-    [0.00935991, 0.07247287, 0.02147127],
-    [0.0314523, 0.05414508, 0.03065527],
-    [0.03573327, 0.05228266, 0.01156364],
-    [0.04169618, 0.02972643, 0.01499662],
-    [0.04076925, 0.02189879, -0.00404007],
-    [0.03147189, 0.00411067, 0.00289948],
-    [0.03103653, 0.00348794, -0.01408463],
-    [0.01896287, -0.0016252, -0.0145338],
+[-0.0196558, -0.00410544, -0.01356836],
+[-0.03282789, 0.0062879, -0.01357887],
+[-0.03493835, 0.0083316, 0.00427421],
+[-0.0430377, 0.02800506, -0.00324572],
+[-0.04180636, 0.03545349, 0.02166163],
+[-0.03022426, 0.06137344, 0.01575953],
+[-0.01429343, 0.06341453, 0.03570926],
+[0.0087845, 0.07193409, 0.0211762],
+[0.03090401, 0.0544413, 0.03077811],
+[0.0361974, 0.05240306, 0.01137662],
+[0.04201419, 0.02988591, 0.01540358],
+[0.04120136, 0.02222655, -0.00399953],
+[0.03192675, 0.00400135, 0.00201212],
+[0.03072938, 0.00358713, -0.01370051],
+[0.01917692, -0.0022665, -0.01462586],
 ])
+
+# Arcturas
+# calibrated_led_data_PCA = np.array([
+# [-0.00331481, 0.03597334, 0.0041562],
+# [0.00895387, 0.0480334, 0.00224952],
+# [0.03186545, 0.05034012, 0.00452086],
+# [0.05143521, 0.04647385, 0.00167996],
+# [0.0691143, 0.02880501, 0.00437797],
+# [0.07609677, 0.01258033, 0.00212461],
+# [0.07808255, -0.00880987, 0.00175163],
+# [0.07257527, -0.02523931, 0.00334523],
+# [0.05415833, -0.04513621, 0.00300021],
+# [0.03380799, -0.05154195, 0.00403185],
+# [0.01199563, -0.04928216, 0.00324531],
+# [-0.00577686, -0.03708742, 0.00419776],
+# [-0.01801006, 0.02495871, 0.01861654],
+# [-0.00627987, 0.03607813, 0.01639641],
+# [0.02400921, 0.05223235, 0.01819005],
+# [0.0439588, 0.04702286, 0.02071782],
+# [0.06125609, 0.03599675, 0.0192615],
+# [0.07299287, 0.01326892, 0.01876102],
+# [0.07108337, -0.0200403, 0.01969068],
+# [0.05584525, -0.04160456, 0.0191822],
+# [0.03372417, -0.04916243, 0.01823499],
+# [0.01221453, -0.04822629, 0.0171196],
+# [-0.00584511, -0.03477198, 0.01903182],
+# [-0.01835547, -0.02618116, 0.01613708],
+# ])
+# calibrated_led_data_IQR = np.array([
+# [-0.00329021, 0.03592558, 0.00415626],
+# [0.00896412, 0.04798009, 0.00222952],
+# [0.03185886, 0.05032494, 0.00451729],
+# [0.05141244, 0.04649456, 0.00167461],
+# [0.06908566, 0.02877851, 0.00438188],
+# [0.0760617, 0.01256322, 0.00213402],
+# [0.07808777, -0.00880047, 0.00175405],
+# [0.07264068, -0.02521716, 0.00334639],
+# [0.05421395, -0.04515157, 0.00299299],
+# [0.03368931, -0.05151773, 0.00403075],
+# [0.01189147, -0.0491093, 0.00323798],
+# [-0.00573937, -0.03708571, 0.00420315],
+# [-0.01804127, 0.02493463, 0.01861341],
+# [-0.00629089, 0.03607499, 0.01640096],
+# [0.02402278, 0.05222171, 0.01818928],
+# [0.04398363, 0.04701299, 0.02072038],
+# [0.06127724, 0.0359907, 0.01926452],
+# [0.07303191, 0.01326953, 0.01876604],
+# [0.07112739, -0.02000828, 0.01969362],
+# [0.05574092, -0.04158745, 0.01918677],
+# [0.03372719, -0.049154, 0.01824005],
+# [0.01226819, -0.04825089, 0.0171238],
+# [-0.00582242, -0.03479266, 0.01903632],
+# [-0.01831358, -0.02621611, 0.01612675],
+# ])
 
 camera_matrix = [
     [np.array([[712.623, 0.0, 653.448],
@@ -464,7 +527,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     led_candidates_left = [list(t) for t in led_candidates_left]
     for left_data in led_candidates_left:
         # print(left_data)
-        if left_data[3] < 2:
+        if left_data[3] < TRACKING_ANCHOR_RECOGNIZE_SIZE:
             left_data[4] = Tracking_ANCHOR
             continue
         # TOP Searching and clockwise
@@ -487,7 +550,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     RIGHT_BLOB_INFO = [-1, -1]
     for right_data in led_candidates_right:
         # print(right_data)
-        if right_data[3] < 2:
+        if right_data[3] < TRACKING_ANCHOR_RECOGNIZE_SIZE:
             right_data[4] = Tracking_ANCHOR
             continue
 
@@ -751,8 +814,8 @@ def check_blobs_with_pyramid(image, draw_frame, x, y, w, h, max_level):
         # Save the image for debugging
         if found:
             FOUND_STATUS = True
-        # save_image(img_with_contours, f"debug_{i}_{FOUND_STATUS}")
-        # save_image(draw_frame_with_shapes, f"debug_draw_{i}_{FOUND_STATUS}")
+            # save_image(img_with_contours, f"debug_{i}_{FOUND_STATUS}")
+            # save_image(draw_frame_with_shapes, f"debug_draw_{i}_{FOUND_STATUS}")
     return FOUND_STATUS
 def rigid_transform_3D(A, B):
     assert A.shape == B.shape
@@ -937,6 +1000,7 @@ def detect_outliers(blob_array, remove_index_array):
                         remove_index_array.append(xx)
     remove_index_array.sort()
 def gathering_data_single(ax1, script_dir, bboxes):
+    print('gathering_data_single START')
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     frame_cnt = 0
@@ -1009,7 +1073,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
             # cv2.putText(draw_frame, f"{int(gcx)},{int(gcy)},{gsize}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
             #             (255, 255, 255), 1)
             blob_centers.append((gcx, gcy, bbox))
-            print(f"{blob_id} : {gcx}, {gcy}")
+            # print(f"{blob_id} : {gcx}, {gcy}")
 
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
         # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
@@ -1018,7 +1082,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
             brvec, btvec = camera_params[frame_cnt + 1]
             brvec_reshape = np.array(brvec).reshape(-1, 1)
             btvec_reshape = np.array(btvec).reshape(-1, 1)
-            print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
+            # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
 
             TEMP_BLOBS = {}
             TRACKER_BROKEN_STATUS = NOT_SET
@@ -1026,16 +1090,29 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 if Tracking_DATA['tracker'] is not None:
                     print('Tracking_ANCHOR:', Tracking_ANCHOR)
                     ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
-                    # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
+                    # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)                    
                     cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
                     tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
+                    cv2.circle(draw_frame, (int(tcx), int(tcy)), 5, (0, 255, 0), -1)
                     if Tracking_ANCHOR in PREV_TRACKER:
+                        def check_distance(blob_centers, tcx, tcy):
+                            for center in blob_centers:
+                                gcx, gcy, _ = center
+                                distance = ((gcx - tcx)**2 + (gcy - tcy)**2)**0.5
+                                if distance < TRACKING_ANCHOR_RECOGNIZE_SIZE:
+                                    return False
+                            return True
                         dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
                         dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
                         euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
-                        if euclidean_distance > THRESHOLD_DISTANCE or tsize < BLOB_SIZE or not ret:
+                        # 트랙커가 갑자기 이동
+                        # 사이즈가 작은 경우
+                        # 실패한 경우
+                        # 중심점위치에 Blob_center 데이터가 없는 경우
+                        exist_status = check_distance(blob_centers, tcx, tcy)
+                        if exist_status or euclidean_distance > THRESHOLD_DISTANCE or tsize < BLOB_SIZE or not ret:
                             print('Tracker Broken')
-                            print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret)
+                            print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret, 'exist_status:', exist_status)
                             print('CUR_txy:', tcx, tcy)
                             print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
                             # del CURR_TRACKER[Tracking_ANCHOR]
@@ -1156,7 +1233,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                     camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
                 ]
                 ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
+                # print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
                 for blob_id in LED_NUMBER:
                     BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
                     BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
@@ -1192,7 +1269,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                             tvec = pose.t
                             rotm = quat_to_rotm(quat)
                             rvec, _ = cv2.Rodrigues(rotm)
-                            print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
+                            # print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
                             image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
                                 np.array(rvec),
                                 np.array(tvec),
@@ -1280,6 +1357,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
     data['CAMERA_INFO'] = CAMERA_INFO
     pickle_data(WRITE, 'CAMERA_INFO.pickle', data)   
 def remake_3d_for_blob_info(undistort):
+    print('remake_3d_for_blob_info START')
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = {}
     REMADE_3D_INFO_O = {}
@@ -1360,6 +1438,7 @@ def remake_3d_for_blob_info(undistort):
     if ret != ERROR:
         print('data saved')
 def draw_result(ax1, ax2):
+    print('draw_result START')
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
     BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
@@ -1491,6 +1570,7 @@ def draw_result(ax1, ax2):
     if SHOW_PLOT == 1:
         plt.show()
 def BA_3D_POINT():
+    print('BA_3D_POINT START')
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
@@ -1588,6 +1668,7 @@ def BA_3D_POINT():
     if ret != ERROR:
         print('data saved')
 def Check_Calibration_data_combination():
+    print('Check_Calibration_data_combination START')
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
     def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
         points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
@@ -1619,7 +1700,7 @@ def Check_Calibration_data_combination():
             LENGTH = len(LED_NUMBER)
             
             if LENGTH >= 4:
-                for r in range(4, LENGTH + 1):
+                for r in range(4, LENGTH + 1 if FULL_COMBINATION_SEARCH == 1 else 5):
                     for comb in combinations(range(LENGTH), r):
                         for perm in permutations(comb):
                             points3D_perm = points3D[list(perm), :]
@@ -1920,7 +2001,7 @@ if __name__ == "__main__":
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, './jsons/specs/arcturas_left.json'))    
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, './jsons/specs/rifts_left.json'))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -1936,4 +2017,7 @@ if __name__ == "__main__":
     remake_3d_for_blob_info(undistort)
     BA_3D_POINT()
     draw_result(ax1, ax2)
-    # Check_Calibration_data_combination()
+    Check_Calibration_data_combination()
+
+    print('\n\n')
+    print('########## DONE ##########')
