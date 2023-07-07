@@ -86,7 +86,6 @@ camera_img_path = "./tmp/render/RIFTS/"
 BLOB_SIZE = 45
 
 
-
 #Rift_S
 calibrated_led_data_PCA = np.array([
 [-0.0196017, -0.00410068, -0.0135735],
@@ -1025,6 +1024,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
     # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )
+    print('lenght of images: ', len(image_files))
     while frame_cnt < len(image_files) - 1:
         print('\n')
         print(f"########## Frame {frame_cnt} ##########")
@@ -2014,10 +2014,10 @@ if __name__ == "__main__":
     ax1, ax2 = init_plot()
     bboxes = blob_setting(script_dir)
     gathering_data_single(ax1, script_dir, bboxes)
-    remake_3d_for_blob_info(undistort)
-    BA_3D_POINT()
-    draw_result(ax1, ax2)
-    Check_Calibration_data_combination()
+    # remake_3d_for_blob_info(undistort)
+    # BA_3D_POINT()
+    # draw_result(ax1, ax2)
+    # Check_Calibration_data_combination()
 
     print('\n\n')
     print('########## DONE ##########')
