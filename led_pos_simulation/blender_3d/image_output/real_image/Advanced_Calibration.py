@@ -61,7 +61,7 @@ DONE = 1
 NOT_SET = -1
 CAM_ID = 0
 
-AUTO_LOOP = 1
+AUTO_LOOP = 0
 undistort = 1
 THRESHOLD_DISTANCE = 10
 TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
@@ -81,11 +81,13 @@ BLOB_CNT = -1
 # camera_log_path = "./tmp/render/ARCTURAS/camera_log.txt"
 # camera_img_path = "./tmp/render/ARCTURAS/"
 # BLOB_SIZE = 60
-camera_log_path = "./tmp/render/RIFTS/camera_log.txt"
-camera_img_path = "./tmp/render/RIFTS/"
+controller_name = 'rifts_left_2'
+camera_log_path = f"./tmp/render/RIFTS/{controller_name}/camera_log.txt"
+camera_img_path = f"./tmp/render/RIFTS/{controller_name}/"
 BLOB_SIZE = 45
 
-
+VIDEO_MODE = 0
+video_img_path = 'output.mkv'
 #Rift_S
 calibrated_led_data_PCA = np.array([
 [-0.0196017, -0.00410068, -0.0135735],
@@ -410,13 +412,13 @@ def init_trackers(trackers, frame):
         (x, y, w, h) = data['bbox']        
         ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
         data['tracker'] = tracker
-def click_event(event, x, y, flags, param, frame_0, blob_area_0, bboxes):
+def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes):
     if event == cv2.EVENT_LBUTTONDOWN:
         for i, bbox in enumerate(blob_area_0):
             if point_in_bbox(x, y, bbox):
                 input_number = input('Please enter ID for this bbox: ')
                 bboxes.append({'idx': input_number, 'bbox': bbox})
-                draw_blobs_and_ids(frame_0, blob_area_0, bboxes)
+                draw_blobs_and_ids(frame, blob_area_0, bboxes)
 def read_camera_log(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()
@@ -610,6 +612,7 @@ def view_camera_infos(frame, text, x, y):
                 (x, y),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
 def blob_setting(script_dir):
+    print('blob_setting START')
     bboxes = []
     json_file = os.path.join(script_dir, './blob_area.json')
     json_data = rw_json_data(READ, json_file, None)
@@ -617,32 +620,43 @@ def blob_setting(script_dir):
         bboxes = json_data['bboxes']
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
+    if VIDEO_MODE == 1:
+        video = cv2.VideoCapture(video_img_path)
     frame_cnt = 0
-    while frame_cnt < len(image_files):
-        frame_0 = cv2.imread(image_files[frame_cnt])
-        if frame_0 is None:
-            print("Cannot read the first image")
-            cv2.destroyAllWindows()
-            exit()
+    while video.isOpened() if VIDEO_MODE else True:
+        if VIDEO_MODE == 1:
+            video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)  # Frame indices start from 0
+            ret, frame = video.read()
+            filename = f"VIDEO Mode {video_img_path}"
+            if not ret:
+                break
+        else:
+            if frame_cnt >= len(image_files):
+                break
+            frame = cv2.imread(image_files[frame_cnt])
+            filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
+            if frame is None:
+                print("Cannot read the first image")
+                cv2.destroyAllWindows()
+                exit()
 
-        _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+        _, frame = cv2.threshold(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
-        draw_frame = frame_0.copy()
+        draw_frame = frame.copy()
         height, width = draw_frame.shape
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 0, 0), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 0, 0), 1)
         brvec, btvec = camera_params[frame_cnt + 1]
-
-        filename = os.path.basename(image_files[frame_cnt])
+        
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)
         cv2.putText(draw_frame, f"rvec: {brvec}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        blob_area = detect_led_lights(frame_0, 2, 5, 500)
+        blob_area = detect_led_lights(frame, 2, 5, 500)
         cv2.namedWindow('image')
-        partial_click_event = functools.partial(click_event, frame_0=frame_0, blob_area_0=blob_area, bboxes=bboxes)
+        partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
         cv2.setMouseCallback('image', partial_click_event)
         key = cv2.waitKey(1)
 
@@ -688,17 +702,17 @@ def quat_to_rotm(q):
     return np.array([[1 - 2 * (qy2 + qz2), 2 * (qxqy - qzqw), 2 * (qxqz + qyqw)],
                      [2 * (qxqy + qzqw), 1 - 2 * (qx2 + qz2), 2 * (qyqz - qxqw)],
                      [2 * (qxqz - qyqw), 2 * (qyqz + qxqw), 1 - 2 * (qx2 + qy2)]])
-def init_new_tracker(frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
-    prev_frame = cv2.imread(frame)
+def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
+    # prev_frame = cv2.imread(frame)
     if prev_frame is None or prev_frame.size == 0:
         print(f"Failed to load prev frame")
         return ERROR, None
-    draw_frame = prev_frame.copy()
+    # draw_frame = prev_frame.copy()
     _, prev_frame = cv2.threshold(cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                   cv2.THRESH_TOZERO)
-    filename = os.path.basename(frame)
-    cv2.putText(draw_frame, f"{filename}", (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                (255, 255, 255), 1)
+    # filename = os.path.basename(frame)
+    # cv2.putText(draw_frame, f"{filename}", (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+    #             (255, 255, 255), 1)
     # find Blob area by findContours
     blob_area = detect_led_lights(prev_frame, 2, 5, 500)
     blob_centers = []
@@ -1002,7 +1016,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
     print('gathering_data_single START')
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
-    frame_cnt = 0
+
     CURR_TRACKER = {}
     PREV_TRACKER = {}
 
@@ -1023,21 +1037,37 @@ def gathering_data_single(ax1, script_dir, bboxes):
     for blob_id in range(BLOB_CNT):  # blob IDs: 0 to 14
         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
-    # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )
-    print('lenght of images: ', len(image_files))
-    while frame_cnt < len(image_files) - 1:
+    if VIDEO_MODE == 1:
+        video = cv2.VideoCapture(video_img_path)
+        total_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+        print('lenght of images: ', total_frames)
+    else:
+        print('lenght of images: ', len(image_files))
+
+    frame_cnt = 0
+    while video.isOpened() if VIDEO_MODE else True:
         print('\n')
         print(f"########## Frame {frame_cnt} ##########")
+        if VIDEO_MODE == 1:
+            video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
+            ret, frame_0 = video.read()
+            filename = f"VIDEO Mode {video_img_path}"
+            if not ret:
+                break
+        else:
+            # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
+            if frame_cnt >= len(image_files) - 1:
+                break
+            frame_0 = cv2.imread(image_files[frame_cnt])
+            filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
+            if frame_0 is None or frame_0.size == 0:
+                print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
+                continue
 
-        frame_0 = cv2.imread(image_files[frame_cnt])
-        if frame_0 is None or frame_0.size == 0:
-            print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
-            continue
         draw_frame = frame_0.copy()
         _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
 
-        filename = os.path.basename(image_files[frame_cnt])
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 300, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
@@ -1078,7 +1108,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
         # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
 
-        if len(CURR_TRACKER_CPY) > 0:
+        if len(CURR_TRACKER_CPY) > 0 and frame_cnt + 1 < len(camera_params):
             brvec, btvec = camera_params[frame_cnt + 1]
             brvec_reshape = np.array(brvec).reshape(-1, 1)
             btvec_reshape = np.array(btvec).reshape(-1, 1)
@@ -1093,7 +1123,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
                     # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)                    
                     cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
                     tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
-                    cv2.circle(draw_frame, (int(tcx), int(tcy)), 5, (0, 255, 0), -1)
+                    cv2.circle(draw_frame, (int(tcx), int(tcy)), 2, (0, 255, 0), -1)
                     if Tracking_ANCHOR in PREV_TRACKER:
                         def check_distance(blob_centers, tcx, tcy):
                             for center in blob_centers:
@@ -1116,7 +1146,13 @@ def gathering_data_single(ax1, script_dir, bboxes):
                             print('CUR_txy:', tcx, tcy)
                             print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
                             # del CURR_TRACKER[Tracking_ANCHOR]
-                            ret, CURR_TRACKER = init_new_tracker(image_files[frame_cnt - 1], Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER)
+                            if VIDEO_MODE:
+                                video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt - 1)
+                                ret, search_frame = video.read()
+                            else:
+                                search_frame =  image_files[frame_cnt - 1]
+                                search_frame = cv2.imread(search_frame)      
+                            ret, CURR_TRACKER = init_new_tracker(search_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER)
 
                             if ret == SUCCESS:
                                 del CURR_TRACKER[Tracking_ANCHOR]
@@ -1205,8 +1241,9 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
                 points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
             print('LED_NUMBER: ', LED_NUMBER)
-            # print('points2D\n', points2D)
-            # print('points3D\n', points3D)
+            print('points2D\n', points2D)
+            print('points2D_U\n', points2D_U)
+            print('points3D\n', points3D)
             
             # Make CAMERA_INFO data for check rt STD
             CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
@@ -1997,11 +2034,108 @@ def show_calibrate_data(model_data, direction):
 
     plt.show()
 
+
+def recover_pose_essential_test():
+    print('recover_pose_essential_test START')
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']
+
+    # for frame_cnt, cam_data in CAMERA_INFO.items():
+    #     LED_NUMBER = cam_data['LED_NUMBER']
+    #     print(LED_NUMBER)
+
+    def recover_3d_points_combinations(groups, K):
+        recovered_3d_points = {}
+        for key, group in groups.items():
+            frames = list(group["frames"].keys())
+            if len(key) < 5:
+                continue
+            print('key: ', key, ' len: ', len(frames))
+            frame1 = min(frames)
+            frame2 = max(frames)
+            points1_2d = np.array(group["frames"][frame1]["points2D_U"])
+            points2_2d = np.array(group["frames"][frame2]["points2D_U"])
+            print('points1_2d:' , points1_2d)
+            print('points2_2d:' , points2_2d)
+
+            E, mask = cv2.findEssentialMat(points1_2d, points2_2d, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
+
+            # Check if Essential Matrix is None
+            if E is None:
+                continue
+
+            # Check the shape and validity of Essential Matrix
+            if E.shape != (3, 3) or np.isnan(E).any() or np.isinf(E).any():
+                continue
+                    
+            _, R, t, _ = cv2.recoverPose(E, points1_2d, points2_2d, K)
+            
+            R1 = np.eye(3)
+            t1 = np.zeros((3, 1))
+            R2 = R
+            t2 = t
+            points_3d_homogeneous = cv2.triangulatePoints(np.hstack((R1, t1)), np.hstack((R2, t2)), points1_2d.T, points2_2d.T)
+            points_3d = points_3d_homogeneous[:3, :] / points_3d_homogeneous[3, :]
+            combination_key = (key, (frame1, frame2))
+            recovered_3d_points[combination_key] = points_3d.T
+            print('points_3d.T:',points_3d.T)
+        return recovered_3d_points
+
+    def group_points_by_led_sequence(CAMERA_INFO):
+        groups = {}
+        for frame_cnt, cam_data in CAMERA_INFO.items():
+            led_numbers = cam_data['LED_NUMBER']
+            points2D = cam_data['points2D']['greysum']
+            points2D_U = cam_data['points2D_U']['greysum']
+
+            if int(frame_cnt) > 8:
+                break
+            # LED 번호의 순서를 키로 사용
+            key = tuple(led_numbers)
+
+            if key not in groups:
+                groups[key] = {"frames": {}}
+
+            if frame_cnt not in groups[key]["frames"]:
+                groups[key]["frames"][frame_cnt] = {"points2D": [], "points2D_U": []}
+
+            groups[key]["frames"][frame_cnt]["points2D"].extend(points2D)
+            groups[key]["frames"][frame_cnt]["points2D_U"].extend(points2D_U)
+        return groups
+    # 위의 함수를 사용해서 그룹 생성
+    groups = group_points_by_led_sequence(CAMERA_INFO)
+    recover_points = recover_3d_points_combinations(groups, camera_matrix[0][0])
+    # # 출력해보기
+    # for key, group in groups.items():
+    #     print(f"LED Sequence: {key}")
+    #     for frame, data in group["frames"].items():
+    #         print(f"Frame: {frame}")
+    #         print(f"2D Points: {data['points2D']}")
+    #         print(f"Undistorted 2D Points: {data['points2D_U']}")
+    #         print("\n")
+    recover_points_list = [point for key, point in recover_points.items()]
+    recover_points_array = np.array(recover_points_list)
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111, projection='3d')
+
+    ax1.scatter(recover_points_array[:, 0], recover_points_array[:, 1], recover_points_array[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
+    
+    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax1.set_xlim([-0.2, 0.2])
+    ax1.set_xlabel('X')
+    ax1.set_ylim([-0.2, 0.2])
+    ax1.set_ylabel('Y')
+    ax1.set_zlim([-0.2, 0.2])
+    ax1.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax1, base_scale=scale)
+    plt.show()
+
 if __name__ == "__main__":
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, './jsons/specs/rifts_left.json'))    
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -2011,13 +2145,14 @@ if __name__ == "__main__":
         print(f"{np.array2string(dir, separator=', ')},")
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
-    ax1, ax2 = init_plot()
-    bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes)
+    # ax1, ax2 = init_plot()
+    # bboxes = blob_setting(script_dir)
+    # gathering_data_single(ax1, script_dir, bboxes)
     # remake_3d_for_blob_info(undistort)
     # BA_3D_POINT()
     # draw_result(ax1, ax2)
     # Check_Calibration_data_combination()
-
+    recover_pose_essential_test()
+    
     print('\n\n')
     print('########## DONE ##########')

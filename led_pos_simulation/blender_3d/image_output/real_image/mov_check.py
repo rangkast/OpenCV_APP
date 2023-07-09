@@ -139,7 +139,7 @@ while(cap.isOpened()):
         cv2.imshow('Frame', draw_frame)
 
         # Wait for a key press and break the loop if 'q' is pressed
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(8) & 0xFF == ord('q'):
             break
 
         current_frame += 1
