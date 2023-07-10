@@ -271,7 +271,10 @@ def make_video(camera_devices):
             elif key & 0xFF == ord('e'): 
                 # Use 'e' key to exit the loop
                 break
-
+            elif key & 0xFF == ord('c'): 
+                # Capture current frame
+                cv2.imwrite('start_capture.jpg', frame)
+                print('Image saved as capture.jpg')
             # Write the frame to file if recording
             if recording and out is not None:
                 print('writing...')

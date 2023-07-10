@@ -64,9 +64,9 @@ cap = cv2.VideoCapture('output.mkv')
 # Get total number of frames
 total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 current_frame = 0
-start_frame = 10
+start_frame = 500
 
-
+print('total_frames: ', total_frames)
 
 centers1 = []
 while(cap.isOpened()):
