@@ -71,7 +71,7 @@ TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
 
-FULL_COMBINATION_SEARCH = 0
+FULL_COMBINATION_SEARCH = 1
 DO_CALIBRATION_TEST = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
@@ -93,41 +93,41 @@ camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
 BLOB_SIZE = 45
 
 VIDEO_MODE = 1
-video_img_path = 'output.mkv'
+video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
 calibrated_led_data_PCA = np.array([
-[-0.0196017, -0.00410068, -0.0135735],
-[-0.03277113, 0.00628887, -0.0135832],
-[-0.03490691, 0.00833338, 0.00426659],
-[-0.04303106, 0.0280018, -0.00324782],
-[-0.04180463, 0.03545028, 0.02165716],
-[-0.03023752, 0.06136769, 0.01576647],
-[-0.01427574, 0.06341851, 0.03570797],
-[0.00877676, 0.07193878, 0.02118695],
-[0.03089874, 0.05445536, 0.03078265],
-[0.03621063, 0.05241772, 0.01139059],
-[0.04202049, 0.02990856, 0.01540787],
-[0.04120085, 0.02222786, -0.00400265],
-[0.03191536, 0.00400903, 0.00200633],
-[0.03058087, 0.00350974, -0.01371021],
-[0.01917571, -0.00225342, -0.01462277],
+[-0.02291268, -0.00186833, -0.01066079],
+[-0.03261694, 0.00279641, -0.00470495],
+[-0.03758283, 0.01663741, -0.00915148],
+[-0.04404166, 0.02016558, 0.00803861],
+[-0.04468834, 0.04310015, 0.0053428],
+[-0.03376229, 0.05441907, 0.03093153],
+[-0.01790698, 0.07452927, 0.02436836],
+[0.00676288, 0.06485106, 0.03856778],
+[0.03050419, 0.06539764, 0.01934662],
+[0.04098176, 0.04596093, 0.02571515],
+[0.0449782, 0.03773211, 0.00248406],
+[0.04579939, 0.01563986, 0.00443345],
+[0.03501628, 0.00865547, -0.01485783],
+[0.03197804, -0.00375312, -0.00924707],
+[0.02164168, -0.00929003, -0.01517383],
 ])
 calibrated_led_data_IQR = np.array([
-[-0.0196558, -0.00410544, -0.01356836],
-[-0.03282789, 0.0062879, -0.01357887],
-[-0.03493835, 0.0083316, 0.00427421],
-[-0.0430377, 0.02800506, -0.00324572],
-[-0.04180636, 0.03545349, 0.02166163],
-[-0.03022426, 0.06137344, 0.01575953],
-[-0.01429343, 0.06341453, 0.03570926],
-[0.0087845, 0.07193409, 0.0211762],
-[0.03090401, 0.0544413, 0.03077811],
-[0.0361974, 0.05240306, 0.01137662],
-[0.04201419, 0.02988591, 0.01540358],
-[0.04120136, 0.02222655, -0.00399953],
-[0.03192675, 0.00400135, 0.00201212],
-[0.03072938, 0.00358713, -0.01370051],
-[0.01917692, -0.0022665, -0.01462586],
+[-0.02277112, -0.00186617, -0.01066],
+[-0.0326858, 0.00281835, -0.0047085],
+[-0.03770075, 0.01666453, -0.0091579],
+[-0.04409061, 0.02019794, 0.0080387],
+[-0.04461757, 0.04314389, 0.00534936],
+[-0.0337724, 0.05443902, 0.03093271],
+[-0.01789801, 0.07453377, 0.02436835],
+[0.00676469, 0.0648294, 0.03856234],
+[0.03052698, 0.06547573, 0.01940529],
+[0.04054657, 0.04595729, 0.02573945],
+[0.04531146, 0.03767338, 0.00245304],
+[0.04582746, 0.01556909, 0.00440586],
+[0.03495143, 0.00860999, -0.0148734],
+[0.03210952, -0.0037791, -0.00924764],
+[0.02164886, -0.00929365, -0.01517524],
 ])
 
 # Arcturas
@@ -1020,7 +1020,7 @@ def detect_outliers(blob_array, remove_index_array):
                     else:
                         remove_index_array.append(xx)
     remove_index_array.sort()
-def gathering_data_single(ax1, script_dir, bboxes):
+def gathering_data_single(ax1, script_dir, bboxes, start, end):
     print('gathering_data_single START')
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
@@ -1076,7 +1076,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
         _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
 
-        cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 400, 50),
+        cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         height, width = frame_0.shape
@@ -1116,12 +1116,7 @@ def gathering_data_single(ax1, script_dir, bboxes):
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
         # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
 
-        if len(CURR_TRACKER_CPY) > 0 and frame_cnt + 1 < len(camera_params):
-            brvec, btvec = camera_params[frame_cnt + 1]
-            brvec_reshape = np.array(brvec).reshape(-1, 1)
-            btvec_reshape = np.array(btvec).reshape(-1, 1)
-            # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
-
+        if len(CURR_TRACKER_CPY) > 0:
             TEMP_BLOBS = {}
             TRACKER_BROKEN_STATUS = NOT_SET
             for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
@@ -1214,159 +1209,172 @@ def gathering_data_single(ax1, script_dir, bboxes):
                 print(f"{frame_cnt} rollback")
                 continue
 
-            # Algorithm Added
-            CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-            LED_NUMBER = []
-            points2D = []
-            points2D_U = []
-            points3D = []
+
+            '''
             
-            # TEST CODE
-            points3D_PCA = []
-            points3D_IQR = []            
+            Algorithm Added
             
-            TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
-            for blob_id, blob_data in TEMP_BLOBS.items():
-                LED_NUMBER.append(int(blob_id))
-                points2D.append(blob_data['D'])
-                points2D_U.append(blob_data['U'])
-                
-                BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
-                BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
-                BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
-                BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
-                
-                points3D.append(MODEL_DATA[int(blob_id)])
-                if DO_CALIBRATION_TEST == 1:
-                    points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
-                    points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
-            
-            print('START Pose Estimation')
-            points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
-            points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
-            points3D = np.array(points3D, dtype=np.float64)
-            if DO_CALIBRATION_TEST == 1:
-                points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
-                points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-            print('LED_NUMBER: ', LED_NUMBER)
-            print('points2D\n', points2D)
-            print('points2D_U\n', points2D_U)
-            print('points3D\n', points3D)
-            
-            # Make CAMERA_INFO data for check rt STD
-            CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
-            if DO_CALIBRATION_TEST == 1:
-                CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
-                CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
-                
-            CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
-            CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
-            CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
+            '''
+            if frame_cnt >= start and frame_cnt <= end:
+                camera_params_pos = frame_cnt - start + 1
+                if camera_params_pos < len(camera_params) and camera_params_pos % 2 == 1:                
+                    brvec, btvec = camera_params[camera_params_pos]
+                    brvec_reshape = np.array(brvec).reshape(-1, 1)
+                    btvec_reshape = np.array(btvec).reshape(-1, 1)
+                    # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
 
-            LENGTH = len(LED_NUMBER)
-            if LENGTH >= 4:
-                print('PnP Solver OpenCV')
-                if LENGTH >= 5:
-                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                elif LENGTH == 4:
-                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-                INPUT_ARRAY = [
-                    CAM_ID,
-                    points3D,
-                    points2D if undistort == 0 else points2D_U,
-                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                ]
-                ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
-                for blob_id in LED_NUMBER:
-                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                    CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+                    LED_NUMBER = []
+                    points2D = []
+                    points2D_U = []
+                    points3D = []
+                    
+                    # TEST CODE
+                    points3D_PCA = []
+                    points3D_IQR = []            
+                    
+                    TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
+                    for blob_id, blob_data in TEMP_BLOBS.items():
+                        LED_NUMBER.append(int(blob_id))
+                        points2D.append(blob_data['D'])
+                        points2D_U.append(blob_data['U'])
+                        
+                        BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
+                        BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
+                        BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
+                        BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
+                        
+                        points3D.append(MODEL_DATA[int(blob_id)])
+                        if DO_CALIBRATION_TEST == 1:
+                            points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
+                            points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
+                    
+                    print('START Pose Estimation')
+                    points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
+                    points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
+                    points3D = np.array(points3D, dtype=np.float64)
+                    if DO_CALIBRATION_TEST == 1:
+                        points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
+                        points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
+                    print('LED_NUMBER: ', LED_NUMBER)
+                    print('points2D\n', points2D)
+                    print('points2D_U\n', points2D_U)
+                    print('points3D\n', points3D)
+                    
+                    # Make CAMERA_INFO data for check rt STD
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
+                    if DO_CALIBRATION_TEST == 1:
+                        CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+                        CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+                        
+                    CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
+                    CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
+                    CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
 
-                image_points, _ = cv2.projectPoints(points3D,
-                                                    np.array(rvec),
-                                                    np.array(tvec),
-                                                    camera_matrix[CAM_ID][0],
-                                                    camera_matrix[CAM_ID][1])
-                image_points = image_points.reshape(-1, 2)
-
-                for point in image_points:
-                    # 튜플 형태로 좌표 변환
-                    pt = (int(point[0]), int(point[1]))
-                    cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
-
-            elif LENGTH == 3:
-                #P3P
-                mutex.acquire()
-                try:
-                    print('P3P LamdaTwist')
-                    points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
-                    X = np.array(points3D)   
-                    x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-                    # print('normalized x\n', x)
-                    poselib_result = poselib.p3p(x, X)
-                    visible_detection = NOT_SET
-                    for solution_idx, pose in enumerate(poselib_result):
-                        colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
-                        colorstr = ['blue', 'green', 'purple', 'yellow']
-                        if is_valid_pose(pose):
-                            quat = pose.q
-                            tvec = pose.t
-                            rotm = quat_to_rotm(quat)
-                            rvec, _ = cv2.Rodrigues(rotm)
-                            print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
-                            image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
-                                np.array(rvec),
-                                np.array(tvec),
-                                camera_matrix[CAM_ID][0],
-                                camera_matrix[CAM_ID][1])
-                            image_points = image_points.reshape(-1, 2)
-                            # print('image_points\n', image_points)
-                            cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
-                            ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
-                            ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
-                            
-                            ###############################            
-                            visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
-                            # print('visible_result:', visible_result)
-                            visible_status = SUCCESS
-                            for blob_id, status in visible_result.items():
-                                if status == False:
-                                    visible_status = ERROR
-                                    print(f"{solution_idx} pose unvisible led {blob_id}")
-                                    break                                
-                            if visible_status == SUCCESS:
-                                visible_detection = DONE
-                                for blob_id in LED_NUMBER:
-                                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
-                            ###############################
-                                
-                            for idx, point in enumerate(image_points):
-                                # 튜플 형태로 좌표 변환
-                                pt = (int(point[0]), int(point[1]))
-                                if idx in LED_NUMBER:
-                                    cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
-                                else:
-                                    cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
-                                
-                                text_offset = (5, -5)
-                                text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
-                                cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
-
-                    if visible_detection == NOT_SET:
+                    LENGTH = len(LED_NUMBER)
+                    if LENGTH >= 4:
+                        print('PnP Solver OpenCV')
+                        if LENGTH >= 5:
+                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                        elif LENGTH == 4:
+                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                        INPUT_ARRAY = [
+                            CAM_ID,
+                            points3D,
+                            points2D if undistort == 0 else points2D_U,
+                            camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                            camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                        ]
+                        ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                        print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
                         for blob_id in LED_NUMBER:
-                            # Use an 'empty' numpy array as our NOT_SET value
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
 
-                finally:
-                    mutex.release()
-            else:
-                print('NOT Enough blobs')
-                if AUTO_LOOP == 1:
-                    frame_cnt += 1
-                continue
+                        image_points, _ = cv2.projectPoints(points3D,
+                                                            np.array(rvec),
+                                                            np.array(tvec),
+                                                            camera_matrix[CAM_ID][0],
+                                                            camera_matrix[CAM_ID][1])
+                        image_points = image_points.reshape(-1, 2)
+
+                        for point in image_points:
+                            # 튜플 형태로 좌표 변환
+                            pt = (int(point[0]), int(point[1]))
+                            cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
+
+                    elif LENGTH == 3:
+                        #P3P
+                        mutex.acquire()
+                        try:
+                            print('P3P LamdaTwist')
+                            points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
+                            X = np.array(points3D)   
+                            x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
+                            # print('normalized x\n', x)
+                            poselib_result = poselib.p3p(x, X)
+                            visible_detection = NOT_SET
+                            for solution_idx, pose in enumerate(poselib_result):
+                                colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
+                                colorstr = ['blue', 'green', 'purple', 'yellow']
+                                if is_valid_pose(pose):
+                                    quat = pose.q
+                                    tvec = pose.t
+                                    rotm = quat_to_rotm(quat)
+                                    rvec, _ = cv2.Rodrigues(rotm)
+                                    print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
+                                    image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
+                                        np.array(rvec),
+                                        np.array(tvec),
+                                        camera_matrix[CAM_ID][0],
+                                        camera_matrix[CAM_ID][1])
+                                    image_points = image_points.reshape(-1, 2)
+                                    # print('image_points\n', image_points)
+                                    cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
+                                    ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
+                                    ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
+                                    
+                                    ###############################            
+                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
+                                    # print('visible_result:', visible_result)
+                                    visible_status = SUCCESS
+                                    for blob_id, status in visible_result.items():
+                                        if status == False:
+                                            visible_status = ERROR
+                                            print(f"{solution_idx} pose unvisible led {blob_id}")
+                                            break                                
+                                    if visible_status == SUCCESS:
+                                        visible_detection = DONE
+                                        for blob_id in LED_NUMBER:
+                                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                                    ###############################
+                                        
+                                    for idx, point in enumerate(image_points):
+                                        # 튜플 형태로 좌표 변환
+                                        pt = (int(point[0]), int(point[1]))
+                                        if idx in LED_NUMBER:
+                                            cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
+                                        else:
+                                            cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
+                                        
+                                        text_offset = (5, -5)
+                                        text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
+                                        cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
+
+                            if visible_detection == NOT_SET:
+                                for blob_id in LED_NUMBER:
+                                    # Use an 'empty' numpy array as our NOT_SET value
+                                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
+                                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
+
+                        finally:
+                            mutex.release()
+                    else:
+                        print('NOT Enough blobs')
+                        if AUTO_LOOP == 1:
+                            frame_cnt += 1
+                        continue
  
         if AUTO_LOOP == 1:
             frame_cnt += 1
@@ -1831,8 +1839,9 @@ def Check_Calibration_data_combination():
     for ax in axs[:2]:
         ax.set_xticks(ax.get_xticks()[::5])
 
-    plt.subplots_adjust(hspace=0.3)  # Add space between subplots
+    plt.subplots_adjust(hspace=0.5)  # Add space between subplots
     plt.show()
+
 def Check_Calibration_data():
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
     def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
@@ -2297,8 +2306,14 @@ def recover_pose_essential_test_two(script_dir):
     plt.show()
 
 
-def init_camera_path(video_path, first_image_path):
+def init_camera_path(script_dir, video_path, first_image_path):
     bboxes = []
+    centers1 = []
+    json_file = os.path.join(script_dir, './init_blob_area.json')
+    json_data = rw_json_data(READ, json_file, None)
+    if json_data != ERROR:
+        bboxes = json_data['bboxes']
+    CAPTURE_DONE = NOT_SET
     while  True:
         frame_0 = cv2.imread(first_image_path)
         draw_frame = frame_0.copy()
@@ -2322,6 +2337,12 @@ def init_camera_path(video_path, first_image_path):
         if key == ord('c'):
             print('clear area')
             bboxes.clear()
+        elif key == ord('s'):
+            print('save blob area')
+            json_data = OrderedDict()
+            json_data['bboxes'] = bboxes
+            # Write json data
+            rw_json_data(WRITE, json_file, json_data)
         elif key & 0xFF == 27:
             print('ESC pressed')
             cv2.destroyAllWindows()
@@ -2329,17 +2350,20 @@ def init_camera_path(video_path, first_image_path):
         elif key == ord('q'):
             print('go next step')
             break
-        elif key == ord('c'):
+        elif key == ord('n'):
             bboxes.clear()
             print('go next IMAGE')
-        elif key == ord('s'):
+        elif key == ord('b'):
+            bboxes.clear()
+            print('go back IMAGE')
+        elif key == ord('p'):
             print('calculation data')
             print('bboxes', bboxes)
 
             LED_NUMBERS = []
-            # blob_centers = []
             points2D_D = []
             points2D_U = []
+            points3D = []
             for AREA_DATA in bboxes:
                 IDX = int(AREA_DATA['idx'])
                 bbox = AREA_DATA['bbox']
@@ -2348,26 +2372,197 @@ def init_camera_path(video_path, first_image_path):
                 if gsize < BLOB_SIZE:
                     continue
                 cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-                # blob_centers.append((gcx, gcy, bbox))
+                centers1.append((gcx, gcy, bbox))
                 print(f"{IDX} : {gcx}, {gcy}")
+                LED_NUMBERS.append(IDX)
+                points3D.append(MODEL_DATA[IDX])
                 temp_blobs = np.array([gcx, gcy], dtype=np.float64)
                 points2D_D.append(temp_blobs)
                 points2D_U.append(np.array(cv2.undistortPoints(temp_blobs, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2))
             
+ 
+            print('START Pose Estimation')
+            points2D_D = np.array(np.array(points2D_D).reshape(len(points2D_D), -1), dtype=np.float64)
+            points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
+            points3D = np.array(points3D, dtype=np.float64)
+
+            print('LED_NUMBERS: ', LED_NUMBERS)
             print('points2D_D\n', points2D_D)
             print('points2D_U\n', points2D_U)
+            print('points3D\n', points3D)                 
+            LENGTH = len(LED_NUMBERS)
+            if LENGTH >= 4:
+                print('PnP Solver OpenCV')
+                if LENGTH >= 5:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                elif LENGTH == 4:
+                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                INPUT_ARRAY = [
+                    CAM_ID,
+                    points3D,
+                    points2D_D if undistort == 0 else points2D_U,
+                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                ]
+                _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
+            
+            INIT_IMAGE = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+            INIT_IMAGE['points2D']['greysum'] = points2D_D
+            INIT_IMAGE['points2D_U']['greysum'] = points2D_U            
+            INIT_IMAGE['LED_NUMBER'] =LED_NUMBERS
+            INIT_IMAGE['points3D'] =points3D
+            CAPTURE_DONE = DONE
+            break
 
         draw_blobs_and_ids(draw_frame, blob_area, bboxes)
         cv2.imshow('image', draw_frame)
 
     cv2.destroyAllWindows()
+    
+    
+    if CAPTURE_DONE == DONE:               
+        cap = cv2.VideoCapture(video_path)
+
+        # Get total number of frames
+        total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        current_frame = 0
+
+        print('total_frames: ', total_frames)
+
+        S_closest_img = None
+        S_min_distance = float('inf')
+        E_closest_img = None
+        E_min_distance = float('inf')
+        while(cap.isOpened()):
+            # Read frames
+            ret, frame = cap.read()
+
+            if ret:
+                draw_frame = frame.copy()        
+                _, frame = cv2.threshold(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                        cv2.THRESH_TOZERO)
+                        
+
+                cv2.putText(draw_frame, f'Frame {current_frame}/{total_frames}', 
+                        (50, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 
+                        1, 
+                        (0, 255, 0), 
+                        1, 
+                        cv2.LINE_AA)
+                height, width = frame.shape
+                center_x, center_y = width // 2, height // 2
+                cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
+                cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)            
+
+                # LED blob 찾기
+                blobs2 = detect_led_lights(frame, 2, 5, 500)
+                # 두 번째 이미지의 LED blob 중심점 계산
+                centers2 = []
+                for blob_id, blob in enumerate(blobs2):
+                    gcx, gcy, gsize = find_center(frame, blob)
+                    if gsize < BLOB_SIZE:
+                        continue
+                    cv2.rectangle(draw_frame, (blob[0], blob[1]), (blob[0] + blob[2], blob[1] + blob[3]), (255, 255, 255), 1)
+                    cv2.putText(draw_frame, f"{blob_id}", (blob[0], blob[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    centers2.append((gcx, gcy, blob))
+
+
+                for center in centers1:
+                    cv2.circle(draw_frame, (int(center[0]), int(center[1])), 1, (0, 255, 0), -1)
+
+                for center in centers2:
+                    cv2.circle(draw_frame, (int(center[0]), int(center[1])), 1, (0, 0, 255), -1)
+
+                if current_frame < total_frames / 2:
+                    if len(centers1) == len(centers2):
+                        max_distance = max(np.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2)
+                                        for c1, c2 in zip(centers1, centers2))            
+                        if max_distance < S_min_distance:
+                            S_min_distance = max_distance
+                            S_closest_img = current_frame
+
+                            # S_min_distance값을 업데이트 할 때 마다 이미지에 값을 업데이트
+                            cv2.putText(draw_frame, f"S min distance: {S_min_distance}", 
+                                        (50, 75), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 
+                                        1, 
+                                        (0, 255, 0), 
+                                        1, 
+                                        cv2.LINE_AA)
+                else:
+                    if len(centers1) == len(centers2):
+                        max_distance = max(np.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2)
+                                        for c1, c2 in zip(centers1, centers2))            
+                        if max_distance < E_min_distance:
+                            E_min_distance = max_distance
+                            E_closest_img = current_frame
+
+                            # E_min_distance값을 업데이트 할 때 마다 이미지에 값을 업데이트
+                            cv2.putText(draw_frame, f"E min distance: {E_min_distance}", 
+                                        (50, 100), 
+                                        cv2.FONT_HERSHEY_SIMPLEX, 
+                                        1, 
+                                        (0, 255, 0), 
+                                        1, 
+                                        cv2.LINE_AA)
+
+
+                # Show the frames
+                cv2.imshow('Frame', draw_frame)
+
+                # Wait for a key press and break the loop if 'q' is pressed
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+
+                current_frame += 1
+            else:
+                break
+
+        print(f'The closest image START {S_closest_img} END {E_closest_img}')
+        
+        cap = cv2.VideoCapture(video_img_path)
+        # Get the start_frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, S_closest_img)  # Frame indices start from 0
+        ret1, frame_start = cap.read()
+
+        # Get the closest_img frame
+        cap.set(cv2.CAP_PROP_POS_FRAMES, E_closest_img)  # Frame indices start from 0
+        ret2, frame_closest = cap.read()
+
+        if ret1 and ret2:  # If both frames are read correctly
+
+            # Define range for white color in RGB
+            lower_white = np.array([200, 200, 200])
+            upper_white = np.array([255, 255, 255])
+
+            # Threshold the RGB image to get only white colors
+            mask_start = cv2.inRange(frame_start, lower_white, upper_white)
+            mask_closest = cv2.inRange(frame_closest, lower_white, upper_white)
+
+            # Change white (where mask is 1) to red and blue
+            frame_start[mask_start == 255] = [0, 0, 255]
+            frame_closest[mask_closest == 255] = [255, 0, 0]
+
+            # Weighted addition of two frames
+            overlapped_frame = cv2.addWeighted(frame_start, 0.5, frame_closest, 0.5, 0)
+
+            cv2.imshow('Overlapped frame', overlapped_frame)
+            cv2.waitKey(0)  # Wait until any key is pressed
+
+        cap.release()
+        cv2.destroyAllWindows()
+    
+    return S_closest_img, E_closest_img
 
 
 if __name__ == "__main__":
     # Get the directory of the current script
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
+
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_left_2.json"))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -2377,17 +2572,15 @@ if __name__ == "__main__":
         print(f"{np.array2string(dir, separator=', ')},")
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
-
-    init_camera_path('output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
-
+    # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     # ax1, ax2 = init_plot()
     # bboxes = blob_setting(script_dir)
-    # gathering_data_single(ax1, script_dir, bboxes)
+    # gathering_data_single(ax1, script_dir, bboxes, 294, 913)
     # remake_3d_for_blob_info(undistort)
     # BA_3D_POINT()
     # draw_result(ax1, ax2)
-    # Check_Calibration_data_combination()
+    Check_Calibration_data_combination()
     # recover_pose_essential_test_two(script_dir)
     
     print('\n\n')

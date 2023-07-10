@@ -2,3 +2,5 @@
 *.tmp
 *.blend1
 __pycache__/
+*.iml
+*.xml
