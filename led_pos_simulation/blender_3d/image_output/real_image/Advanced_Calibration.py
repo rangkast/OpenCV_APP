@@ -71,7 +71,7 @@ TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
 
-FULL_COMBINATION_SEARCH = 1
+FULL_COMBINATION_SEARCH = 0
 DO_CALIBRATION_TEST = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
@@ -96,38 +96,38 @@ VIDEO_MODE = 1
 video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
 calibrated_led_data_PCA = np.array([
-[-0.02291268, -0.00186833, -0.01066079],
-[-0.03261694, 0.00279641, -0.00470495],
-[-0.03758283, 0.01663741, -0.00915148],
-[-0.04404166, 0.02016558, 0.00803861],
-[-0.04468834, 0.04310015, 0.0053428],
-[-0.03376229, 0.05441907, 0.03093153],
-[-0.01790698, 0.07452927, 0.02436836],
-[0.00676288, 0.06485106, 0.03856778],
-[0.03050419, 0.06539764, 0.01934662],
-[0.04098176, 0.04596093, 0.02571515],
-[0.0449782, 0.03773211, 0.00248406],
-[0.04579939, 0.01563986, 0.00443345],
-[0.03501628, 0.00865547, -0.01485783],
-[0.03197804, -0.00375312, -0.00924707],
-[0.02164168, -0.00929003, -0.01517383],
+[0.02287414, -0.00066637, -0.01263157],
+[0.03246182, 0.0067631, -0.01133594],
+[0.03748892, 0.00938549, 0.00298598],
+[0.04397132, 0.02618489, -0.00205755],
+[0.04453633, 0.03469503, 0.01941703],
+[0.0338754, 0.06259216, 0.01721242],
+[0.01784221, 0.06643913, 0.03798132],
+[-0.00689732, 0.07420599, 0.02251345],
+[-0.03059802, 0.05774924, 0.03213742],
+[-0.04062827, 0.05421134, 0.01200431],
+[-0.04488697, 0.02970961, 0.01567683],
+[-0.04567744, 0.02103859, -0.00464671],
+[-0.03502143, 0.00072643, -0.00159951],
+[-0.03186899, -0.00016734, -0.01513221],
+[-0.02162243, -0.00789382, -0.01709281],
 ])
 calibrated_led_data_IQR = np.array([
-[-0.02277112, -0.00186617, -0.01066],
-[-0.0326858, 0.00281835, -0.0047085],
-[-0.03770075, 0.01666453, -0.0091579],
-[-0.04409061, 0.02019794, 0.0080387],
-[-0.04461757, 0.04314389, 0.00534936],
-[-0.0337724, 0.05443902, 0.03093271],
-[-0.01789801, 0.07453377, 0.02436835],
-[0.00676469, 0.0648294, 0.03856234],
-[0.03052698, 0.06547573, 0.01940529],
-[0.04054657, 0.04595729, 0.02573945],
-[0.04531146, 0.03767338, 0.00245304],
-[0.04582746, 0.01556909, 0.00440586],
-[0.03495143, 0.00860999, -0.0148734],
-[0.03210952, -0.0037791, -0.00924764],
-[0.02164886, -0.00929365, -0.01517524],
+[0.02277848, -0.00065748, -0.01264214],
+[0.03257642, 0.00677787, -0.01132938],
+[0.03759565, 0.00940426, 0.00299457],
+[0.04406694, 0.02620871, -0.00204642],
+[0.04461657, 0.0347194, 0.01942834],
+[0.03393468, 0.06260816, 0.01721925],
+[0.01789005, 0.06644269, 0.0379816],
+[-0.00684928, 0.07419008, 0.02250365],
+[-0.03071878, 0.05779839, 0.03216994],
+[-0.04056028, 0.05416896, 0.01198092],
+[-0.04512226, 0.02964343, 0.01565089],
+[-0.04557671, 0.02099218, -0.00467196],
+[-0.03490602, 0.00068839, -0.00162032],
+[-0.03221431, -0.00013307, -0.01511152],
+[-0.02166186, -0.00787849, -0.01707498],
 ])
 
 # Arcturas
@@ -1210,14 +1210,13 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                 continue
 
 
+            '''            
+            Algorithm Added            
             '''
-            
-            Algorithm Added
-            
-            '''
+
             if frame_cnt >= start and frame_cnt <= end:
                 camera_params_pos = frame_cnt - start + 1
-                if camera_params_pos < len(camera_params) and camera_params_pos % 2 == 1:                
+                if camera_params_pos < len(camera_params) and camera_params_pos % 4 == 1:                
                     brvec, btvec = camera_params[camera_params_pos]
                     brvec_reshape = np.array(brvec).reshape(-1, 1)
                     btvec_reshape = np.array(btvec).reshape(-1, 1)
@@ -1286,14 +1285,17 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                             camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
                         ]
                         ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                        rvec_reshape = np.array(rvec).reshape(-1, 1)
+                        tvec_reshape = np.array(tvec).reshape(-1, 1)
                         print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
                         for blob_id in LED_NUMBER:
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(rvec_reshape)
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(tvec_reshape)
 
+                        # Draw OpenCV projection
                         image_points, _ = cv2.projectPoints(points3D,
-                                                            np.array(rvec),
-                                                            np.array(tvec),
+                                                            rvec_reshape,
+                                                            tvec_reshape,
                                                             camera_matrix[CAM_ID][0],
                                                             camera_matrix[CAM_ID][1])
                         image_points = image_points.reshape(-1, 2)
@@ -1302,6 +1304,24 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                             # 튜플 형태로 좌표 변환
                             pt = (int(point[0]), int(point[1]))
                             cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
+                        
+                        # Draw Blender projection
+                        image_points, _ = cv2.projectPoints(points3D,
+                                                            np.array(brvec_reshape),
+                                                            np.array(btvec_reshape),
+                                                            camera_matrix[CAM_ID][0],
+                                                            camera_matrix[CAM_ID][1])
+                        image_points = image_points.reshape(-1, 2)
+
+                        for point in image_points:
+                            # 튜플 형태로 좌표 변환
+                            pt = (int(point[0]), int(point[1]))
+                            cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)                        
+
+                        CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec_reshape
+                        CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec_reshape
+                        CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
+                        CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
 
                     elif LENGTH == 3:
                         #P3P
@@ -1976,7 +1996,7 @@ def init_plot():
 
     origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
     ax1.set_title('3D plot')    
-    # ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
+    ax1.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
     
     ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
     ax1.set_xlim([-0.2, 0.2])
@@ -2562,7 +2582,8 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_left_2.json"))    
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_8.json"))
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -2571,15 +2592,14 @@ if __name__ == "__main__":
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
-    # ax1, ax2 = init_plot()
-    # bboxes = blob_setting(script_dir)
-    # gathering_data_single(ax1, script_dir, bboxes, 294, 913)
-    # remake_3d_for_blob_info(undistort)
-    # BA_3D_POINT()
-    # draw_result(ax1, ax2)
+    ax1, ax2 = init_plot()
+    bboxes = blob_setting(script_dir)
+    gathering_data_single(ax1, script_dir, bboxes, 294, 913)
+    remake_3d_for_blob_info(undistort)
+    BA_3D_POINT()
+    draw_result(ax1, ax2)
     Check_Calibration_data_combination()
     # recover_pose_essential_test_two(script_dir)
     

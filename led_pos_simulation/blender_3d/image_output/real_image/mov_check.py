@@ -59,7 +59,7 @@ def find_center(frame, SPEC_AREA):
 script_dir = os.path.dirname(os.path.realpath(__file__))
 print(os.getcwd())
 
-cap = cv2.VideoCapture('output.mkv')
+cap = cv2.VideoCapture('output_rifts_right_9.mkv')
 
 # Get total number of frames
 total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)

@@ -297,11 +297,9 @@ if __name__ == "__main__":
     print(os.getcwd())
 
 
-
     cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
     camera_devices = init_model_json(cam_dev_list)
     print(camera_devices)
-
 
     
     make_video(camera_devices)
