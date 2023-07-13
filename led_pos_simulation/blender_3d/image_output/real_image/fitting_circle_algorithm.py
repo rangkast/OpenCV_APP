@@ -294,7 +294,7 @@ ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 ax.legend()
 
-ax.set_aspect('equal', 'datalim')
+ax.set_aspect('auto', 'datalim')
 set_axes_equal_3d(ax)
 
 scale = 1.5

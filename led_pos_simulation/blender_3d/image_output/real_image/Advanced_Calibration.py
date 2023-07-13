@@ -41,13 +41,20 @@ from scipy.spatial.transform import Rotation as R
 from data_class import *
 from itertools import combinations, permutations
 
+
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
 print(script_dir)
+
 sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
-# poselib only working in LINUX or WSL (window )
+# poselib only working in LINUX or WSL (window)
 import poselib
+
+DO_P3P = 0
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
+from connection.socket.socket_def import *
+
 
 TOP = 1
 BOTTOM = 0
@@ -66,7 +73,6 @@ CAM_ID = 0
 
 AUTO_LOOP = 1
 undistort = 1
-THRESHOLD_DISTANCE = 10
 TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
@@ -81,6 +87,7 @@ CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
 HOPPING_CNT = 4
 BLOB_CNT = -1
+THRESHOLD_DISTANCE = 40
 
 TARGET_DEVICE = 'RIFTS'
 
@@ -88,46 +95,50 @@ TARGET_DEVICE = 'RIFTS'
 # camera_img_path = "./tmp/render/ARCTURAS/"
 # BLOB_SIZE = 60
 controller_name = 'rifts_right_9'
-camera_log_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/camera_log.txt"
-camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
-BLOB_SIZE = 45
+# camera_log_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/camera_log.txt"
+# camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
+# camera_log_path = f"./tmp/render/camera_log.txt"
+# camera_img_path = f"./tmp/render/"
+camera_log_path = f"./render_img/{controller_name}/camera_log.txt"
+camera_img_path = f"./render_img/{controller_name}/"
+BLOB_SIZE = 50
 
-VIDEO_MODE = 1
+VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
 calibrated_led_data_PCA = np.array([
-[0.02287414, -0.00066637, -0.01263157],
-[0.03246182, 0.0067631, -0.01133594],
-[0.03748892, 0.00938549, 0.00298598],
-[0.04397132, 0.02618489, -0.00205755],
-[0.04453633, 0.03469503, 0.01941703],
-[0.0338754, 0.06259216, 0.01721242],
-[0.01784221, 0.06643913, 0.03798132],
-[-0.00689732, 0.07420599, 0.02251345],
-[-0.03059802, 0.05774924, 0.03213742],
-[-0.04062827, 0.05421134, 0.01200431],
-[-0.04488697, 0.02970961, 0.01567683],
-[-0.04567744, 0.02103859, -0.00464671],
-[-0.03502143, 0.00072643, -0.00159951],
-[-0.03186899, -0.00016734, -0.01513221],
-[-0.02162243, -0.00789382, -0.01709281],
+[0.02231468, -0.0034438, -0.0139104],
+[0.03144986, 0.00603182, -0.01276394],
+[0.03785179, 0.00880642, 0.00355845],
+[0.04271626, 0.02745983, -0.00243313],
+[0.04157944, 0.03543692, 0.02084188],
+[0.02934631, 0.06119626, 0.01617625],
+[0.01414048, 0.06351324, 0.0360249],
+[-0.00701246, 0.07157946, 0.02087702],
+[-0.02954147, 0.05479742, 0.03077011],
+[-0.03783252, 0.05262673, 0.01113999],
+[-0.04308386, 0.0300692, 0.01578798],
+[-0.04272675, 0.02246709, -0.00385374],
+[-0.03356458, 0.00382504, 0.00122425],
+[-0.02955682, 0.00371426, -0.01331398],
+[-0.02023109, -0.00310642, -0.01469321],
 ])
 calibrated_led_data_IQR = np.array([
-[0.02277848, -0.00065748, -0.01264214],
-[0.03257642, 0.00677787, -0.01132938],
-[0.03759565, 0.00940426, 0.00299457],
-[0.04406694, 0.02620871, -0.00204642],
-[0.04461657, 0.0347194, 0.01942834],
-[0.03393468, 0.06260816, 0.01721925],
-[0.01789005, 0.06644269, 0.0379816],
-[-0.00684928, 0.07419008, 0.02250365],
-[-0.03071878, 0.05779839, 0.03216994],
-[-0.04056028, 0.05416896, 0.01198092],
-[-0.04512226, 0.02964343, 0.01565089],
-[-0.04557671, 0.02099218, -0.00467196],
-[-0.03490602, 0.00068839, -0.00162032],
-[-0.03221431, -0.00013307, -0.01511152],
-[-0.02166186, -0.00787849, -0.01707498],
+[0.02230604, -0.00344556, -0.01390476],
+[0.03150773, 0.00602893, -0.01276351],
+[0.03786124, 0.00880724, 0.00355967],
+[0.04269369, 0.02746524, -0.00243095],
+[0.0415576, 0.03544129, 0.02084684],
+[0.02931168, 0.06120295, 0.01617816],
+[0.01416819, 0.06351078, 0.03603293],
+[-0.00701215, 0.07158227, 0.02087484],
+[-0.02953577, 0.0548421, 0.03079559],
+[-0.03781282, 0.05259886, 0.01112477],
+[-0.04306979, 0.03003623, 0.01576799],
+[-0.0426905, 0.02246403, -0.00386143],
+[-0.03352396, 0.00381425, 0.00122233],
+[-0.02960539, 0.00372853, -0.01331272],
+[-0.02030652, -0.00310368, -0.01469733],
 ])
 
 # Arcturas
@@ -473,7 +484,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     )
     # For blobs that are very close in x, prioritize the one closer to the tracker in y
     for i in range(len(led_candidates_left) - 1):
-        if abs(led_candidates_left[i][1] - led_candidates_left[i + 1][1]) == 0:
+        if abs(led_candidates_left[i][1] - led_candidates_left[i + 1][1]) < TRACKING_ANCHOR_RECOGNIZE_SIZE:
             if led_candidates_left[i][3] > led_candidates_left[i + 1][3]:
                 led_candidates_left[i], led_candidates_left[i + 1] = led_candidates_left[i + 1], led_candidates_left[i]
     # Do the same for blobs to the right of the tracker
@@ -482,7 +493,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
         key=lambda blob: (blob[1], blob[3])
     )
     for i in range(len(led_candidates_right) - 1):
-        if abs(led_candidates_right[i][1] - led_candidates_right[i + 1][1]) == 0:
+        if abs(led_candidates_right[i][1] - led_candidates_right[i + 1][1]) < TRACKING_ANCHOR_RECOGNIZE_SIZE:
             if led_candidates_right[i][3] > led_candidates_right[i + 1][3]:
                 led_candidates_right[i], led_candidates_right[i + 1] = led_candidates_right[i + 1], led_candidates_right[i]
     ANCHOR_POS = LEDS_POSITION[Tracking_ANCHOR]
@@ -627,7 +638,7 @@ def blob_setting(script_dir):
     if json_data != ERROR:
         bboxes = json_data['bboxes']
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
-    camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
+    # camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     if VIDEO_MODE == 1:
         video = cv2.VideoCapture(video_img_path)
     frame_cnt = 0
@@ -655,12 +666,12 @@ def blob_setting(script_dir):
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 0, 0), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 0, 0), 1)
-        brvec, btvec = camera_params[frame_cnt + 1]
+        # brvec, btvec = camera_params[frame_cnt + 1]
         
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)
-        cv2.putText(draw_frame, f"rvec: {brvec}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # cv2.putText(draw_frame, f"rvec: {brvec}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        # cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         blob_area = detect_led_lights(frame, 2, 5, 500)
         cv2.namedWindow('image')
@@ -1054,8 +1065,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 
     frame_cnt = 0
     while video.isOpened() if VIDEO_MODE else True:
-        print('\n')
-        print(f"########## Frame {frame_cnt} ##########")
+        # print('\n')
+        # print(f"########## Frame {frame_cnt} ##########")
         if VIDEO_MODE == 1:
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
@@ -1121,7 +1132,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             TRACKER_BROKEN_STATUS = NOT_SET
             for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
                 if Tracking_DATA['tracker'] is not None:
-                    print('Tracking_ANCHOR:', Tracking_ANCHOR)
+                    # print('Tracking_ANCHOR:', Tracking_ANCHOR)
                     ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
                     # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)                    
                     cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
@@ -1155,6 +1166,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                             else:
                                 search_frame =  image_files[frame_cnt - 1]
                                 search_frame = cv2.imread(search_frame)      
+                
                             ret, CURR_TRACKER = init_new_tracker(search_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER)
 
                             if ret == SUCCESS:
@@ -1214,9 +1226,10 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             Algorithm Added            
             '''
 
+
             if frame_cnt >= start and frame_cnt <= end:
                 camera_params_pos = frame_cnt - start + 1
-                if camera_params_pos < len(camera_params) and camera_params_pos % 4 == 1:                
+                if camera_params_pos < len(camera_params):                
                     brvec, btvec = camera_params[camera_params_pos]
                     brvec_reshape = np.array(brvec).reshape(-1, 1)
                     btvec_reshape = np.array(btvec).reshape(-1, 1)
@@ -1324,78 +1337,84 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                         CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
 
                     elif LENGTH == 3:
-                        #P3P
-                        mutex.acquire()
-                        try:
-                            print('P3P LamdaTwist')
-                            points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
-                            X = np.array(points3D)   
-                            x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-                            # print('normalized x\n', x)
-                            poselib_result = poselib.p3p(x, X)
-                            visible_detection = NOT_SET
-                            for solution_idx, pose in enumerate(poselib_result):
-                                colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
-                                colorstr = ['blue', 'green', 'purple', 'yellow']
-                                if is_valid_pose(pose):
-                                    quat = pose.q
-                                    tvec = pose.t
-                                    rotm = quat_to_rotm(quat)
-                                    rvec, _ = cv2.Rodrigues(rotm)
-                                    print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
-                                    image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
-                                        np.array(rvec),
-                                        np.array(tvec),
-                                        camera_matrix[CAM_ID][0],
-                                        camera_matrix[CAM_ID][1])
-                                    image_points = image_points.reshape(-1, 2)
-                                    # print('image_points\n', image_points)
-                                    cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
-                                    ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
-                                    ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
-                                    
-                                    ###############################            
-                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
-                                    # print('visible_result:', visible_result)
-                                    visible_status = SUCCESS
-                                    for blob_id, status in visible_result.items():
-                                        if status == False:
-                                            visible_status = ERROR
-                                            print(f"{solution_idx} pose unvisible led {blob_id}")
-                                            break                                
-                                    if visible_status == SUCCESS:
-                                        visible_detection = DONE
-                                        for blob_id in LED_NUMBER:
-                                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
-                                    ###############################
+                        if DO_P3P == 1:
+                            #P3P
+                            mutex.acquire()
+                            try:
+                                print('P3P LamdaTwist')
+                                points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
+                                X = np.array(points3D)   
+                                x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
+                                # print('normalized x\n', x)
+                                poselib_result = poselib.p3p(x, X)
+                                visible_detection = NOT_SET
+                                for solution_idx, pose in enumerate(poselib_result):
+                                    colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
+                                    colorstr = ['blue', 'green', 'purple', 'yellow']
+                                    if is_valid_pose(pose):
+                                        quat = pose.q
+                                        tvec = pose.t
+                                        rotm = quat_to_rotm(quat)
+                                        rvec, _ = cv2.Rodrigues(rotm)
+                                        print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
+                                        image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
+                                            np.array(rvec),
+                                            np.array(tvec),
+                                            camera_matrix[CAM_ID][0],
+                                            camera_matrix[CAM_ID][1])
+                                        image_points = image_points.reshape(-1, 2)
+                                        # print('image_points\n', image_points)
+                                        cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
+                                        ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
+                                        ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
                                         
-                                    for idx, point in enumerate(image_points):
-                                        # 튜플 형태로 좌표 변환
-                                        pt = (int(point[0]), int(point[1]))
-                                        if idx in LED_NUMBER:
-                                            cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
-                                        else:
-                                            cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
-                                        
-                                        text_offset = (5, -5)
-                                        text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
-                                        cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
+                                        ###############################            
+                                        visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
+                                        # print('visible_result:', visible_result)
+                                        visible_status = SUCCESS
+                                        for blob_id, status in visible_result.items():
+                                            if status == False:
+                                                visible_status = ERROR
+                                                print(f"{solution_idx} pose unvisible led {blob_id}")
+                                                break                                
+                                        if visible_status == SUCCESS:
+                                            visible_detection = DONE
+                                            for blob_id in LED_NUMBER:
+                                                BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                                                BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                                        ###############################
+                                            
+                                        for idx, point in enumerate(image_points):
+                                            # 튜플 형태로 좌표 변환
+                                            pt = (int(point[0]), int(point[1]))
+                                            if idx in LED_NUMBER:
+                                                cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
+                                            else:
+                                                cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
+                                            
+                                            text_offset = (5, -5)
+                                            text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
+                                            cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
 
-                            if visible_detection == NOT_SET:
-                                for blob_id in LED_NUMBER:
-                                    # Use an 'empty' numpy array as our NOT_SET value
-                                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
-                                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
+                                if visible_detection == NOT_SET:
+                                    for blob_id in LED_NUMBER:
+                                        # Use an 'empty' numpy array as our NOT_SET value
+                                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
+                                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
 
-                        finally:
-                            mutex.release()
+                            finally:
+                                mutex.release()
+                        else:
+                            for blob_id in LED_NUMBER:
+                                # Use an 'empty' numpy array as our NOT_SET value
+                                BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
+                                BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
                     else:
                         print('NOT Enough blobs')
                         if AUTO_LOOP == 1:
                             frame_cnt += 1
                         continue
- 
+            
         if AUTO_LOOP == 1:
             frame_cnt += 1
 
@@ -2579,10 +2598,8 @@ def init_camera_path(script_dir, video_path, first_image_path):
 
 if __name__ == "__main__":
     # Get the directory of the current script
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_8.json"))
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
     # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
@@ -2596,11 +2613,11 @@ if __name__ == "__main__":
 
     ax1, ax2 = init_plot()
     bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes, 294, 913)
-    remake_3d_for_blob_info(undistort)
-    BA_3D_POINT()
-    draw_result(ax1, ax2)
-    Check_Calibration_data_combination()
+    gathering_data_single(ax1, script_dir, bboxes, 0, 360)
+    # remake_3d_for_blob_info(undistort)
+    # BA_3D_POINT()
+    # draw_result(ax1, ax2)
+    # Check_Calibration_data_combination()
     # recover_pose_essential_test_two(script_dir)
     
     print('\n\n')
