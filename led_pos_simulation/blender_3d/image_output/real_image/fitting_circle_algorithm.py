@@ -220,11 +220,14 @@ ax[0].scatter(P_xy[:,0], P_xy[:,1], alpha=alpha_pts, label='Projected points')
 # (3) Fit circle in new 2D coords
 #-------------------------------------------------------------------------------
 xc, yc, r = fit_circle_2d(P_xy[:,0], P_xy[:,1])
-
+print('xc ', xc, 'yc ', yc, 'r ', r)
 #--- Generate circle points in 2D
 t = np.linspace(0, 2*np.pi, 100)
 xx = xc + r*np.cos(t)
 yy = yc + r*np.sin(t)
+
+print('xx', xx)
+print('yy', yy)
 
 ax[0].plot(xx, yy, 'k--', lw=2, label='Fitting circle')
 ax[0].plot(xc, yc, 'k+', ms=10)
@@ -235,12 +238,12 @@ ax[0].legend()
 #-------------------------------------------------------------------------------
 C = rodrigues_rot(np.array([xc,yc,0]), [0,0,1], normal) + P_mean
 C = C.flatten()
-
+print('C:', C)
 #--- Generate points for fitting circle
 t = np.linspace(0, 2*np.pi, 100)
 u = P[0] - C
 # 설정할 점의 수
-num_points = 620
+num_points = 120
 # 원하는 만큼의 각도 값을 생성합니다. np.linspace는 주어진 범위 내에서 균등하게 분포된 값을 생성합니다.
 t = np.linspace(0, 2*np.pi, num_points)
 

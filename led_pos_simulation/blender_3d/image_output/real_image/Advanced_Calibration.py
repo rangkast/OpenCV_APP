@@ -87,8 +87,6 @@ CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
 HOPPING_CNT = 4
 BLOB_CNT = -1
-THRESHOLD_DISTANCE = 40
-
 TARGET_DEVICE = 'RIFTS'
 
 # camera_log_path = "./tmp/render/ARCTURAS/camera_log.txt"
@@ -101,9 +99,12 @@ controller_name = 'rifts_right_9'
 # camera_img_path = f"./tmp/render/"
 camera_log_path = f"./render_img/{controller_name}/camera_log.txt"
 camera_img_path = f"./render_img/{controller_name}/"
-BLOB_SIZE = 50
 
-VIDEO_MODE = 0
+# Test 환경 (linux, window) 마다 다름?????
+BLOB_SIZE = 150
+THRESHOLD_DISTANCE = 10
+
+VIDEO_MODE = 1
 video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
 calibrated_led_data_PCA = np.array([
@@ -196,10 +197,10 @@ calibrated_led_data_IQR = np.array([
 # ])
 
 camera_matrix = [
-    [np.array([[712.623, 0.0, 653.448],
-               [0.0, 712.623, 475.572],
+    [np.array([[715.159, 0.0, 650.741],
+               [0.0, 715.159, 489.184],
                [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
+     np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)],
 ]
 
 default_dist_coeffs = np.zeros((4, 1))
@@ -352,8 +353,7 @@ def find_center(frame, SPEC_AREA):
         for x in range(X, X + W):
             x_sum += x * frame[y][x]
             t_sum += frame[y][x]
-            if frame[y][x] >= CV_MIN_THRESHOLD:
-                m_count += 1
+            m_count += 1
 
     for x in range(X, X + W):
         for y in range(Y, Y + H):
@@ -1065,8 +1065,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 
     frame_cnt = 0
     while video.isOpened() if VIDEO_MODE else True:
-        # print('\n')
-        # print(f"########## Frame {frame_cnt} ##########")
+        print('\n')
+        print(f"########## Frame {frame_cnt} ##########")
         if VIDEO_MODE == 1:
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
@@ -1075,7 +1075,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                 break
         else:
             # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
-            if frame_cnt >= len(image_files) - 1:
+            if frame_cnt >= len(image_files):
                 break
             frame_0 = cv2.imread(image_files[frame_cnt])
             filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
@@ -1261,17 +1261,17 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                             points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
                             points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
                     
-                    print('START Pose Estimation')
+                    # print('START Pose Estimation')
                     points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
                     points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
                     points3D = np.array(points3D, dtype=np.float64)
                     if DO_CALIBRATION_TEST == 1:
                         points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
                         points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-                    print('LED_NUMBER: ', LED_NUMBER)
-                    print('points2D\n', points2D)
-                    print('points2D_U\n', points2D_U)
-                    print('points3D\n', points3D)
+                    # print('LED_NUMBER: ', LED_NUMBER)
+                    # print('points2D\n', points2D)
+                    # print('points2D_U\n', points2D_U)
+                    # print('points3D\n', points3D)
                     
                     # Make CAMERA_INFO data for check rt STD
                     CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
@@ -1285,7 +1285,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 
                     LENGTH = len(LED_NUMBER)
                     if LENGTH >= 4:
-                        print('PnP Solver OpenCV')
+                        # print('PnP Solver OpenCV')
                         if LENGTH >= 5:
                             METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                         elif LENGTH == 4:
@@ -2613,7 +2613,7 @@ if __name__ == "__main__":
 
     ax1, ax2 = init_plot()
     bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes, 0, 360)
+    gathering_data_single(ax1, script_dir, bboxes, 0, 120)
     # remake_3d_for_blob_info(undistort)
     # BA_3D_POINT()
     # draw_result(ax1, ax2)
