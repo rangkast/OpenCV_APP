@@ -246,11 +246,9 @@ u = P[0] - C
 num_points = 120
 # 원하는 만큼의 각도 값을 생성합니다. np.linspace는 주어진 범위 내에서 균등하게 분포된 값을 생성합니다.
 t = np.linspace(0, 2*np.pi, num_points)
-
+print('normal ', normal)
 P_fitcircle = generate_circle_by_vectors(t, C, r, normal, u)
-data = OrderedDict()
-data['P_fitcircle'] = P_fitcircle
-pickle_data(WRITE, 'FITTING_CIRCLE.pickle', data)
+
 
 print('P_fitcircle\n', P_fitcircle)
 
@@ -275,9 +273,12 @@ ax[2].plot(C[0], C[2], 'k+', ms=10)
 ax[3].plot(C[1], C[2], 'k+', ms=10)
 ax[3].legend()
 
+Fitting_plane = normal
+Fitting_circle = np.array_str(C, precision=4)
+Fitting_circle_r = r
 print('Fitting plane: n = %s' % np.array_str(normal, precision=4))
-print('Fitting circle: center = %s, r = %.4g' % (np.array_str(C, precision=4), r))
-print('Fitting arc: u = %s, θ = %.4g' % (np.array_str(u, precision=4), theta*180/np.pi))
+print('Fitting circle: center = %s, r = %.4g' % (Fitting_circle, Fitting_circle_r))
+print('Fitting arc: u = %s, θ = %.4g' % (np.array_str(u, precision=4), math.degrees(theta*180/np.pi)))
 
 fig = plt.figure(figsize=(15,15))
 ax = fig.add_subplot(1,1,1,projection='3d')
@@ -303,5 +304,10 @@ set_axes_equal_3d(ax)
 scale = 1.5
 f = zoom_factory(ax, base_scale=scale)
 
+
+data = OrderedDict()
+data['P_fitcircle'] = P_fitcircle
+data['Fitting_plane'] = Fitting_plane
+pickle_data(WRITE, 'FITTING_CIRCLE.pickle', data)
 
 plt.show()

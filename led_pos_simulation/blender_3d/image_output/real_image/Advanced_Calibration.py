@@ -55,13 +55,23 @@ DO_P3P = 0
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
 from connection.socket.socket_def import *
 
+# Rift s와 Arcturas는 탑다운이 반대
+TOP = 0
+BOTTOM = 1
 
-TOP = 1
-BOTTOM = 0
+PLUS = 0
+MINUS = 1
 
-RIFTS_PATTERN = [1,1,0,1,0,1,0,1,0,1,0,1,0,1,1]
-ARCTURAS_PATTERN = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
-LEDS_POSITION = RIFTS_PATTERN
+RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0] # 반전 필요
+ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
+
+LEDS_POSITION = RIFTS_PATTERN_RIGHT
+LEFT_RIGHT_DIRECTION = PLUS
+
+# Test 환경 (linux, window) 마다 다름?????
+# BLOB_SIZE = 150 (RIFT S)
+BLOB_SIZE = 150
+THRESHOLD_DISTANCE = 10
 
 READ = 0
 WRITE = 1
@@ -78,7 +88,7 @@ max_level = 3
 SHOW_PLOT = 1
 
 FULL_COMBINATION_SEARCH = 0
-DO_CALIBRATION_TEST = 1
+DO_CALIBRATION_TEST = 0
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
@@ -87,12 +97,14 @@ CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
 HOPPING_CNT = 4
 BLOB_CNT = -1
-TARGET_DEVICE = 'RIFTS'
+
+# TARGET_DEVICE = 'RIFTS'
 
 # camera_log_path = "./tmp/render/ARCTURAS/camera_log.txt"
 # camera_img_path = "./tmp/render/ARCTURAS/"
 # BLOB_SIZE = 60
 controller_name = 'rifts_right_9'
+# controller_name = 'arcturas'
 # camera_log_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/camera_log.txt"
 # camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
 # camera_log_path = f"./tmp/render/camera_log.txt"
@@ -100,101 +112,100 @@ controller_name = 'rifts_right_9'
 camera_log_path = f"./render_img/{controller_name}/camera_log.txt"
 camera_img_path = f"./render_img/{controller_name}/"
 
-# Test 환경 (linux, window) 마다 다름?????
-BLOB_SIZE = 150
-THRESHOLD_DISTANCE = 10
+ANGLE = 3
 
-VIDEO_MODE = 1
+VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
-calibrated_led_data_PCA = np.array([
-[0.02231468, -0.0034438, -0.0139104],
-[0.03144986, 0.00603182, -0.01276394],
-[0.03785179, 0.00880642, 0.00355845],
-[0.04271626, 0.02745983, -0.00243313],
-[0.04157944, 0.03543692, 0.02084188],
-[0.02934631, 0.06119626, 0.01617625],
-[0.01414048, 0.06351324, 0.0360249],
-[-0.00701246, 0.07157946, 0.02087702],
-[-0.02954147, 0.05479742, 0.03077011],
-[-0.03783252, 0.05262673, 0.01113999],
-[-0.04308386, 0.0300692, 0.01578798],
-[-0.04272675, 0.02246709, -0.00385374],
-[-0.03356458, 0.00382504, 0.00122425],
-[-0.02955682, 0.00371426, -0.01331398],
-[-0.02023109, -0.00310642, -0.01469321],
-])
-calibrated_led_data_IQR = np.array([
-[0.02230604, -0.00344556, -0.01390476],
-[0.03150773, 0.00602893, -0.01276351],
-[0.03786124, 0.00880724, 0.00355967],
-[0.04269369, 0.02746524, -0.00243095],
-[0.0415576, 0.03544129, 0.02084684],
-[0.02931168, 0.06120295, 0.01617816],
-[0.01416819, 0.06351078, 0.03603293],
-[-0.00701215, 0.07158227, 0.02087484],
-[-0.02953577, 0.0548421, 0.03079559],
-[-0.03781282, 0.05259886, 0.01112477],
-[-0.04306979, 0.03003623, 0.01576799],
-[-0.0426905, 0.02246403, -0.00386143],
-[-0.03352396, 0.00381425, 0.00122233],
-[-0.02960539, 0.00372853, -0.01331272],
-[-0.02030652, -0.00310368, -0.01469733],
-])
-
-# Arcturas
 # calibrated_led_data_PCA = np.array([
-# [-0.00331481, 0.03597334, 0.0041562],
-# [0.00895387, 0.0480334, 0.00224952],
-# [0.03186545, 0.05034012, 0.00452086],
-# [0.05143521, 0.04647385, 0.00167996],
-# [0.0691143, 0.02880501, 0.00437797],
-# [0.07609677, 0.01258033, 0.00212461],
-# [0.07808255, -0.00880987, 0.00175163],
-# [0.07257527, -0.02523931, 0.00334523],
-# [0.05415833, -0.04513621, 0.00300021],
-# [0.03380799, -0.05154195, 0.00403185],
-# [0.01199563, -0.04928216, 0.00324531],
-# [-0.00577686, -0.03708742, 0.00419776],
-# [-0.01801006, 0.02495871, 0.01861654],
-# [-0.00627987, 0.03607813, 0.01639641],
-# [0.02400921, 0.05223235, 0.01819005],
-# [0.0439588, 0.04702286, 0.02071782],
-# [0.06125609, 0.03599675, 0.0192615],
-# [0.07299287, 0.01326892, 0.01876102],
-# [0.07108337, -0.0200403, 0.01969068],
-# [0.05584525, -0.04160456, 0.0191822],
-# [0.03372417, -0.04916243, 0.01823499],
-# [0.01221453, -0.04822629, 0.0171196],
-# [-0.00584511, -0.03477198, 0.01903182],
-# [-0.01835547, -0.02618116, 0.01613708],
+# [0.02168628, -0.00324521, -0.01411445],
+# [0.03201823, 0.00572315, -0.01199014],
+# [0.03707574, 0.00940709, 0.0028741],
+# [0.04299688, 0.02693289, -0.00174567],
+# [0.04183469, 0.03577459, 0.01994403],
+# [0.02982094, 0.0615288, 0.01641058],
+# [0.01430296, 0.06336907, 0.03651528],
+# [-0.00767603, 0.07123568, 0.02065192],
+# [-0.03008142, 0.05528737, 0.03102479],
+# [-0.03751318, 0.0527148, 0.01098579],
+# [-0.04274956, 0.03017015, 0.01624257],
+# [-0.04244368, 0.02277499, -0.00379463],
+# [-0.03306113, 0.00366613, 0.00036046],
+# [-0.03026799, 0.00362505, -0.01301806],
+# [-0.02009348, -0.00399105, -0.01491414],
 # ])
 # calibrated_led_data_IQR = np.array([
-# [-0.00329021, 0.03592558, 0.00415626],
-# [0.00896412, 0.04798009, 0.00222952],
-# [0.03185886, 0.05032494, 0.00451729],
-# [0.05141244, 0.04649456, 0.00167461],
-# [0.06908566, 0.02877851, 0.00438188],
-# [0.0760617, 0.01256322, 0.00213402],
-# [0.07808777, -0.00880047, 0.00175405],
-# [0.07264068, -0.02521716, 0.00334639],
-# [0.05421395, -0.04515157, 0.00299299],
-# [0.03368931, -0.05151773, 0.00403075],
-# [0.01189147, -0.0491093, 0.00323798],
-# [-0.00573937, -0.03708571, 0.00420315],
-# [-0.01804127, 0.02493463, 0.01861341],
-# [-0.00629089, 0.03607499, 0.01640096],
-# [0.02402278, 0.05222171, 0.01818928],
-# [0.04398363, 0.04701299, 0.02072038],
-# [0.06127724, 0.0359907, 0.01926452],
-# [0.07303191, 0.01326953, 0.01876604],
-# [0.07112739, -0.02000828, 0.01969362],
-# [0.05574092, -0.04158745, 0.01918677],
-# [0.03372719, -0.049154, 0.01824005],
-# [0.01226819, -0.04825089, 0.0171238],
-# [-0.00582242, -0.03479266, 0.01903632],
-# [-0.01831358, -0.02621611, 0.01612675],
+# [0.02167493, -0.00324108, -0.01411421],
+# [0.03201428, 0.00572128, -0.01198954],
+# [0.03705301, 0.00941367, 0.00288274],
+# [0.04299534, 0.02693316, -0.00175074],
+# [0.04183666, 0.03577377, 0.01994179],
+# [0.02984717, 0.06152355, 0.0164085],
+# [0.01428444, 0.06337179, 0.03651512],
+# [-0.00767674, 0.07123899, 0.02065045],
+# [-0.03008856, 0.05527806, 0.03101774],
+# [-0.0375093, 0.05272381, 0.0109968],
+# [-0.04274444, 0.03017125, 0.01624196],
+# [-0.0424295, 0.02276011, -0.00380078],
+# [-0.03303076, 0.00365017, 0.00035427],
+# [-0.03027511, 0.00363642, -0.0130123],
+# [-0.02010213, -0.00398148, -0.01490938],
 # ])
+
+#Arcturas
+calibrated_led_data_PCA = np.array([
+[-0.00696769, -0.03727491, 0.00393786],
+[0.00899936, -0.049107, 0.00367566],
+[0.02989941, -0.05328018, 0.00339408],
+[0.05207945, -0.04703833, 0.0029648],
+[0.07130617, -0.03069878, 0.00300515],
+[0.07882732, -0.01379061, 0.00272048],
+[0.07996731, 0.00982981, 0.00247827],
+[0.07284266, 0.02697763, 0.00254282],
+[0.05392853, 0.04636822, 0.00324772],
+[0.03437616, 0.05274618, 0.00320486],
+[0.01173388, 0.04984923, 0.00401555],
+[-0.00676735, 0.037355, 0.00442843],
+[-0.01894229, -0.02582191, 0.01696607],
+[-0.0090566, -0.03708057, 0.0172316],
+[0.02430521, -0.05255606, 0.01839573],
+[0.04494156, -0.04898515, 0.01885866],
+[0.06224723, -0.03707146, 0.01963902],
+[0.07537256, -0.01539611, 0.01969791],
+[0.07295295, 0.02120438, 0.0193934],
+[0.05554069, 0.0435, 0.01883255],
+[0.03439221, 0.0522568, 0.01836464],
+[0.01161227, 0.05048315, 0.01780053],
+[-0.00890116, 0.03744267, 0.01771729],
+[-0.01910235, 0.02540786, 0.01750773],
+])
+calibrated_led_data_IQR = np.array([
+[-0.00676852, -0.03798641, 0.00394945],
+[0.00885066, -0.04894449, 0.0036787],
+[0.02975786, -0.05317389, 0.00340023],
+[0.05201976, -0.04697659, 0.00297482],
+[0.07100062, -0.03075325, 0.00301601],
+[0.07887108, -0.0136683, 0.00273086],
+[0.07994903, 0.00984616, 0.00248697],
+[0.07284987, 0.02705545, 0.00254559],
+[0.05396718, 0.0464252, 0.00325086],
+[0.03445464, 0.05280786, 0.00322508],
+[0.01178737, 0.05000231, 0.0039984],
+[-0.00668981, 0.03744203, 0.00443952],
+[-0.01900843, -0.02582546, 0.01696916],
+[-0.00884999, -0.03780064, 0.01719601],
+[0.02425048, -0.05252288, 0.01839846],
+[0.04486651, -0.04892312, 0.01886717],
+[0.06216869, -0.03705723, 0.01963795],
+[0.07534009, -0.01534003, 0.01969018],
+[0.0729473, 0.02125364, 0.0193825],
+[0.05560621, 0.04349809, 0.01883096],
+[0.03445915, 0.05231076, 0.01835841],
+[0.01171709, 0.05049917, 0.01778219],
+[-0.00884527, 0.03752934, 0.0177085],
+[-0.0191141, 0.02562212, 0.01750281],
+])
+
 
 camera_matrix = [
     [np.array([[715.159, 0.0, 650.741],
@@ -217,6 +228,7 @@ CAMERA_INFO_STRUCTURE = {
     'points3D_IQR': [],
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
 }
 
 BLOB_INFO = {}
@@ -225,6 +237,7 @@ BLOB_INFO_STRUCTURE = {
     'points2D_U': {'greysum': []},
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
 }
 
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
@@ -500,6 +513,7 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     clockwise = 0
     counterclockwise = 1
 
+
     def BLOB_ID_SEARCH(status, position, direction):
         # print(f"{status} {position} {direction}")
         COUNT = 1 
@@ -554,14 +568,14 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
         if ANCHOR_POS == TOP:
             if left_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[TOP] == -1 else LEFT_BLOB_INFO[TOP]
-                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise)
+                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
                 LEFT_BLOB_INFO[TOP] = NEW_BLOB_ID
         else:
             # BOTTOM Searching and clockwise
             if left_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[BOTTOM] == -1 else LEFT_BLOB_INFO[BOTTOM]
-                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise)
+                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
                 LEFT_BLOB_INFO[BOTTOM] = NEW_BLOB_ID
         
@@ -577,13 +591,13 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
         if ANCHOR_POS == TOP:
             if right_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[TOP] == -1 else RIGHT_BLOB_INFO[TOP]
-                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise)
+                NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
                 RIGHT_BLOB_INFO[TOP] = copy.deepcopy(NEW_BLOB_ID)
         else:
             if right_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[BOTTOM] == -1 else RIGHT_BLOB_INFO[BOTTOM]
-                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise)
+                NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
                 RIGHT_BLOB_INFO[BOTTOM] = copy.deepcopy(NEW_BLOB_ID)
 
@@ -1033,6 +1047,7 @@ def detect_outliers(blob_array, remove_index_array):
     remove_index_array.sort()
 def gathering_data_single(ax1, script_dir, bboxes, start, end):
     print('gathering_data_single START')
+    BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
 
@@ -1226,9 +1241,9 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             Algorithm Added            
             '''
 
-
             if frame_cnt >= start and frame_cnt <= end:
                 camera_params_pos = frame_cnt - start + 1
+                # camera_params_pos = (camera_params_pos - 1) * ANGLE + 1  # Update this line
                 if camera_params_pos < len(camera_params):                
                     brvec, btvec = camera_params[camera_params_pos]
                     brvec_reshape = np.array(brvec).reshape(-1, 1)
@@ -1272,7 +1287,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                     # print('points2D\n', points2D)
                     # print('points2D_U\n', points2D_U)
                     # print('points3D\n', points3D)
-                    
+ 
+
                     # Make CAMERA_INFO data for check rt STD
                     CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
                     if DO_CALIBRATION_TEST == 1:
@@ -1414,7 +1430,34 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                         if AUTO_LOOP == 1:
                             frame_cnt += 1
                         continue
-            
+
+                                       
+
+                    ########################### BUNDLE ADJUSTMENT RT #######################
+                    ba_rvec = BA_RT[frame_cnt][:3]
+                    ba_tvec = BA_RT[frame_cnt][3:]
+                    ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
+                    ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
+                    print('ba_rvec : ', ba_rvec)
+                    print('ba_tvec : ', ba_tvec)
+                    image_points, _ = cv2.projectPoints(points3D,
+                                                        np.array(ba_rvec),
+                                                        np.array(ba_tvec),
+                                                        camera_matrix[CAM_ID][0],
+                                                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+
+                    for point in image_points:
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (0, 0, 0), -1)
+                    for blob_id in LED_NUMBER:
+                        BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
+                        BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
+                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
+                    ########################### BUNDLE ADJUSTMENT RT #######################
+        
+
         if AUTO_LOOP == 1:
             frame_cnt += 1
 
@@ -1451,8 +1494,10 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 def remake_3d_for_blob_info(undistort):
     print('remake_3d_for_blob_info START')
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
+
     REMADE_3D_INFO_B = {}
     REMADE_3D_INFO_O = {}
+    REMADE_3D_INFO_BA = {} # For BA_RT
     # Create a pretty printer
     pp = pprint.PrettyPrinter(indent=4)
     
@@ -1464,7 +1509,12 @@ def remake_3d_for_blob_info(undistort):
         # pp.pprint(BLOB_INFO[blob_id])
         REMADE_3D_INFO_B[blob_id] = []
         REMADE_3D_INFO_O[blob_id] = []
+        REMADE_3D_INFO_BA[blob_id] = [] # For BA_RT
         # Get the RT dictionary for the first frame
+        rt_first_BA = {
+            'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][0],
+            'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][0]
+        }
         rt_first_B = {
             'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][0],
             'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][0]
@@ -1486,6 +1536,7 @@ def remake_3d_for_blob_info(undistort):
             points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
             status_B = BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i]
             status_O = BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][i]
+            status_BA = BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i]
             # Check if 'rvec' is NOT_SET for BLENDER and OPENCV separately
             if (status_B != NOT_SET).all():
                 rt_current_B = {
@@ -1521,11 +1572,28 @@ def remake_3d_for_blob_info(undistort):
                                                 rt_first_O, rt_current_O,
                                                 points2D_U_first, points2D_U_current).reshape(-1, 3)
                 REMADE_3D_INFO_O[blob_id].append(remake_3d_O.reshape(-1, 3))
+            if (status_BA != NOT_SET).all():
+                rt_current_BA = {
+                    'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
+                    'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
+                }
+                # Create the 3D points using the BA_RT data
+                if undistort == 0:
+                    remake_3d_BA = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                    rt_first_BA, rt_current_BA,
+                                                    points2D_D_first, points2D_D_current).reshape(-1, 3)
+                else:
+                    remake_3d_BA = remake_3d_point(default_cameraK, default_cameraK,
+                                                    rt_first_BA, rt_current_BA,
+                                                    points2D_U_first, points2D_U_current).reshape(-1, 3)
+                REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
 
+     
     file = 'REMADE_3D_INFO.pickle'
     data = OrderedDict()
     data['REMADE_3D_INFO_B'] = REMADE_3D_INFO_B
     data['REMADE_3D_INFO_O'] = REMADE_3D_INFO_O
+    data['REMADE_3D_INFO_BA'] = REMADE_3D_INFO_BA # For BA_RT
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
@@ -1533,6 +1601,7 @@ def draw_result(ax1, ax2):
     print('draw_result START')
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
+    REMADE_3D_INFO_BA = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_BA']
     BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
     LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
     origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
@@ -1565,6 +1634,20 @@ def draw_result(ax1, ax2):
         ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='red', alpha=0.5, marker='o', s=10,
                     label='OPENCV' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
 
+    for blob_id, data_list in REMADE_3D_INFO_BA.items():
+        distances_remade = []
+        for data in data_list:
+            point_3d = data.reshape(-1)
+            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
+            distances_remade.append(distance)
+            if distances_remade.index(distance) == 0:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7,
+                            label='BA_RT')
+            else:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7)
+        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='magenta', alpha=0.5, marker='o', s=10,
+                    label='BA_RT' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
+
     # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
     distances_ba = []
     ba_3d_dict = {}
@@ -1579,7 +1662,16 @@ def draw_result(ax1, ax2):
                     label='BA_3D')
     # BA에 대해서도 동일한 방식으로 scatter plot을 그립니다.
     ax2.scatter(LED_INDICES, distances_ba, color='green', alpha=0.5, marker='o', s=10, label='BA_3D')
+    # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
 
+    # ba_3d_dict = {}
+    # for blob_id, data_list in REMADE_3D_INFO_BA.items():
+    #     for data in data_list:
+    #         point_3d = data.reshape(-1)
+    #         if blob_id not in ba_3d_dict:
+    #             ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
+    #         ba_3d_dict[blob_id].append(point_3d)
+ 
     # 각 blob_id에 대해 PCA를 적용하고, 첫 번째 주성분에 대한 중심을 계산합니다.
     centers_ba = {}
     for blob_id, points_3d in ba_3d_dict.items():
@@ -1587,7 +1679,8 @@ def draw_result(ax1, ax2):
         pca.fit(points_3d)
         # PCA의 첫 번째 주성분의 중심을 계산합니다.
         center = pca.mean_
-        centers_ba[blob_id] = center  # 이후에는 center를 원하는대로 사용하면 됩니다.
+        centers_ba[blob_id] = center  # 이후에는 center를 원하는대로 사용하면 됩니다
+
 
     # centers_ba에는 각 blob_id의 대표값이 저장되어 있습니다.
     print('\n')
@@ -1661,6 +1754,102 @@ def draw_result(ax1, ax2):
 
     if SHOW_PLOT == 1:
         plt.show()
+def BA_RT():
+    print('BA_RT START')
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']   
+    camera_indices = []
+    point_indices = []
+    estimated_RTs = []
+    POINTS_2D = []
+    POINTS_3D = []
+    n_points = 0
+    cam_id = 0
+
+    for frame_cnt, cam_info in CAMERA_INFO.items():
+        print('frame_cnt ', frame_cnt)
+        points3D = cam_info['points3D']
+        rvec = cam_info['OPENCV']['rt']['rvec']
+        tvec = cam_info['OPENCV']['rt']['tvec']
+        points2D_D = cam_info['points2D']['greysum']
+        points2D_U = cam_info['points2D_U']['greysum']
+        print('rvec ', rvec)
+        print('tvec ', tvec)
+        
+        # Add camera parameters (rvec and tvec)
+        estimated_RTs.append((rvec.ravel(), tvec.ravel()))
+
+        # Adding 2D points
+        POINTS_2D.extend(points2D_D if undistort == 0 else points2D_U)
+        
+        # Adding 3D points
+        POINTS_3D.extend(points3D)
+        
+        # Adding indices
+        camera_indices.extend([cam_id]*len(points3D))
+        point_indices.extend(list(range(n_points, n_points+len(points3D))))
+
+        n_points += len(points3D)
+        cam_id += 1
+
+    def fun(params, n_cameras, camera_indices, point_indices, points_2d, points_3d, camera_matrix):
+        camera_params = params.reshape((n_cameras, 6))
+        points_proj = []
+
+        for i, POINT_3D in enumerate(points_3d[point_indices]):
+            camera_index = camera_indices[i]
+            rvec = camera_params[camera_index, :3]
+            tvec = camera_params[camera_index, 3:]
+            POINT_2D_PROJ, _ = cv2.projectPoints(POINT_3D,
+                                                 np.array(rvec),
+                                                 np.array(tvec),
+                                                 camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                                                 camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs)
+            points_proj.append(POINT_2D_PROJ[0][0])
+
+        points_proj = np.array(points_proj)
+        return (points_proj - points_2d).ravel()
+
+
+    def bundle_adjustment_sparsity(n_cameras, camera_indices):
+        m = camera_indices.size * 2
+        n = n_cameras * 6
+        A = lil_matrix((m, n), dtype=int)
+        i = np.arange(camera_indices.size)
+        for s in range(6):
+            A[2 * i, camera_indices * 6 + s] = 1
+            A[2 * i + 1, camera_indices * 6 + s] = 1
+        return A
+
+    # Convert the lists to NumPy arrays
+    n_cameras = len(estimated_RTs)
+    camera_indices = np.array(camera_indices)
+    point_indices = np.array(point_indices)
+    camera_params = np.array(estimated_RTs).reshape(-1, 6)
+    POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
+    POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
+
+    x0 = camera_params.ravel()
+    A = bundle_adjustment_sparsity(n_cameras, camera_indices)
+    
+    print('\n')
+    print('#################### BA  ####################')
+    print('n_points', n_points)
+    res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
+                        args=(n_cameras, camera_indices, point_indices, POINTS_2D, POINTS_3D, camera_matrix))
+
+    # You are only optimizing camera parameters, so the result only contains camera parameters data
+    n_cameras_params = res.x.reshape((n_cameras, 6))
+    print("Optimized camera parameters: ", n_cameras_params, ' ', len(n_cameras_params))
+    file = 'BA_RT.pickle'
+    data = OrderedDict()
+    data['BA_RT'] = n_cameras_params
+    data['camera_indices'] = camera_indices
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+
+
+    
 def BA_3D_POINT():
     print('BA_3D_POINT START')
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
@@ -1880,7 +2069,6 @@ def Check_Calibration_data_combination():
 
     plt.subplots_adjust(hspace=0.5)  # Add space between subplots
     plt.show()
-
 def Check_Calibration_data():
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
     def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
@@ -2187,7 +2375,6 @@ def recover_pose_essential_test():
     f = zoom_factory(ax1, base_scale=scale)
     plt.show()
 '''
-
 def recover_pose_essential_test_two(script_dir):
     def recover_3d_points_combinations(cam_info, K):
         recovered_3d_points = {}
@@ -2343,8 +2530,6 @@ def recover_pose_essential_test_two(script_dir):
     scale = 1.5
     f = zoom_factory(ax1, base_scale=scale)
     plt.show()
-
-
 def init_camera_path(script_dir, video_path, first_image_path):
     bboxes = []
     centers1 = []
@@ -2596,10 +2781,27 @@ def init_camera_path(script_dir, video_path, first_image_path):
     return S_closest_img, E_closest_img
 
 
+def save_camera_position():
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']    
+    with open("camera_log_final.txt", "w") as file:
+        for key, camera_info in CAMERA_INFO.items():
+            print('frame_cnt: ', key)
+            barvec = camera_info['BA_RT']['rt']['rvec']
+            batvec = camera_info['BA_RT']['rt']['tvec']
+            print('barvec:', barvec.flatten())
+            print('batvec:', batvec.flatten())
+
+            # File writing
+            rvec_str = ' '.join(map(str, barvec.flatten()))
+            tvec_str = ' '.join(map(str, batvec.flatten()))
+            file.write(f"Frame:{int(key) + 1}, Rvec:[{rvec_str}], Tvec:[{tvec_str}]\n")
+
+
 if __name__ == "__main__":
     # Get the directory of the current script
 
     MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
     # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
@@ -2608,17 +2810,20 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot()
     bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes, 0, 120)
+    gathering_data_single(ax1, script_dir, bboxes, 0, 119)
     # remake_3d_for_blob_info(undistort)
     # BA_3D_POINT()
+    # BA_RT()
     # draw_result(ax1, ax2)
     # Check_Calibration_data_combination()
     # recover_pose_essential_test_two(script_dir)
-    
+   
+    # save_camera_position()
+
     print('\n\n')
     print('########## DONE ##########')
