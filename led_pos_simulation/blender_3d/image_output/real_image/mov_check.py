@@ -154,7 +154,7 @@ cap.release()
 cv2.destroyAllWindows()
 
 
-cap = cv2.VideoCapture('output.mkv')
+cap = cv2.VideoCapture('output_rifts_right_9.mkv')
 
 # Get the start_frame
 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)  # Frame indices start from 0

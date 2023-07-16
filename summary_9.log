@@ -1,0 +1,15 @@
+LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+   4 leds               0.014340                   0.008325               0.001931                   0.001174                 0.247373                     0.160875
+   6 leds               0.003301                   0.002436               0.000761                   0.000496                 0.237340                     0.163080
+   5 leds               0.000556                   0.000683               0.000085                   0.000083                 0.261806                     0.197490
+
+Descriptive Statistics:
+       AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+count               3.000000                   3.000000               3.000000                   3.000000                 3.000000                     3.000000
+mean                0.006066                   0.003815               0.000926                   0.000584                 0.248840                     0.173815
+std                 0.007296                   0.004003               0.000934                   0.000551                 0.012299                     0.020533
+min                 0.000556                   0.000683               0.000085                   0.000083                 0.237340                     0.160875
+25%                 0.001929                   0.001560               0.000423                   0.000290                 0.242356                     0.161978
+50%                 0.003301                   0.002436               0.000761                   0.000496                 0.247373                     0.163080
+75%                 0.008820                   0.005381               0.001346                   0.000835                 0.254590                     0.180285
+max                 0.014340                   0.008325               0.001931                   0.001174                 0.261806                     0.197490

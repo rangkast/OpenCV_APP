@@ -40,7 +40,8 @@ from sklearn.decomposition import PCA
 from scipy.spatial.transform import Rotation as R
 from data_class import *
 from itertools import combinations, permutations
-
+from matplotlib.ticker import MaxNLocator
+from collections import defaultdict
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -88,7 +89,7 @@ max_level = 3
 SHOW_PLOT = 1
 
 FULL_COMBINATION_SEARCH = 0
-DO_CALIBRATION_TEST = 0
+DO_CALIBRATION_TEST = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
@@ -109,7 +110,7 @@ controller_name = 'rifts_right_9'
 # camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
 # camera_log_path = f"./tmp/render/camera_log.txt"
 # camera_img_path = f"./tmp/render/"
-camera_log_path = f"./render_img/{controller_name}/camera_log.txt"
+camera_log_path = f"./render_img/{controller_name}/camera_log_final.txt"
 camera_img_path = f"./render_img/{controller_name}/"
 
 ANGLE = 3
@@ -118,93 +119,129 @@ VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
 #Rift_S
 # calibrated_led_data_PCA = np.array([
-# [0.02168628, -0.00324521, -0.01411445],
-# [0.03201823, 0.00572315, -0.01199014],
-# [0.03707574, 0.00940709, 0.0028741],
-# [0.04299688, 0.02693289, -0.00174567],
-# [0.04183469, 0.03577459, 0.01994403],
-# [0.02982094, 0.0615288, 0.01641058],
-# [0.01430296, 0.06336907, 0.03651528],
-# [-0.00767603, 0.07123568, 0.02065192],
-# [-0.03008142, 0.05528737, 0.03102479],
-# [-0.03751318, 0.0527148, 0.01098579],
-# [-0.04274956, 0.03017015, 0.01624257],
-# [-0.04244368, 0.02277499, -0.00379463],
-# [-0.03306113, 0.00366613, 0.00036046],
-# [-0.03026799, 0.00362505, -0.01301806],
-# [-0.02009348, -0.00399105, -0.01491414],
+# [0.02372493, -0.00474541, -0.01473806],
+# [0.03318133, 0.00554242, -0.01198877],
+# [0.03696513, 0.00943595, 0.00285465],
+# [0.04136955, 0.02767969, -0.00147443],
+# [0.03746961, 0.03516104, 0.01964959],
+# [0.02654467, 0.06051459, 0.01566323],
+# [0.01259979, 0.06100055, 0.03526588],
+# [-0.00861907, 0.06909665, 0.01939906],
+# [-0.02692397, 0.05389968, 0.03048664],
+# [-0.03676933, 0.05157827, 0.01032783],
+# [-0.04158417, 0.03118638, 0.01684074],
+# [-0.04066309, 0.02357522, -0.00333384],
+# [-0.03238895, 0.00649186, 0.00191727],
+# [-0.02997409, 0.00612382, -0.01185402],
+# [-0.01908309, -0.00156723, -0.01358335],
 # ])
 # calibrated_led_data_IQR = np.array([
-# [0.02167493, -0.00324108, -0.01411421],
-# [0.03201428, 0.00572128, -0.01198954],
-# [0.03705301, 0.00941367, 0.00288274],
-# [0.04299534, 0.02693316, -0.00175074],
-# [0.04183666, 0.03577377, 0.01994179],
-# [0.02984717, 0.06152355, 0.0164085],
-# [0.01428444, 0.06337179, 0.03651512],
-# [-0.00767674, 0.07123899, 0.02065045],
-# [-0.03008856, 0.05527806, 0.03101774],
-# [-0.0375093, 0.05272381, 0.0109968],
-# [-0.04274444, 0.03017125, 0.01624196],
-# [-0.0424295, 0.02276011, -0.00380078],
-# [-0.03303076, 0.00365017, 0.00035427],
-# [-0.03027511, 0.00363642, -0.0130123],
-# [-0.02010213, -0.00398148, -0.01490938],
+# [0.02271284, -0.00456931, -0.01459799],
+# [0.03257516, 0.0055238, -0.01195525],
+# [0.03655282, 0.00936292, 0.00283419],
+# [0.04132872, 0.02751343, -0.00158776],
+# [0.0378419, 0.03495256, 0.0194938],
+# [0.02673336, 0.06059113, 0.01571263],
+# [0.01311407, 0.06132254, 0.03532547],
+# [-0.00869341, 0.06906175, 0.01944076],
+# [-0.02878168, 0.0535307, 0.03018944],
+# [-0.03629077, 0.05084716, 0.01011888],
+# [-0.04097119, 0.03103665, 0.01665461],
+# [-0.04008678, 0.02352715, -0.00330996],
+# [-0.03132721, 0.0065555, 0.00192891],
+# [-0.02944293, 0.00659137, -0.01158439],
+# [-0.01941564, -0.0008739, -0.0132309],
 # ])
 
-#Arcturas
+# final data
 calibrated_led_data_PCA = np.array([
-[-0.00696769, -0.03727491, 0.00393786],
-[0.00899936, -0.049107, 0.00367566],
-[0.02989941, -0.05328018, 0.00339408],
-[0.05207945, -0.04703833, 0.0029648],
-[0.07130617, -0.03069878, 0.00300515],
-[0.07882732, -0.01379061, 0.00272048],
-[0.07996731, 0.00982981, 0.00247827],
-[0.07284266, 0.02697763, 0.00254282],
-[0.05392853, 0.04636822, 0.00324772],
-[0.03437616, 0.05274618, 0.00320486],
-[0.01173388, 0.04984923, 0.00401555],
-[-0.00676735, 0.037355, 0.00442843],
-[-0.01894229, -0.02582191, 0.01696607],
-[-0.0090566, -0.03708057, 0.0172316],
-[0.02430521, -0.05255606, 0.01839573],
-[0.04494156, -0.04898515, 0.01885866],
-[0.06224723, -0.03707146, 0.01963902],
-[0.07537256, -0.01539611, 0.01969791],
-[0.07295295, 0.02120438, 0.0193934],
-[0.05554069, 0.0435, 0.01883255],
-[0.03439221, 0.0522568, 0.01836464],
-[0.01161227, 0.05048315, 0.01780053],
-[-0.00890116, 0.03744267, 0.01771729],
-[-0.01910235, 0.02540786, 0.01750773],
+[0.02167243, -0.00325008, -0.01410749],
+[0.03201048, 0.005727, -0.01199337],
+[0.03706207, 0.00938991, 0.00289256],
+[0.04297935, 0.02694073, -0.00175433],
+[0.04181719, 0.03577838, 0.01993882],
+[0.02981621, 0.06151856, 0.0164158],
+[0.01429889, 0.0633878, 0.03649737],
+[-0.00767989, 0.07121593, 0.02066433],
+[-0.03009054, 0.05529715, 0.03101444],
+[-0.03749252, 0.05269429, 0.01101182],
+[-0.04273035, 0.03018532, 0.01622119],
+[-0.04242624, 0.02274602, -0.00375754],
+[-0.03301359, 0.0037089, 0.00031397],
+[-0.03027781, 0.00362272, -0.01301619],
+[-0.02009641, -0.00398915, -0.01490895],
 ])
 calibrated_led_data_IQR = np.array([
-[-0.00676852, -0.03798641, 0.00394945],
-[0.00885066, -0.04894449, 0.0036787],
-[0.02975786, -0.05317389, 0.00340023],
-[0.05201976, -0.04697659, 0.00297482],
-[0.07100062, -0.03075325, 0.00301601],
-[0.07887108, -0.0136683, 0.00273086],
-[0.07994903, 0.00984616, 0.00248697],
-[0.07284987, 0.02705545, 0.00254559],
-[0.05396718, 0.0464252, 0.00325086],
-[0.03445464, 0.05280786, 0.00322508],
-[0.01178737, 0.05000231, 0.0039984],
-[-0.00668981, 0.03744203, 0.00443952],
-[-0.01900843, -0.02582546, 0.01696916],
-[-0.00884999, -0.03780064, 0.01719601],
-[0.02425048, -0.05252288, 0.01839846],
-[0.04486651, -0.04892312, 0.01886717],
-[0.06216869, -0.03705723, 0.01963795],
-[0.07534009, -0.01534003, 0.01969018],
-[0.0729473, 0.02125364, 0.0193825],
-[0.05560621, 0.04349809, 0.01883096],
-[0.03445915, 0.05231076, 0.01835841],
-[0.01171709, 0.05049917, 0.01778219],
-[-0.00884527, 0.03752934, 0.0177085],
-[-0.0191141, 0.02562212, 0.01750281],
+[0.02167007, -0.00324072, -0.01411277],
+[0.03200764, 0.00572551, -0.01199254],
+[0.03705644, 0.0093882, 0.00290176],
+[0.04298814, 0.02694303, -0.00176309],
+[0.04182307, 0.0357771, 0.01993642],
+[0.02984359, 0.06151447, 0.0164158],
+[0.01428597, 0.06339076, 0.03649892],
+[-0.00768061, 0.07121739, 0.02066382],
+[-0.03008642, 0.05530052, 0.03101474],
+[-0.03750594, 0.05269685, 0.01101606],
+[-0.0427341, 0.0301784, 0.01621573],
+[-0.04242667, 0.0227344, -0.00376362],
+[-0.0330401, 0.003702, 0.0003288],
+[-0.03024804, 0.00362059, -0.01302218],
+[-0.02010377, -0.00397501, -0.01490541],
 ])
+
+#Arcturas
+# calibrated_led_data_PCA = np.array([
+# [-0.00696769, -0.03727491, 0.00393786],
+# [0.00899936, -0.049107, 0.00367566],
+# [0.02989941, -0.05328018, 0.00339408],
+# [0.05207945, -0.04703833, 0.0029648],
+# [0.07130617, -0.03069878, 0.00300515],
+# [0.07882732, -0.01379061, 0.00272048],
+# [0.07996731, 0.00982981, 0.00247827],
+# [0.07284266, 0.02697763, 0.00254282],
+# [0.05392853, 0.04636822, 0.00324772],
+# [0.03437616, 0.05274618, 0.00320486],
+# [0.01173388, 0.04984923, 0.00401555],
+# [-0.00676735, 0.037355, 0.00442843],
+# [-0.01894229, -0.02582191, 0.01696607],
+# [-0.0090566, -0.03708057, 0.0172316],
+# [0.02430521, -0.05255606, 0.01839573],
+# [0.04494156, -0.04898515, 0.01885866],
+# [0.06224723, -0.03707146, 0.01963902],
+# [0.07537256, -0.01539611, 0.01969791],
+# [0.07295295, 0.02120438, 0.0193934],
+# [0.05554069, 0.0435, 0.01883255],
+# [0.03439221, 0.0522568, 0.01836464],
+# [0.01161227, 0.05048315, 0.01780053],
+# [-0.00890116, 0.03744267, 0.01771729],
+# [-0.01910235, 0.02540786, 0.01750773],
+# ])
+# calibrated_led_data_IQR = np.array([
+# [-0.00676852, -0.03798641, 0.00394945],
+# [0.00885066, -0.04894449, 0.0036787],
+# [0.02975786, -0.05317389, 0.00340023],
+# [0.05201976, -0.04697659, 0.00297482],
+# [0.07100062, -0.03075325, 0.00301601],
+# [0.07887108, -0.0136683, 0.00273086],
+# [0.07994903, 0.00984616, 0.00248697],
+# [0.07284987, 0.02705545, 0.00254559],
+# [0.05396718, 0.0464252, 0.00325086],
+# [0.03445464, 0.05280786, 0.00322508],
+# [0.01178737, 0.05000231, 0.0039984],
+# [-0.00668981, 0.03744203, 0.00443952],
+# [-0.01900843, -0.02582546, 0.01696916],
+# [-0.00884999, -0.03780064, 0.01719601],
+# [0.02425048, -0.05252288, 0.01839846],
+# [0.04486651, -0.04892312, 0.01886717],
+# [0.06216869, -0.03705723, 0.01963795],
+# [0.07534009, -0.01534003, 0.01969018],
+# [0.0729473, 0.02125364, 0.0193825],
+# [0.05560621, 0.04349809, 0.01883096],
+# [0.03445915, 0.05231076, 0.01835841],
+# [0.01171709, 0.05049917, 0.01778219],
+# [-0.00884527, 0.03752934, 0.0177085],
+# [-0.0191141, 0.02562212, 0.01750281],
+# ])
 
 
 camera_matrix = [
@@ -1244,7 +1281,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             if frame_cnt >= start and frame_cnt <= end:
                 camera_params_pos = frame_cnt - start + 1
                 # camera_params_pos = (camera_params_pos - 1) * ANGLE + 1  # Update this line
-                if camera_params_pos < len(camera_params):                
+                if camera_params_pos <= len(camera_params):                
                     brvec, btvec = camera_params[camera_params_pos]
                     brvec_reshape = np.array(brvec).reshape(-1, 1)
                     btvec_reshape = np.array(btvec).reshape(-1, 1)
@@ -1456,7 +1493,10 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                     CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
                     CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
                     ########################### BUNDLE ADJUSTMENT RT #######################
-        
+                else:
+                    print('over camera_log_index:', camera_params_pos)
+            else:
+                print('over frame_cnt:', frame_cnt)
 
         if AUTO_LOOP == 1:
             frame_cnt += 1
@@ -1960,224 +2000,211 @@ def Check_Calibration_data_combination():
         # print('points2D_reprojection:\n', points2D_reprojection)
         # print('RER:', RER)
         return RER
-    def STD_Analysis(points3D_data, label):
-        print(f"{points3D_data}")
+    def STD_Analysis(points3D_data, label, combination):
+        print(f"dataset:{points3D_data} combination_cnt:{combination}")
         frame_counts = []
         rvec_std_arr = []
         tvec_std_arr = []
         reproj_err_rates = []
-        
+
         for frame_cnt, cam_data in CAMERA_INFO.items():           
-            
+
             rvec_list = []
             tvec_list = []
             reproj_err_list = []
-            
+
             LED_NUMBER = cam_data['LED_NUMBER']
             points3D = cam_data[points3D_data]
             points2D = cam_data['points2D']['greysum']
             points2D_U = cam_data['points2D_U']['greysum']
-            
+
             LENGTH = len(LED_NUMBER)
-            
-            if LENGTH >= 4:
-                for r in range(4, LENGTH + 1 if FULL_COMBINATION_SEARCH == 1 else 5):
-                    for comb in combinations(range(LENGTH), r):
-                        for perm in permutations(comb):
-                            points3D_perm = points3D[list(perm), :]
-                            points2D_perm = points2D[list(perm), :]
-                            points2D_U_perm = points2D_U[list(perm), :]
-                            if r >= 5:
-                                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                            elif r == 4:
-                                METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-                            INPUT_ARRAY = [
-                                CAM_ID,
-                                points3D_perm,
-                                points2D_perm if undistort == 0 else points2D_U_perm,
-                                camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                                camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                            ]
-                            _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                            
-                            rvec_list.append(np.linalg.norm(rvec))
-                            tvec_list.append(np.linalg.norm(tvec))
 
-                            RER = reprojection_error(points3D_perm,
-                                                    points2D_perm,
-                                                    rvec, tvec,
-                                                    camera_matrix[CAM_ID][0],
-                                                    camera_matrix[CAM_ID][1])                        
-                            reproj_err_list.append(RER)
+            if LENGTH >= combination:
+                for comb in combinations(range(LENGTH), combination):
+                    for perm in permutations(comb):
+                        points3D_perm = points3D[list(perm), :]
+                        points2D_perm = points2D[list(perm), :]
+                        points2D_U_perm = points2D_U[list(perm), :]
+                        if combination >= 5:
+                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                        elif combination == 4:
+                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                        INPUT_ARRAY = [
+                            CAM_ID,
+                            points3D_perm,
+                            points2D_perm if undistort == 0 else points2D_U_perm,
+                            camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                            camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                        ]
+                        _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
 
-                        frame_counts.append(frame_cnt)
-                        rvec_std = np.std(rvec_list)
-                        tvec_std = np.std(tvec_list)
-                        reproj_err_rate = np.mean(reproj_err_list)
-                        
-                        rvec_std_arr.append(rvec_std)
-                        tvec_std_arr.append(tvec_std)
-                        reproj_err_rates.append(reproj_err_rate)
+                        rvec_list.append(np.linalg.norm(rvec))
+                        tvec_list.append(np.linalg.norm(tvec))
+
+                        RER = reprojection_error(points3D_perm,
+                                                points2D_perm,
+                                                rvec, tvec,
+                                                camera_matrix[CAM_ID][0],
+                                                camera_matrix[CAM_ID][1])                        
+                        reproj_err_list.append(RER)
+
+                frame_counts.append(frame_cnt)
+                rvec_std = np.std(rvec_list)
+                tvec_std = np.std(tvec_list)
+                reproj_err_rate = np.mean(reproj_err_list)
+
+                rvec_std_arr.append(rvec_std)
+                tvec_std_arr.append(tvec_std)
+                reproj_err_rates.append(reproj_err_rate)
 
         return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label
 
 
-    
-    fig, axs = plt.subplots(3, 1, figsize=(15, 15))
+    combination_cnt = [4, 5, 6]
+    all_data = []
+    for COMBINATION in combination_cnt:
+        fig, axs = plt.subplots(3, 1, figsize=(15, 15))
+        fig.suptitle(f'Calibration Data Analysis for Combination: {COMBINATION}')  # Set overall title
 
-    points3D_datas = ['points3D', 'points3D_PCA', 'points3D_IQR']
-    colors = ['b', 'g', 'r']
-    summary_text = ""
+        points3D_datas = ['points3D', 'points3D_IQR']
+        colors = ['r', 'b']
+        summary_text = ""
 
-    for idx, points3D_data in enumerate(points3D_datas):
-        frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data)
+        for idx, points3D_data in enumerate(points3D_datas):
+            frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data, COMBINATION)
 
-        axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}')
-        axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}')
-        axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}')
+            axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}', alpha=0.5)
+            axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}', alpha=0.5)
+            axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}', alpha=0.5)
+
+            
+            # Calculate and store the average and standard deviation for each data set
+            avg_rvec_std = np.mean(rvec_std_arr)
+            std_rvec_std = np.std(rvec_std_arr)
+            avg_tvec_std = np.mean(tvec_std_arr)
+            std_tvec_std = np.std(tvec_std_arr)
+            avg_reproj_err = np.mean(reproj_err_rates)
+            std_reproj_err = np.std(reproj_err_rates)
+            
+
+            summary_text += f"== {label} ==\n"
+            summary_text += f"Rvec Std: Mean = {avg_rvec_std:.6f}, Std = {std_rvec_std:.6f}\n"
+            summary_text += f"Tvec Std: Mean = {avg_tvec_std:.6f}, Std = {std_tvec_std:.6f}\n"
+            summary_text += f"Reproj Err: Mean = {avg_reproj_err:.6f}, Std = {std_reproj_err:.6f}\n"
+            summary_text += "\n"
+            all_data.append([label, COMBINATION, avg_rvec_std, std_rvec_std, avg_tvec_std, std_tvec_std, avg_reproj_err, std_reproj_err])  # Store data for all combinations
+
+        axs[0].legend()
+        axs[0].set_xlabel('frame_cnt')
+        axs[0].set_ylabel('std')
+        axs[0].set_title('Standard Deviation of rvec and tvec Magnitude per Frame')
+
+        axs[1].legend()
+        axs[1].set_xlabel('frame_cnt')
+        axs[1].set_ylabel('error rate')
+        axs[1].set_title('Mean Reprojection Error Rate per Frame')
         
-        # Calculate and store the average and standard deviation for each data set
-        avg_rvec_std = np.mean(rvec_std_arr)
-        std_rvec_std = np.std(rvec_std_arr)
-        avg_tvec_std = np.mean(tvec_std_arr)
-        std_tvec_std = np.std(tvec_std_arr)
-        avg_reproj_err = np.mean(reproj_err_rates)
-        std_reproj_err = np.std(reproj_err_rates)
+        axs[2].axis('off')  # Hide axes for the text plot
+        axs[2].text(0, 0, summary_text, fontsize=10)
 
-        summary_text += f"== {label} ==\n"
-        summary_text += f"Rvec Std: Mean = {avg_rvec_std:.2f}, Std = {std_rvec_std:.2f}\n"
-        summary_text += f"Tvec Std: Mean = {avg_tvec_std:.2f}, Std = {std_tvec_std:.2f}\n"
-        summary_text += f"Reproj Err: Mean = {avg_reproj_err:.2f}, Std = {std_reproj_err:.2f}\n"
-        summary_text += "\n"
+        # Reducing the number of X-ticks to avoid crowding
+        for ax in axs[:2]:
+            ax.set_xticks(ax.get_xticks()[::5])
 
+        plt.subplots_adjust(hspace=0.5)  # Add space between subplots
+    original_labels = [f"{item[0]} {item[1]}" for item in all_data] # Here, we first create original labels
+    labels = ['4 leds', '5 leds', '6 leds'] * (len(original_labels) // 3) # Now we can use len(original_labels)
+    avg_rvec_std_values = [item[2] for item in all_data]
+    std_rvec_std_values = [item[3] for item in all_data]
+    avg_tvec_std_values = [item[4] for item in all_data]
+    std_tvec_std_values = [item[5] for item in all_data]
+    avg_reproj_err_values = [item[6] for item in all_data]
+    std_reproj_err_values = [item[7] for item in all_data]
+
+    x = np.arange(len(labels) // 2)
+    width = 0.35
+    fig, axs = plt.subplots(4, 1, figsize=(15, 30)) # increase the figure size
+
+    # Rvec subplot
+    rects1 = axs[0].bar(x - width / 4, avg_rvec_std_values[::2], width / 2, color='r', label='Avg Rvec Std for points3D')
+    rects2 = axs[0].bar(x + width / 4, avg_rvec_std_values[1::2], width / 2, color='b', label='Avg Rvec Std for points3D_IQR')
+
+    axs[0].set_xlabel('Combination')
+    axs[0].set_ylabel('Values')
+    axs[0].set_title('Average Rvec Standard Deviations for All Combinations')
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels(labels[::2])
     axs[0].legend()
-    axs[0].set_xlabel('frame_cnt')
-    axs[0].set_ylabel('std')
-    axs[0].set_title('Standard Deviation of rvec and tvec Magnitude per Frame')
 
+    # Tvec subplot
+    rects3 = axs[1].bar(x - width / 4, avg_tvec_std_values[::2], width / 2, color='r', label='Avg Tvec Std for points3D')
+    rects4 = axs[1].bar(x + width / 4, avg_tvec_std_values[1::2], width / 2, color='b', label='Avg Tvec Std for points3D_IQR')
+
+    axs[1].set_xlabel('Combination')
+    axs[1].set_ylabel('Values')
+    axs[1].set_title('Average Tvec Standard Deviations for All Combinations')
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels(labels[::2])
     axs[1].legend()
-    axs[1].set_xlabel('frame_cnt')
-    axs[1].set_ylabel('error rate')
-    axs[1].set_title('Mean Reprojection Error Rate per Frame')
-    
-    axs[2].axis('off')  # Hide axes for the text plot
-    axs[2].text(0, 0, summary_text, fontsize=10)
 
-    # Reducing the number of X-ticks to avoid crowding
-    for ax in axs[:2]:
-        ax.set_xticks(ax.get_xticks()[::5])
+    # Reproj_err subplot
+    rects5 = axs[2].bar(x - width / 4, avg_reproj_err_values[::2], width / 2, color='r', label='Avg Reproj Err for points3D')
+    rects6 = axs[2].bar(x + width / 4, avg_reproj_err_values[1::2], width / 2, color='b', label='Avg Reproj Err for points3D_IQR')
 
-    plt.subplots_adjust(hspace=0.5)  # Add space between subplots
+    axs[2].set_xlabel('Combination')
+    axs[2].set_ylabel('Values')
+    axs[2].set_title('Average Reprojection Error for All Combinations')
+    axs[2].set_xticks(x)
+    axs[2].set_xticklabels(labels[::2])
+    axs[2].legend()
+
+  
+
+    # Organize data into a dictionary with column labels as keys
+    summary_data = {
+        'LEDCount:': labels[::2],
+        'AvgRvecStd(points3D):': avg_rvec_std_values[::2],
+        'AvgRvecStd(points3D_IQR):': avg_rvec_std_values[1::2],
+        'AvgTvecStd(points3D):': avg_tvec_std_values[::2],
+        'AvgTvecStd(points3D_IQR):': avg_tvec_std_values[1::2],
+        'AvgReprojErr(points3D):': avg_reproj_err_values[::2],
+        'AvgReprojErr(points3D_IQR):': avg_reproj_err_values[1::2]
+    }
+
+    # Create DataFrame from dictionary
+    df = pd.DataFrame(summary_data)
+
+    # Get descriptive statistics
+    desc_stats = df.describe()
+
+    # Convert to string and add to summary text
+    summary_text = df.to_string(index=False)
+    summary_text += "\n\nDescriptive Statistics:\n" + desc_stats.to_string()
+
+    # Remove existing text subplot
+    fig.delaxes(axs[3])
+
+    # Add table as text subplot
+    axs[3] = fig.add_subplot(414)
+    axs[3].axis('off')
+    axs[3].text(0.5, 0.5, summary_text, ha='center', va='center')
+
+    # Print to console
+    print(summary_text)
+
+    # Write to log file
+    with open('summary.log', 'w') as f:
+        f.write(summary_text)
+
+    plt.subplots_adjust(hspace=0.5)
     plt.show()
-def Check_Calibration_data():
-    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
-    def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
-        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
-        # Squeeze the points2D_reprojection to match the dimensionality of points2D
-        points2D_reprojection = points2D_reprojection.squeeze()
-        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
-        # print('points2D:\n', points2D)
-        # print('points2D_reprojection:\n', points2D_reprojection)
-        # print('RER:', RER)
-        return RER
 
-    def STD_Analysis(points3D_data, label):
-        frame_counts_rvec = []
-        frame_counts_tvec = []
-        frame_counts_reproj_err = []
-        rvec_std_arr = []
-        tvec_std_arr = []
-        reproj_err_rates = []
 
-        for frame_cnt, cam_data in CAMERA_INFO.items():
-            LED_NUMBER = cam_data['LED_NUMBER']
-            points3D = cam_data[points3D_data]
-            points2D = cam_data['points2D']['greysum']
-            points2D_U = cam_data['points2D_U']['greysum']
 
-            LENGTH = len(LED_NUMBER)
 
-            if LENGTH >= 4:
-                print('PnP Solver OpenCV')
-                if LENGTH >= 5:
-                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                elif LENGTH == 4:
-                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
 
-                INPUT_ARRAY = [
-                    CAM_ID,
-                    points3D,
-                    points2D if undistort == 0 else points2D_U,
-                    camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                    camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                ]
-                _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
 
-                RER = reprojection_error(points3D,
-                                         points2D,
-                                         rvec, tvec,
-                                         camera_matrix[CAM_ID][0],
-                                         camera_matrix[CAM_ID][1])
- 
-
-                frame_counts_rvec.append(frame_cnt)
-                rvec_std_arr.append(np.linalg.norm(rvec))
-                                    
-                frame_counts_tvec.append(frame_cnt)
-                tvec_std_arr.append(np.linalg.norm(tvec))
-
-                reproj_err_rates.append(RER)
-                frame_counts_reproj_err.append(frame_cnt)
-                
-
-        return frame_counts_rvec, rvec_std_arr, frame_counts_tvec, tvec_std_arr, frame_counts_reproj_err, reproj_err_rates, label
-
-    fig, axs = plt.subplots(3, 1, figsize=(15, 15))
-
-    points3D_datas = ['points3D','points3D_PCA','points3D_IQR']
-    colors = ['b', 'g', 'r']
-    summary_text = ""
-
-    for idx, points3D_data in enumerate(points3D_datas):
-        frame_counts_rvec, rvec_std_arr, frame_counts_tvec, tvec_std_arr, frame_counts_reproj_err, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data)
-
-        axs[0].plot(frame_counts_rvec, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}')
-        axs[0].plot(frame_counts_tvec, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}')
-        axs[1].plot(frame_counts_reproj_err, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}')
-
-        # Calculate and store the average and standard deviation for each data set
-        avg_rvec_std = np.mean(rvec_std_arr)
-        std_rvec_std = np.std(rvec_std_arr)
-        avg_tvec_std = np.mean(tvec_std_arr)
-        std_tvec_std = np.std(tvec_std_arr)
-        avg_reproj_err = np.mean(reproj_err_rates)
-        std_reproj_err = np.std(reproj_err_rates)
-
-        summary_text += f"== {label} ==\n"
-        summary_text += f"Rvec Std: Mean = {avg_rvec_std:.2f}, Std = {std_rvec_std:.2f}\n"
-        summary_text += f"Tvec Std: Mean = {avg_tvec_std:.2f}, Std = {std_tvec_std:.2f}\n"
-        summary_text += f"Reproj Err: Mean = {avg_reproj_err:.2f}, Std = {std_reproj_err:.2f}\n"
-        summary_text += "\n"
-
-    axs[0].legend()
-    axs[0].set_xlabel('frame_cnt')
-    axs[0].set_ylabel('std')
-    axs[0].set_title('Standard Deviation of rvec and tvec Magnitude per Frame')
-
-    axs[1].legend()
-    axs[1].set_xlabel('frame_cnt')
-    axs[1].set_ylabel('error rate')
-    axs[1].set_title('Mean Reprojection Error Rate per Frame')
-
-    axs[2].axis('off')  # Hide axes for the text plot
-    axs[2].text(0, 0, summary_text, fontsize=10)
-
-    # Reducing the number of X-ticks to avoid crowding
-    for ax in axs[:2]:
-        ax.set_xticks(ax.get_xticks()[::5])
-
-    plt.subplots_adjust(hspace=0.3)  # Add space between subplots
-    plt.show()
 def init_plot():
     root = tk.Tk()
     width_px = root.winfo_screenwidth()
@@ -2277,7 +2304,6 @@ def show_calibrate_data(model_data, direction):
     f = zoom_factory(ax, base_scale=scale)
 
     plt.show()
-
 '''
 def recover_pose_essential_test():
     print('recover_pose_essential_test START')
@@ -2779,8 +2805,6 @@ def init_camera_path(script_dir, video_path, first_image_path):
         cv2.destroyAllWindows()
     
     return S_closest_img, E_closest_img
-
-
 def save_camera_position():
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']    
     with open("camera_log_final.txt", "w") as file:
@@ -2797,6 +2821,7 @@ def save_camera_position():
             file.write(f"Frame:{int(key) + 1}, Rvec:[{rvec_str}], Tvec:[{tvec_str}]\n")
 
 
+
 if __name__ == "__main__":
     # Get the directory of the current script
 
@@ -2810,20 +2835,21 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot()
     bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes, 0, 119)
-    # remake_3d_for_blob_info(undistort)
-    # BA_3D_POINT()
+    gathering_data_single(ax1, script_dir, bboxes, 0, 121)
+    remake_3d_for_blob_info(undistort)
+    BA_3D_POINT()
     # BA_RT()
-    # draw_result(ax1, ax2)
-    # Check_Calibration_data_combination()
-    # recover_pose_essential_test_two(script_dir)
+    draw_result(ax1, ax2)
+    Check_Calibration_data_combination()
+
+   
    
     # save_camera_position()
-
+# 
     print('\n\n')
     print('########## DONE ##########')

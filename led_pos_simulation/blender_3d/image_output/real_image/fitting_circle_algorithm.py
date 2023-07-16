@@ -45,7 +45,7 @@ def generate_circle_by_angles(t, C, r, theta, phi):
 # P += np.random.normal(size=P.shape) * 0.1
 
 P = np.vstack(pickle_data(READ, 'BLENDER.pickle', None)['opositions'])
-bpositions = np.vstack(pickle_data(READ, 'BLENDER.pickle', None)['bpositions'])
+# bpositions = np.vstack(pickle_data(READ, 'BLENDER.pickle', None)['bpositions'])
 
 #-------------------------------------------------------------------------------
 # Plot
