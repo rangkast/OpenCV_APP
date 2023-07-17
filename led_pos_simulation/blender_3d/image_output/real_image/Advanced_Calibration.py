@@ -2822,10 +2822,10 @@ if __name__ == "__main__":
     bboxes = blob_setting(script_dir)
     gathering_data_single(ax1, script_dir, bboxes, 0, 121)
 
-    # remake_3d_for_blob_info(undistort)
-    # BA_3D_POINT()
+    remake_3d_for_blob_info(undistort)
+    BA_3D_POINT()
     # BA_RT()    
-    # draw_result(ax1, ax2)
+    draw_result(ax1, ax2)
 #
     # Check_Calibration_data_combination()
 
