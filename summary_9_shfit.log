@@ -1,0 +1,15 @@
+ LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+         4               0.014654                   0.007854               0.001867                   0.001036                 0.235355                     0.145192
+         5               0.003253                   0.002069               0.000555                   0.000405                 0.228561                     0.151907
+         6               0.012294                   0.000941               0.000135                   0.000096                 0.266008                     0.191086
+
+Descriptive Statistics:
+       AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+count               3.000000                   3.000000               3.000000                   3.000000                 3.000000                     3.000000
+mean                0.010067                   0.003622               0.000853                   0.000513                 0.243308                     0.162728
+std                 0.006018                   0.003709               0.000904                   0.000479                 0.019950                     0.024787
+min                 0.003253                   0.000941               0.000135                   0.000096                 0.228561                     0.145192
+25%                 0.007774                   0.001505               0.000345                   0.000251                 0.231958                     0.148550
+50%                 0.012294                   0.002069               0.000555                   0.000405                 0.235355                     0.151907
+75%                 0.013474                   0.004962               0.001211                   0.000721                 0.250682                     0.171496
+max                 0.014654                   0.007854               0.001867                   0.001036                 0.266008                     0.191086

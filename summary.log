@@ -1,0 +1,14 @@
+ LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+         4               0.027077                   0.022974               0.003932                   0.003174                 0.478307                     0.404523
+         5               0.015198                   0.015420               0.002226                   0.001812                 0.478807                     0.459954
+
+Descriptive Statistics:
+       AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+count               2.000000                   2.000000               2.000000                   2.000000                 2.000000                     2.000000
+mean                0.021138                   0.019197               0.003079                   0.002493                 0.478557                     0.432239
+std                 0.008400                   0.005341               0.001206                   0.000963                 0.000354                     0.039196
+min                 0.015198                   0.015420               0.002226                   0.001812                 0.478307                     0.404523
+25%                 0.018168                   0.017309               0.002652                   0.002152                 0.478432                     0.418381
+50%                 0.021138                   0.019197               0.003079                   0.002493                 0.478557                     0.432239
+75%                 0.024108                   0.021085               0.003505                   0.002833                 0.478682                     0.446097
+max                 0.027077                   0.022974               0.003932                   0.003174                 0.478807                     0.459954

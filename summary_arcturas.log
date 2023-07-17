@@ -1,0 +1,14 @@
+ LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+         4               0.044327                   0.021661               0.003715                   0.001657                 0.405021                     0.177715
+         5               0.036802                   0.014301               0.004461                   0.001405                 0.634231                     0.210081
+
+Descriptive Statistics:
+       LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
+count   2.000000               2.000000                   2.000000               2.000000                   2.000000                 2.000000                     2.000000
+mean    4.500000               0.040564                   0.017981               0.004088                   0.001531                 0.519626                     0.193898
+std     0.707107               0.005321                   0.005204               0.000527                   0.000178                 0.162076                     0.022886
+min     4.000000               0.036802                   0.014301               0.003715                   0.001405                 0.405021                     0.177715
+25%     4.250000               0.038683                   0.016141               0.003902                   0.001468                 0.462324                     0.185806
+50%     4.500000               0.040564                   0.017981               0.004088                   0.001531                 0.519626                     0.193898
+75%     4.750000               0.042446                   0.019821               0.004275                   0.001594                 0.576929                     0.201989
+max     5.000000               0.044327                   0.021661               0.004461                   0.001657                 0.634231                     0.210081

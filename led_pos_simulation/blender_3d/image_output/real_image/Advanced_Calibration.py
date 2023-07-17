@@ -69,9 +69,11 @@ ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
 LEDS_POSITION = RIFTS_PATTERN_RIGHT
 LEFT_RIGHT_DIRECTION = PLUS
 
+
+
 # Test 환경 (linux, window) 마다 다름?????
 # BLOB_SIZE = 150 (RIFT S)
-BLOB_SIZE = 150
+BLOB_SIZE = 50
 THRESHOLD_DISTANCE = 10
 
 READ = 0
@@ -89,10 +91,13 @@ max_level = 3
 SHOW_PLOT = 1
 
 FULL_COMBINATION_SEARCH = 0
+####################
 DO_CALIBRATION_TEST = 1
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
+# TOP_BOTTOM_LINE_Y = 365
+TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 TRACKER_PADDING = 2
@@ -110,138 +115,107 @@ controller_name = 'rifts_right_9'
 # camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
 # camera_log_path = f"./tmp/render/camera_log.txt"
 # camera_img_path = f"./tmp/render/"
-camera_log_path = f"./render_img/{controller_name}/camera_log_final.txt"
-camera_img_path = f"./render_img/{controller_name}/"
+camera_log_path = f"./render_img/{controller_name}/test_4/camera_log_final.txt"
+camera_img_path = f"./render_img/{controller_name}/test_4/"
 
 ANGLE = 3
 
 VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
-#Rift_S
-# calibrated_led_data_PCA = np.array([
-# [0.02372493, -0.00474541, -0.01473806],
-# [0.03318133, 0.00554242, -0.01198877],
-# [0.03696513, 0.00943595, 0.00285465],
-# [0.04136955, 0.02767969, -0.00147443],
-# [0.03746961, 0.03516104, 0.01964959],
-# [0.02654467, 0.06051459, 0.01566323],
-# [0.01259979, 0.06100055, 0.03526588],
-# [-0.00861907, 0.06909665, 0.01939906],
-# [-0.02692397, 0.05389968, 0.03048664],
-# [-0.03676933, 0.05157827, 0.01032783],
-# [-0.04158417, 0.03118638, 0.01684074],
-# [-0.04066309, 0.02357522, -0.00333384],
-# [-0.03238895, 0.00649186, 0.00191727],
-# [-0.02997409, 0.00612382, -0.01185402],
-# [-0.01908309, -0.00156723, -0.01358335],
-# ])
-# calibrated_led_data_IQR = np.array([
-# [0.02271284, -0.00456931, -0.01459799],
-# [0.03257516, 0.0055238, -0.01195525],
-# [0.03655282, 0.00936292, 0.00283419],
-# [0.04132872, 0.02751343, -0.00158776],
-# [0.0378419, 0.03495256, 0.0194938],
-# [0.02673336, 0.06059113, 0.01571263],
-# [0.01311407, 0.06132254, 0.03532547],
-# [-0.00869341, 0.06906175, 0.01944076],
-# [-0.02878168, 0.0535307, 0.03018944],
-# [-0.03629077, 0.05084716, 0.01011888],
-# [-0.04097119, 0.03103665, 0.01665461],
-# [-0.04008678, 0.02352715, -0.00330996],
-# [-0.03132721, 0.0065555, 0.00192891],
-# [-0.02944293, 0.00659137, -0.01158439],
-# [-0.01941564, -0.0008739, -0.0132309],
-# ])
 
-# final data
-calibrated_led_data_PCA = np.array([
-[0.02167243, -0.00325008, -0.01410749],
-[0.03201048, 0.005727, -0.01199337],
-[0.03706207, 0.00938991, 0.00289256],
-[0.04297935, 0.02694073, -0.00175433],
-[0.04181719, 0.03577838, 0.01993882],
-[0.02981621, 0.06151856, 0.0164158],
-[0.01429889, 0.0633878, 0.03649737],
-[-0.00767989, 0.07121593, 0.02066433],
-[-0.03009054, 0.05529715, 0.03101444],
-[-0.03749252, 0.05269429, 0.01101182],
-[-0.04273035, 0.03018532, 0.01622119],
-[-0.04242624, 0.02274602, -0.00375754],
-[-0.03301359, 0.0037089, 0.00031397],
-[-0.03027781, 0.00362272, -0.01301619],
-[-0.02009641, -0.00398915, -0.01490895],
-])
-calibrated_led_data_IQR = np.array([
-[0.02167007, -0.00324072, -0.01411277],
-[0.03200764, 0.00572551, -0.01199254],
-[0.03705644, 0.0093882, 0.00290176],
-[0.04298814, 0.02694303, -0.00176309],
-[0.04182307, 0.0357771, 0.01993642],
-[0.02984359, 0.06151447, 0.0164158],
-[0.01428597, 0.06339076, 0.03649892],
-[-0.00768061, 0.07121739, 0.02066382],
-[-0.03008642, 0.05530052, 0.03101474],
-[-0.03750594, 0.05269685, 0.01101606],
-[-0.0427341, 0.0301784, 0.01621573],
-[-0.04242667, 0.0227344, -0.00376362],
-[-0.0330401, 0.003702, 0.0003288],
-[-0.03024804, 0.00362059, -0.01302218],
-[-0.02010377, -0.00397501, -0.01490541],
-])
+combination_cnt = [4,5]
 
-#Arcturas
-# calibrated_led_data_PCA = np.array([
-# [-0.00696769, -0.03727491, 0.00393786],
-# [0.00899936, -0.049107, 0.00367566],
-# [0.02989941, -0.05328018, 0.00339408],
-# [0.05207945, -0.04703833, 0.0029648],
-# [0.07130617, -0.03069878, 0.00300515],
-# [0.07882732, -0.01379061, 0.00272048],
-# [0.07996731, 0.00982981, 0.00247827],
-# [0.07284266, 0.02697763, 0.00254282],
-# [0.05392853, 0.04636822, 0.00324772],
-# [0.03437616, 0.05274618, 0.00320486],
-# [0.01173388, 0.04984923, 0.00401555],
-# [-0.00676735, 0.037355, 0.00442843],
-# [-0.01894229, -0.02582191, 0.01696607],
-# [-0.0090566, -0.03708057, 0.0172316],
-# [0.02430521, -0.05255606, 0.01839573],
-# [0.04494156, -0.04898515, 0.01885866],
-# [0.06224723, -0.03707146, 0.01963902],
-# [0.07537256, -0.01539611, 0.01969791],
-# [0.07295295, 0.02120438, 0.0193934],
-# [0.05554069, 0.0435, 0.01883255],
-# [0.03439221, 0.0522568, 0.01836464],
-# [0.01161227, 0.05048315, 0.01780053],
-# [-0.00890116, 0.03744267, 0.01771729],
-# [-0.01910235, 0.02540786, 0.01750773],
-# ])
-# calibrated_led_data_IQR = np.array([
-# [-0.00676852, -0.03798641, 0.00394945],
-# [0.00885066, -0.04894449, 0.0036787],
-# [0.02975786, -0.05317389, 0.00340023],
-# [0.05201976, -0.04697659, 0.00297482],
-# [0.07100062, -0.03075325, 0.00301601],
-# [0.07887108, -0.0136683, 0.00273086],
-# [0.07994903, 0.00984616, 0.00248697],
-# [0.07284987, 0.02705545, 0.00254559],
-# [0.05396718, 0.0464252, 0.00325086],
-# [0.03445464, 0.05280786, 0.00322508],
-# [0.01178737, 0.05000231, 0.0039984],
-# [-0.00668981, 0.03744203, 0.00443952],
-# [-0.01900843, -0.02582546, 0.01696916],
-# [-0.00884999, -0.03780064, 0.01719601],
-# [0.02425048, -0.05252288, 0.01839846],
-# [0.04486651, -0.04892312, 0.01886717],
-# [0.06216869, -0.03705723, 0.01963795],
-# [0.07534009, -0.01534003, 0.01969018],
-# [0.0729473, 0.02125364, 0.0193825],
-# [0.05560621, 0.04349809, 0.01883096],
-# [0.03445915, 0.05231076, 0.01835841],
-# [0.01171709, 0.05049917, 0.01778219],
-# [-0.00884527, 0.03752934, 0.0177085],
-# [-0.0191141, 0.02562212, 0.01750281],
-# ])
+if 'rifts' in controller_name:
+    # final data
+    calibrated_led_data_PCA = np.array([
+[0.02190061, -0.00304302, -0.0141023],
+[0.03192581, 0.00581687, -0.01194461],
+[0.03700247, 0.00952567, 0.00275595],
+[0.04282168, 0.02681867, -0.0017237],
+[0.04206191, 0.03580127, 0.01977752],
+[0.03056966, 0.06169885, 0.01669801],
+[0.01523683, 0.06414824, 0.036965],
+[-0.00757627, 0.07161673, 0.0210586],
+[-0.03060679, 0.05554785, 0.0309515],
+[-0.03753801, 0.05269535, 0.01106943],
+[-0.0432323, 0.02983927, 0.01582725],
+[-0.04231511, 0.02262543, -0.00383267],
+[-0.0332805, 0.00334914, -3.799e-05],
+[-0.03057509, 0.00317684, -0.01303338],
+[-0.02054561, -0.00464368, -0.01499618],
+
+    ])
+    calibrated_led_data_IQR = np.array([
+[0.02166763, -0.00303881, -0.01400448],
+[0.03192838, 0.00580099, -0.01193933],
+[0.03703845, 0.00946387, 0.00274236],
+[0.04284644, 0.02678523, -0.00175449],
+[0.04206008, 0.03582481, 0.01971689],
+[0.03055993, 0.06170777, 0.01671667],
+[0.01495338, 0.06424503, 0.03697317],
+[-0.00755153, 0.07157479, 0.02105831],
+[-0.03050138, 0.05553652, 0.03098932],
+[-0.03747248, 0.05264446, 0.01105993],
+[-0.04312153, 0.02981819, 0.01582658],
+[-0.04226463, 0.02265643, -0.00379098],
+[-0.03323779, 0.00336306, -3.72e-05],
+[-0.03054407, 0.00319876, -0.01303512],
+[-0.02051161, -0.00460764, -0.01508919],
+    ])
+else:
+    #Arcturas
+    calibrated_led_data_PCA = np.array([
+    [-0.00666308, -0.03800159, 0.00392272],
+    [0.00892021, -0.04853479, 0.00368794],
+    [0.02979925, -0.05312545, 0.00340481],
+    [0.05192114, -0.0469748, 0.0029858],
+    [0.07163167, -0.03081063, 0.00302888],
+    [0.07874353, -0.01383807, 0.00273969],
+    [0.07980603, 0.00973466, 0.00247261],
+    [0.07277538, 0.02701061, 0.00251938],
+    [0.05383959, 0.04623312, 0.00321398],
+    [0.0343511, 0.05277621, 0.00319197],
+    [0.01170633, 0.05005899, 0.00403596],
+    [-0.00681939, 0.0376875, 0.00446782],
+    [-0.01883423, -0.02574094, 0.01692907],
+    [-0.00855737, -0.03739905, 0.01718038],
+    [0.02438423, -0.05262442, 0.0183775],
+    [0.04496447, -0.0490304, 0.01886998],
+    [0.06224303, -0.03714422, 0.01968655],
+    [0.07516715, -0.01550041, 0.01976453],
+    [0.07281753, 0.02108109, 0.01933654],
+    [0.05544561, 0.04333144, 0.01878636],
+    [0.03440019, 0.05220509, 0.01835618],
+    [0.01165315, 0.05055976, 0.01781506],
+    [-0.00889304, 0.03766686, 0.01773202],
+    [-0.01921501, 0.02569927, 0.01751506],
+    ])
+    calibrated_led_data_IQR = np.array([
+    [-0.00667821, -0.03792996, 0.00394071],
+    [0.00899674, -0.04866671, 0.00368106],
+    [0.02981771, -0.05311136, 0.00340271],
+    [0.05202492, -0.04695783, 0.0029901],
+    [0.07121931, -0.0310004, 0.0030332],
+    [0.07885758, -0.01369945, 0.00274629],
+    [0.07980826, 0.00975479, 0.002484],
+    [0.07277582, 0.02698272, 0.00252904],
+    [0.05384475, 0.04624619, 0.00322494],
+    [0.03435972, 0.05281879, 0.00319906],
+    [0.01167534, 0.05013835, 0.00401201],
+    [-0.00679277, 0.0376867, 0.00446357],
+    [-0.01884299, -0.02574063, 0.01692917],
+    [-0.00852775, -0.03748816, 0.0171755],
+    [0.02434728, -0.05261167, 0.01837907],
+    [0.04485993, -0.04897872, 0.01887248],
+    [0.06223279, -0.03717637, 0.01968829],
+    [0.07526395, -0.01536379, 0.01972955],
+    [0.07281906, 0.02112796, 0.01933889],
+    [0.0554596, 0.04332023, 0.01879574],
+    [0.03444077, 0.05215783, 0.01836424],
+    [0.0116686, 0.05055312, 0.01780522],
+    [-0.00882649, 0.03753247, 0.01772781],
+    [-0.01921646, 0.02572575, 0.01750817],
+    ])
 
 
 camera_matrix = [
@@ -603,14 +577,14 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
             continue
         # TOP Searching and clockwise
         if ANCHOR_POS == TOP:
-            if left_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
+            if left_data[2] <= TOP_BOTTOM_LINE_Y:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[TOP] == -1 else LEFT_BLOB_INFO[TOP]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
                 LEFT_BLOB_INFO[TOP] = NEW_BLOB_ID
         else:
             # BOTTOM Searching and clockwise
-            if left_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
+            if left_data[2] > TOP_BOTTOM_LINE_Y:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[BOTTOM] == -1 else LEFT_BLOB_INFO[BOTTOM]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
@@ -626,13 +600,13 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
             continue
 
         if ANCHOR_POS == TOP:
-            if right_data[2] <= CAP_PROP_FRAME_HEIGHT / 2:
+            if right_data[2] <= TOP_BOTTOM_LINE_Y:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[TOP] == -1 else RIGHT_BLOB_INFO[TOP]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
                 RIGHT_BLOB_INFO[TOP] = copy.deepcopy(NEW_BLOB_ID)
         else:
-            if right_data[2] > CAP_PROP_FRAME_HEIGHT / 2:
+            if right_data[2] > TOP_BOTTOM_LINE_Y:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[BOTTOM] == -1 else RIGHT_BLOB_INFO[BOTTOM]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
@@ -717,6 +691,7 @@ def blob_setting(script_dir):
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 0, 0), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 0, 0), 1)
+
         # brvec, btvec = camera_params[frame_cnt + 1]
         
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
@@ -1145,7 +1120,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
         height, width = frame_0.shape
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
-        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)        
+        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)   
+        cv2.line(draw_frame, (0, TOP_BOTTOM_LINE_Y), (width, TOP_BOTTOM_LINE_Y), (0, 255, 0), 1)     
         # print('CURR_TRACKER', CURR_TRACKER)
 
         if TRACKING_START == NOT_SET:
@@ -2061,7 +2037,6 @@ def Check_Calibration_data_combination():
         return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label
 
 
-    combination_cnt = [4, 5, 6]
     all_data = []
     for COMBINATION in combination_cnt:
         fig, axs = plt.subplots(3, 1, figsize=(15, 15))
@@ -2114,7 +2089,8 @@ def Check_Calibration_data_combination():
 
         plt.subplots_adjust(hspace=0.5)  # Add space between subplots
     original_labels = [f"{item[0]} {item[1]}" for item in all_data] # Here, we first create original labels
-    labels = ['4 leds', '5 leds', '6 leds'] * (len(original_labels) // 3) # Now we can use len(original_labels)
+    labels = combination_cnt * (len(original_labels) // len(combination_cnt)) # Now we can use len(original_labels)
+
     avg_rvec_std_values = [item[2] for item in all_data]
     std_rvec_std_values = [item[3] for item in all_data]
     avg_tvec_std_values = [item[4] for item in all_data]
@@ -2123,6 +2099,9 @@ def Check_Calibration_data_combination():
     std_reproj_err_values = [item[7] for item in all_data]
 
     x = np.arange(len(labels) // 2)
+    print(x)
+    print(labels)
+    print(labels[:len(combination_cnt)])
     width = 0.35
     fig, axs = plt.subplots(4, 1, figsize=(15, 30)) # increase the figure size
 
@@ -2134,7 +2113,7 @@ def Check_Calibration_data_combination():
     axs[0].set_ylabel('Values')
     axs[0].set_title('Average Rvec Standard Deviations for All Combinations')
     axs[0].set_xticks(x)
-    axs[0].set_xticklabels(labels[::2])
+    axs[0].set_xticklabels(labels[:len(combination_cnt)])
     axs[0].legend()
 
     # Tvec subplot
@@ -2145,7 +2124,7 @@ def Check_Calibration_data_combination():
     axs[1].set_ylabel('Values')
     axs[1].set_title('Average Tvec Standard Deviations for All Combinations')
     axs[1].set_xticks(x)
-    axs[1].set_xticklabels(labels[::2])
+    axs[1].set_xticklabels(labels[:len(combination_cnt)])
     axs[1].legend()
 
     # Reproj_err subplot
@@ -2156,14 +2135,12 @@ def Check_Calibration_data_combination():
     axs[2].set_ylabel('Values')
     axs[2].set_title('Average Reprojection Error for All Combinations')
     axs[2].set_xticks(x)
-    axs[2].set_xticklabels(labels[::2])
+    axs[2].set_xticklabels(labels[:len(combination_cnt)])
     axs[2].legend()
 
-  
-
-    # Organize data into a dictionary with column labels as keys
+      # Organize data into a dictionary with column labels as keys
     summary_data = {
-        'LEDCount:': labels[::2],
+        'LEDCount:': labels[:len(combination_cnt)],
         'AvgRvecStd(points3D):': avg_rvec_std_values[::2],
         'AvgRvecStd(points3D_IQR):': avg_rvec_std_values[1::2],
         'AvgTvecStd(points3D):': avg_tvec_std_values[::2],
@@ -2174,9 +2151,14 @@ def Check_Calibration_data_combination():
 
     # Create DataFrame from dictionary
     df = pd.DataFrame(summary_data)
+    # 'LEDCount:' 열을 제외한 새로운 DataFrame 생성
+    df_without_ledcount = df.drop('LEDCount:', axis=1)
 
-    # Get descriptive statistics
-    desc_stats = df.describe()
+    # 통계를 가져옵니다
+    desc_stats = df_without_ledcount.describe()
+
+    # # Get descriptive statistics
+    # desc_stats = df.describe()
 
     # Convert to string and add to summary text
     summary_text = df.to_string(index=False)
@@ -2199,9 +2181,6 @@ def Check_Calibration_data_combination():
 
     plt.subplots_adjust(hspace=0.5)
     plt.show()
-
-
-
 
 
 
@@ -2259,9 +2238,6 @@ def init_coord_json(file):
             u = model_points.get(data)[3]
             v = model_points.get(data)[4]
             w = model_points.get(data)[5]
-            r1 = model_points.get(data)[6]
-            r2 = model_points.get(data)[7]
-            r3 = model_points.get(data)[8]
 
             pts[int(idx)] = np.array([x, y, z])
             dir[int(idx)] = np.array([u, v, w])
@@ -2824,6 +2800,7 @@ def save_camera_position():
 
 if __name__ == "__main__":
     # Get the directory of the current script
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
 
     MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
     # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
@@ -2835,17 +2812,22 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot()
+
+
+
     bboxes = blob_setting(script_dir)
     gathering_data_single(ax1, script_dir, bboxes, 0, 121)
-    remake_3d_for_blob_info(undistort)
-    BA_3D_POINT()
-    # BA_RT()
-    draw_result(ax1, ax2)
-    Check_Calibration_data_combination()
+
+    # remake_3d_for_blob_info(undistort)
+    # BA_3D_POINT()
+    # BA_RT()    
+    # draw_result(ax1, ax2)
+#
+    # Check_Calibration_data_combination()
 
    
    
