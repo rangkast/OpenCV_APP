@@ -1,222 +1,25 @@
-import numpy as np
-import random
-from matplotlib import gridspec
-from matplotlib.ticker import FormatStrFormatter
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.widgets import TextBox
-from collections import OrderedDict
-from dataclasses import dataclass
-import pickle
-import gzip
-import os
-import cv2
-import glob
-import matplotlib as mpl
-import tkinter as tk
-import matplotlib.patches as patches
-from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes, mark_inset
-import json
-import matplotlib.ticker as ticker
-from enum import Enum, auto
-import copy
-import re
-import subprocess
-import cv2
-import traceback
-import math
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import itertools
-from typing import List, Dict
-from scipy.optimize import least_squares
-from scipy.sparse import lil_matrix
-import functools
-import sys
-import bisect
-import threading
-import pprint
-from sklearn.decomposition import PCA
-from scipy.spatial.transform import Rotation as R
-from data_class import *
-from itertools import combinations, permutations
-from matplotlib.ticker import MaxNLocator
-from collections import defaultdict
-
-# Get the directory of the current script
-script_dir = os.path.dirname(os.path.realpath(__file__))
-# Add the directory containing poselib to the module search path
-print(script_dir)
-
-sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
-# poselib only working in LINUX or WSL (window)
-import poselib
-
-DO_P3P = 0
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
+from Advanced_Function import *
 from connection.socket.socket_def import *
 
-# Rift s와 Arcturas는 탑다운이 반대
-TOP = 0
-BOTTOM = 1
 
-PLUS = 0
-MINUS = 1
-
-RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0] # 반전 필요
-ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
-
-LEDS_POSITION = RIFTS_PATTERN_RIGHT
-LEFT_RIGHT_DIRECTION = PLUS
-
-
-
-# Test 환경 (linux, window) 마다 다름?????
-# BLOB_SIZE = 150 (RIFT S)
-BLOB_SIZE = 50
-THRESHOLD_DISTANCE = 10
-
-READ = 0
-WRITE = 1
-SUCCESS = 0
-ERROR = -1
-DONE = 1
-NOT_SET = -1
 CAM_ID = 0
 
-AUTO_LOOP = 1
 undistort = 1
 TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
-
 FULL_COMBINATION_SEARCH = 0
-####################
-DO_CALIBRATION_TEST = 1
-
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-# TOP_BOTTOM_LINE_Y = 365
-TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
-CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
-TRACKER_PADDING = 2
+CV_MIN_THRESHOLD = 150
+
 HOPPING_CNT = 4
 BLOB_CNT = -1
 
-# TARGET_DEVICE = 'RIFTS'
-
-# camera_log_path = "./tmp/render/ARCTURAS/camera_log.txt"
-# camera_img_path = "./tmp/render/ARCTURAS/"
-# BLOB_SIZE = 60
-controller_name = 'rifts_right_9'
-# controller_name = 'arcturas'
-# camera_log_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/camera_log.txt"
-# camera_img_path = f"./tmp/render/{TARGET_DEVICE}/{controller_name}/"
-# camera_log_path = f"./tmp/render/camera_log.txt"
-# camera_img_path = f"./tmp/render/"
-camera_log_path = f"./render_img/{controller_name}/test_4/camera_log_final.txt"
-camera_img_path = f"./render_img/{controller_name}/test_4/"
-
 ANGLE = 3
-
 VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
-
-combination_cnt = [4,5]
-
-if 'rifts' in controller_name:
-    # final data
-    calibrated_led_data_PCA = np.array([
-[0.02190061, -0.00304302, -0.0141023],
-[0.03192581, 0.00581687, -0.01194461],
-[0.03700247, 0.00952567, 0.00275595],
-[0.04282168, 0.02681867, -0.0017237],
-[0.04206191, 0.03580127, 0.01977752],
-[0.03056966, 0.06169885, 0.01669801],
-[0.01523683, 0.06414824, 0.036965],
-[-0.00757627, 0.07161673, 0.0210586],
-[-0.03060679, 0.05554785, 0.0309515],
-[-0.03753801, 0.05269535, 0.01106943],
-[-0.0432323, 0.02983927, 0.01582725],
-[-0.04231511, 0.02262543, -0.00383267],
-[-0.0332805, 0.00334914, -3.799e-05],
-[-0.03057509, 0.00317684, -0.01303338],
-[-0.02054561, -0.00464368, -0.01499618],
-
-    ])
-    calibrated_led_data_IQR = np.array([
-[0.02166763, -0.00303881, -0.01400448],
-[0.03192838, 0.00580099, -0.01193933],
-[0.03703845, 0.00946387, 0.00274236],
-[0.04284644, 0.02678523, -0.00175449],
-[0.04206008, 0.03582481, 0.01971689],
-[0.03055993, 0.06170777, 0.01671667],
-[0.01495338, 0.06424503, 0.03697317],
-[-0.00755153, 0.07157479, 0.02105831],
-[-0.03050138, 0.05553652, 0.03098932],
-[-0.03747248, 0.05264446, 0.01105993],
-[-0.04312153, 0.02981819, 0.01582658],
-[-0.04226463, 0.02265643, -0.00379098],
-[-0.03323779, 0.00336306, -3.72e-05],
-[-0.03054407, 0.00319876, -0.01303512],
-[-0.02051161, -0.00460764, -0.01508919],
-    ])
-else:
-    #Arcturas
-    calibrated_led_data_PCA = np.array([
-    [-0.00666308, -0.03800159, 0.00392272],
-    [0.00892021, -0.04853479, 0.00368794],
-    [0.02979925, -0.05312545, 0.00340481],
-    [0.05192114, -0.0469748, 0.0029858],
-    [0.07163167, -0.03081063, 0.00302888],
-    [0.07874353, -0.01383807, 0.00273969],
-    [0.07980603, 0.00973466, 0.00247261],
-    [0.07277538, 0.02701061, 0.00251938],
-    [0.05383959, 0.04623312, 0.00321398],
-    [0.0343511, 0.05277621, 0.00319197],
-    [0.01170633, 0.05005899, 0.00403596],
-    [-0.00681939, 0.0376875, 0.00446782],
-    [-0.01883423, -0.02574094, 0.01692907],
-    [-0.00855737, -0.03739905, 0.01718038],
-    [0.02438423, -0.05262442, 0.0183775],
-    [0.04496447, -0.0490304, 0.01886998],
-    [0.06224303, -0.03714422, 0.01968655],
-    [0.07516715, -0.01550041, 0.01976453],
-    [0.07281753, 0.02108109, 0.01933654],
-    [0.05544561, 0.04333144, 0.01878636],
-    [0.03440019, 0.05220509, 0.01835618],
-    [0.01165315, 0.05055976, 0.01781506],
-    [-0.00889304, 0.03766686, 0.01773202],
-    [-0.01921501, 0.02569927, 0.01751506],
-    ])
-    calibrated_led_data_IQR = np.array([
-    [-0.00667821, -0.03792996, 0.00394071],
-    [0.00899674, -0.04866671, 0.00368106],
-    [0.02981771, -0.05311136, 0.00340271],
-    [0.05202492, -0.04695783, 0.0029901],
-    [0.07121931, -0.0310004, 0.0030332],
-    [0.07885758, -0.01369945, 0.00274629],
-    [0.07980826, 0.00975479, 0.002484],
-    [0.07277582, 0.02698272, 0.00252904],
-    [0.05384475, 0.04624619, 0.00322494],
-    [0.03435972, 0.05281879, 0.00319906],
-    [0.01167534, 0.05013835, 0.00401201],
-    [-0.00679277, 0.0376867, 0.00446357],
-    [-0.01884299, -0.02574063, 0.01692917],
-    [-0.00852775, -0.03748816, 0.0171755],
-    [0.02434728, -0.05261167, 0.01837907],
-    [0.04485993, -0.04897872, 0.01887248],
-    [0.06223279, -0.03717637, 0.01968829],
-    [0.07526395, -0.01536379, 0.01972955],
-    [0.07281906, 0.02112796, 0.01933889],
-    [0.0554596, 0.04332023, 0.01879574],
-    [0.03444077, 0.05215783, 0.01836424],
-    [0.0116686, 0.05055312, 0.01780522],
-    [-0.00882649, 0.03753247, 0.01772781],
-    [-0.01921646, 0.02572575, 0.01750817],
-    ])
-
 
 camera_matrix = [
     [np.array([[715.159, 0.0, 650.741],
@@ -238,7 +41,7 @@ CAMERA_INFO_STRUCTURE = {
     'points3D_PCA': [],
     'points3D_IQR': [],
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
 }
 
@@ -247,248 +50,16 @@ BLOB_INFO_STRUCTURE = {
     'points2D_D': {'greysum': []},
     'points2D_U': {'greysum': []},
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
 }
 
-trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
-class POSE_ESTIMATION_METHOD(Enum):
-    # Opencv legacy
-    SOLVE_PNP_RANSAC = auto()
-    SOLVE_PNP_REFINE_LM = auto()
-    SOLVE_PNP_AP3P = auto()
-    SOLVE_PNP = auto()
-    SOLVE_PNP_RESERVED = auto()
-def solvepnp_ransac(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-    # check assertion
-    if len(points3D) != len(points2D):
-        print("assertion len is not equal")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    if len(points2D) < 4:
-        print("assertion < 4: ")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    ret, rvecs, tvecs, inliers = cv2.solvePnPRansac(points3D, points2D,
-                                                    camera_k,
-                                                    dist_coeff)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, inliers
-def solvepnp_ransac_refineLM(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-    ret, rvecs, tvecs, inliers = solvepnp_ransac(points3D, points2D, camera_k, dist_coeff)
-    # Do refineLM with inliers
-    if ret == SUCCESS:
-        if not hasattr(cv2, 'solvePnPRefineLM'):
-            print('solvePnPRefineLM requires OpenCV >= 4.1.1, skipping refinement')
-        else:
-            assert len(inliers) >= 3, 'LM refinement requires at least 3 inlier points'
-            # refine r_t vector and maybe changed
-            cv2.solvePnPRefineLM(points3D[inliers],
-                                 points2D[inliers], camera_k, dist_coeff,
-                                 rvecs, tvecs)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-def solvepnp_AP3P(*args):
-    cam_id = args[0][0]
-    points3D = args[0][1]
-    points2D = args[0][2]
-    camera_k = args[0][3]
-    dist_coeff = args[0][4]
-
-    # check assertion
-    if len(points3D) != len(points2D):
-        print("assertion len is not equal")
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    if len(points2D) < 3 or len(points2D) > 4:
-        print("assertion ", len(points2D))
-        return ERROR, NOT_SET, NOT_SET, NOT_SET
-
-    ret, rvecs, tvecs = cv2.solvePnP(points3D, points2D,
-                                     camera_k,
-                                     dist_coeff,
-                                     flags=cv2.SOLVEPNP_AP3P)
-
-    return SUCCESS if ret == True else ERROR, rvecs, tvecs, NOT_SET
-SOLVE_PNP_FUNCTION = {
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC: solvepnp_ransac,
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_REFINE_LM: solvepnp_ransac_refineLM,
-    POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P: solvepnp_AP3P,
-}
-def zoom_factory(ax, base_scale=2.):
-    def zoom_fun(event):
-        # get the current x and y limits
-        cur_xlim = ax.get_xlim()
-        cur_ylim = ax.get_ylim()
-        cur_zlim = ax.get_zlim()
-        cur_xrange = (cur_xlim[1] - cur_xlim[0]) * .5
-        cur_yrange = (cur_ylim[1] - cur_ylim[0]) * .5
-        cur_zrange = (cur_zlim[1] - cur_zlim[0]) * .5
-        xdata = event.xdata
-        ydata = event.ydata
-        if event.button == 'up':
-            # deal with zoom in
-            scale_factor = 1 / base_scale
-        elif event.button == 'down':
-            # deal with zoom out
-            scale_factor = base_scale
-        else:
-            # deal with something that should never happen
-            scale_factor = 1
-            print(event.button)
-        # set new limits
-        ax.set_xlim([xdata - cur_xrange * scale_factor,
-                     xdata + cur_xrange * scale_factor])
-        ax.set_ylim([ydata - cur_yrange * scale_factor,
-                     ydata + cur_yrange * scale_factor])
-        ax.set_zlim([(xdata + ydata) / 2 - cur_zrange * scale_factor,
-                     (xdata + ydata) / 2 + cur_zrange * scale_factor])
-        # force re-draw
-        plt.draw()
-
-    # get the figure of interest
-    fig = ax.get_figure()
-    # attach the call back
-    fig.canvas.mpl_connect('scroll_event', zoom_fun)
-
-    # return the function
-    return zoom_fun
-def find_center(frame, SPEC_AREA):
-    x_sum = 0
-    t_sum = 0
-    y_sum = 0
-    g_c_x = 0
-    g_c_y = 0
-    m_count = 0
-
-    (X, Y, W, H) = SPEC_AREA
-
-    for y in range(Y, Y + H):
-        for x in range(X, X + W):
-            x_sum += x * frame[y][x]
-            t_sum += frame[y][x]
-            m_count += 1
-
-    for x in range(X, X + W):
-        for y in range(Y, Y + H):
-            y_sum += y * frame[y][x]
-
-    if t_sum != 0:
-        g_c_x = x_sum / t_sum
-        g_c_y = y_sum / t_sum
-
-    if g_c_x == 0 or g_c_y == 0:
-        return 0, 0, 0
-
-    return g_c_x, g_c_y, m_count
-def detect_led_lights(image, padding=5, min_area=100, max_area=1000):
-    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    blob_info = []
-    for idx, contour in enumerate(contours):
-        x, y, w, h = cv2.boundingRect(contour)
-        # Apply padding for the bounding box
-        x -= padding
-        y -= padding
-        w += padding * 2
-        h += padding * 2
-
-        # Use contourArea to get the actual area of the contour
-        area = cv2.contourArea(contour)
-
-        # Check if the area of the contour is within the specified range
-        if min_area <= area <= max_area:
-            blob_info.append((x, y, w, h))
-
-    return blob_info
-def point_in_bbox(x, y, bbox):
-    return bbox[0] <= x <= bbox[0] + bbox[2] and bbox[1] <= y <= bbox[1] + bbox[3]
-def draw_blobs_and_ids(frame, blobs, bboxes):
-    for bbox in blobs:
-        p1 = (int(bbox[0]), int(bbox[1]))
-        p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
-        cv2.rectangle(frame, p1, p2, (255, 0, 0), 1, 1)
-    for box in bboxes:
-        cv2.putText(frame, f"{box['idx']}", (int(box['bbox'][0]), int(box['bbox'][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.75, (255, 255, 255), 1)
-def rw_json_data(rw_mode, path, data=None):
-    try:
-        if rw_mode == READ:
-            with open(path, 'r', encoding="utf-8") as rdata:
-                json_data = json.load(rdata)
-            return json_data
-        elif rw_mode == WRITE:
-            print(data)
-            with open(path, 'w', encoding="utf-8") as wdata:
-                json.dump(data, wdata, ensure_ascii=False, indent="\t")
-        else:
-            print('not support mode')
-    except:
-        return ERROR
-def pickle_data(rw_mode, path, data):
-    import pickle
-    import gzip
-    try:
-        if rw_mode == READ:
-            with gzip.open(path, 'rb') as f:
-                data = pickle.load(f)
-            return data
-        elif rw_mode == WRITE:
-            with gzip.open(path, 'wb') as f:
-                pickle.dump(data, f)
-        else:
-            print('not support mode')
-    except:
-        print('file r/w error')
-        return ERROR
 def init_trackers(trackers, frame):
     for id, data in trackers.items():
         tracker = cv2.TrackerCSRT_create()
         (x, y, w, h) = data['bbox']        
         ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
         data['tracker'] = tracker
-def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        for i, bbox in enumerate(blob_area_0):
-            if point_in_bbox(x, y, bbox):
-                input_number = input('Please enter ID for this bbox: ')
-                bboxes.append({'idx': input_number, 'bbox': bbox})
-                draw_blobs_and_ids(frame, blob_area_0, bboxes)
-def read_camera_log(file_path):
-    with open(file_path, 'r') as file:
-        lines = file.readlines()
-
-    # print(lines)
-    camera_params = {}
-    for line in lines:
-        parts = line.split(',')
-        frame = int(parts[0].split(':')[1].strip())
-        rvec = list(map(float, parts[1].split(':')[1].strip()[1:-1].split()))
-        tvec = list(map(float, parts[2].split(':')[1].strip()[1:-1].split()))
-        camera_params[frame] = (rvec, tvec)
-
-    return camera_params
-def remake_3d_point(camera_k_0, camera_k_1, RT_0, RT_1, BLOB_0, BLOB_1):
-    l_rotation, _ = cv2.Rodrigues(RT_0['rvec'])
-    r_rotation, _ = cv2.Rodrigues(RT_1['rvec'])
-    l_projection = np.dot(camera_k_0, np.hstack((l_rotation, RT_0['tvec'])))
-    r_projection = np.dot(camera_k_1, np.hstack((r_rotation, RT_1['tvec'])))
-    l_blob = np.reshape(BLOB_0, (1, len(BLOB_0), 2))
-    r_blob = np.reshape(BLOB_1, (1, len(BLOB_1), 2))
-    triangulation = cv2.triangulatePoints(l_projection, r_projection,
-                                          l_blob, r_blob)
-    homog_points = triangulation.transpose()
-    get_points = cv2.convertPointsFromHomogeneous(homog_points)
-    return get_points
 def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     tcx = TRACKER[Tracking_ANCHOR][0]
     tcy = TRACKER[Tracking_ANCHOR][1]
@@ -625,36 +196,6 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     #     print(right_data)
 
     return led_candidates_left, led_candidates_right
-def createTrackerByName(trackerType):
-    # Create a tracker based on tracker name
-    if trackerType == trackerTypes[0]:
-        tracker = cv2.legacy.TrackerBoosting_create()
-    elif trackerType == trackerTypes[1]:
-        tracker = cv2.legacy.TrackerMIL_create()
-    elif trackerType == trackerTypes[2]:
-        tracker = cv2.legacy.TrackerKCF_create()
-    elif trackerType == trackerTypes[3]:
-        tracker = cv2.legacy.TrackerTLD_create()
-    elif trackerType == trackerTypes[4]:
-        tracker = cv2.legacy.TrackerMedianFlow_create()
-    elif trackerType == trackerTypes[5]:
-        tracker = cv2.legacy.TrackerGOTURN_create()
-    elif trackerType == trackerTypes[6]:
-        tracker = cv2.TrackerMOSSE_create()
-    elif trackerType == trackerTypes[7]:
-        tracker = cv2.legacy.TrackerCSRT_create()
-    else:
-        tracker = None
-        print('Incorrect tracker name')
-        print('Available trackers are:')
-        for t in trackerTypes:
-            print(t)
-
-    return tracker
-def view_camera_infos(frame, text, x, y):
-    cv2.putText(frame, text,
-                (x, y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), lineType=cv2.LINE_AA)
 def blob_setting(script_dir):
     print('blob_setting START')
     bboxes = []
@@ -672,6 +213,8 @@ def blob_setting(script_dir):
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)  # Frame indices start from 0
             ret, frame = video.read()
             filename = f"VIDEO Mode {video_img_path}"
+            video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+            video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
             if not ret:
                 break
         else:
@@ -683,9 +226,12 @@ def blob_setting(script_dir):
                 print("Cannot read the first image")
                 cv2.destroyAllWindows()
                 exit()
+            frame = cv2.resize(frame, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
+        
 
         _, frame = cv2.threshold(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
+    
         draw_frame = frame.copy()
         height, width = draw_frame.shape
         center_x, center_y = width // 2, height // 2
@@ -699,7 +245,7 @@ def blob_setting(script_dir):
         # cv2.putText(draw_frame, f"rvec: {brvec}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         # cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        blob_area = detect_led_lights(frame, 2, 5, 500)
+        blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
         cv2.setMouseCallback('image', partial_click_event)
@@ -738,15 +284,6 @@ def blob_setting(script_dir):
     cv2.destroyAllWindows()
 
     return bboxes
-def quat_to_rotm(q):
-    qw, qx, qy, qz = q
-    qx2, qy2, qz2 = qx * qx, qy * qy, qz * qz
-    qxqy, qxqz, qyqz = qx * qy, qx * qz, qy * qz
-    qxqw, qyqw, qzqw = qx * qw, qy * qw, qz * qw
-
-    return np.array([[1 - 2 * (qy2 + qz2), 2 * (qxqy - qzqw), 2 * (qxqz + qyqw)],
-                     [2 * (qxqy + qzqw), 1 - 2 * (qx2 + qz2), 2 * (qyqz - qxqw)],
-                     [2 * (qxqz - qyqw), 2 * (qyqz + qxqw), 1 - 2 * (qx2 + qy2)]])
 def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
     # prev_frame = cv2.imread(frame)
     if prev_frame is None or prev_frame.size == 0:
@@ -759,7 +296,7 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
     # cv2.putText(draw_frame, f"{filename}", (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
     #             (255, 255, 255), 1)
     # find Blob area by findContours
-    blob_area = detect_led_lights(prev_frame, 2, 5, 500)
+    blob_area = detect_led_lights(prev_frame, TRACKER_PADDING, 5, 500)
     blob_centers = []
     for blob_id, bbox in enumerate(blob_area):
         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
@@ -800,278 +337,18 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
         return SUCCESS, CURR_TRACKER
     else:
         return ERROR, None
-def is_valid_pose(pose):
-    q, t = pose.q, pose.t
-    return not np.isnan(q).any() and not np.isnan(t).any()
-def crop_image(image, x, y, w, h):
-    return image[y:y + h, x:x + w]
-def save_image(image, name):
-    cv2.imwrite(f"{name}.png", image)
-def find_circles_or_ellipses(image, draw_frame):
-    # Apply Gaussian blur
-    blurred_image = cv2.GaussianBlur(image, (3, 3), 0)
-    # Apply threshold
-    ret, threshold_image = cv2.threshold(blurred_image, 150, 255, cv2.THRESH_BINARY)
-
-    # Perform Edge detection on the thresholded image
-    edges = cv2.Canny(threshold_image, 150, 255)
-
-    padding = 2
-    height, width = image.shape[:2]
-    max_radius = int(min(width, height) / 2 - padding)
-
-    circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, 1, 20, param1=50, param2=50, minRadius=0,
-                               maxRadius=max_radius)
-
-    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    circle_count = 0
-    ellipse_count = 0
-
-    if circles is not None:
-        for circle in circles[0, :]:
-            # Convert the center coordinates to int
-            center = (int(circle[0]), int(circle[1]))
-            radius = int(circle[2])
-            cv2.circle(draw_frame, center, radius, (255, 0, 0), 1)
-            circle_count += 1
-
-    for contour in contours:
-        if len(contour) >= 5:  # A contour must have at least 5 points for fitEllipse
-            ellipse = cv2.fitEllipse(contour)
-            cv2.ellipse(draw_frame, ellipse, (0, 0, 255), 1)
-            ellipse_count += 1
-
-    # Draw all contours for debugging purposes
-    cv2.drawContours(image, contours, -1, (0, 255, 0), 1)
-
-    # Check if we found multiple blobs or not a circle/ellipse
-    if circle_count + ellipse_count > 1:
-        print(f"Detected {circle_count} circles and {ellipse_count} ellipses")
-        return True, image, draw_frame
-
-    return False, image, draw_frame
-def check_blobs_with_pyramid(image, draw_frame, x, y, w, h, max_level):
-    # Crop the image
-    cropped = crop_image(image, x, y, w, h)
-
-    # Generate image pyramid using pyrUp (increasing resolution)
-    gaussian_pyramid = [cropped]
-    draw_pyramid = [crop_image(draw_frame, x, y, w, h)]  # Also generate pyramid for draw_frame
-    for i in range(max_level):
-        cropped = cv2.pyrUp(cropped)
-        draw_frame_cropped = cv2.pyrUp(draw_pyramid[-1])
-        gaussian_pyramid.append(cropped)
-        draw_pyramid.append(draw_frame_cropped)
-
-    FOUND_STATUS = False
-    # Check for circles or ellipses at each level
-    for i, (img, draw_frame_cropped) in enumerate(zip(gaussian_pyramid, draw_pyramid)):
-        found, img_with_contours, draw_frame_with_shapes = find_circles_or_ellipses(img.copy(),
-                                                                                    draw_frame_cropped.copy())
-        # Save the image for debugging
-        if found:
-            FOUND_STATUS = True
-            # save_image(img_with_contours, f"debug_{i}_{FOUND_STATUS}")
-            # save_image(draw_frame_with_shapes, f"debug_draw_{i}_{FOUND_STATUS}")
-    return FOUND_STATUS
-def rigid_transform_3D(A, B):
-    assert A.shape == B.shape
-
-    num_rows, num_cols = A.shape
-    if num_rows != 3:
-        raise Exception(f"matrix A is not 3xN, it is {num_rows}x{num_cols}")
-
-    num_rows, num_cols = B.shape
-    if num_rows != 3:
-        raise Exception(f"matrix B is not 3xN, it is {num_rows}x{num_cols}")
-
-    # find mean column wise
-    centroid_A = np.mean(A, axis=1)
-    centroid_B = np.mean(B, axis=1)
-
-    # ensure centroids are 3x1
-    centroid_A = centroid_A.reshape(-1, 1)
-    centroid_B = centroid_B.reshape(-1, 1)
-
-    # subtract mean
-    Am = A - centroid_A
-    Bm = B - centroid_B
-
-    H = Am @ np.transpose(Bm)
-
-    # sanity check
-    if np.linalg.matrix_rank(H) < 3:
-        raise ValueError("rank of H = {}, expecting 3".format(np.linalg.matrix_rank(H)))
-
-    # find rotation
-    U, S, Vt = np.linalg.svd(H)
-    R = Vt.T @ U.T
-
-    # special reflection case
-    if np.linalg.det(R) < 0:
-        print("det(R) < R, reflection detected!, correcting for it ...")
-        Vt[2, :] *= -1
-        R = Vt.T @ U.T
-
-    t = -R @ centroid_A + centroid_B
-
-    return R, t
-def module_lsm(blob_data):
-    print(module_lsm.__name__)
-    # X,Y,Z coordination
-    axis_cnt = 3
-    origin_pts = []
-    before_pts = []
-    after_pts = []
-    led_array = []
-    for led_id, points in enumerate(blob_data):
-        led_array.append(led_id)
-        origin_pts.append(MODEL_DATA[led_id])
-        before_pts.append(points)
-
-    origin_pts = np.array(origin_pts)
-    before_pts = np.array(before_pts)
-    led_blob_cnt = len(led_array)
-
-    # make 3xN matrix
-    A = np.array([[0 for j in range(led_blob_cnt)] for i in range(axis_cnt)], dtype=float)
-    B = np.array([[0 for j in range(led_blob_cnt)] for i in range(axis_cnt)], dtype=float)
-    for r in range(led_blob_cnt):
-        for c in range(axis_cnt):
-            B[c][r] = origin_pts[r][c]
-            A[c][r] = before_pts[r][c]
-
-    # calculation rigid_transform
-    ret_R, ret_t = rigid_transform_3D(A, B)
-    C = (ret_R @ A) + ret_t
-
-    for id in (led_array):
-        after_pts.append([float(C[0][id]), float(C[1][id]), float(C[2][id])])
-
-    diff = np.array(C - B)
-    err = C - B
-    dist = []
-    for i in range(len(diff[0])):
-        dist.append(np.sqrt(np.power(diff[0][i], 2) + np.power(diff[1][i], 2) + np.power(diff[2][i], 2)))
-    err = err * err
-    err = np.sum(err)
-    rmse = np.sqrt(err / len(diff[0]))
-
-    # print('rmse')
-    # print(rmse)
-    # print('A')
-    # print(A)
-    # print('B')
-    # print(B)
-    # print('C')
-    # print(C)
-    # print('diff')
-    # print(diff)
-    # print('dist')
-    # print(dist)
-
-    return after_pts
-def calculate_camera_position_direction(rvec, tvec):
-    # Extract rotation matrix
-    R, _ = cv2.Rodrigues(rvec)
-    R_inv = np.linalg.inv(R)
-    # Camera position (X, Y, Z)
-    Cam_pos = -R_inv @ tvec
-    X, Y, Z = Cam_pos.ravel()
-
-    unit_z = np.array([0, 0, 1])
-
-    # idea 1
-    # roll = math.atan2(R[2][1], R[2][2])
-    # pitch = math.atan2(-R[2][0], math.sqrt(R[2][1]**2 + R[2][2]**2))
-    # yaw = math.atan2(R[1][0], R[0][0])
-
-    # idea 2
-    Zc = np.reshape(unit_z, (3, 1))
-    Zw = np.dot(R_inv, Zc)  # world coordinate of optical axis
-    zw = Zw.ravel()
-
-    pan = np.arctan2(zw[1], zw[0]) - np.pi / 2
-    tilt = np.arctan2(zw[2], np.sqrt(zw[0] * zw[0] + zw[1] * zw[1]))
-
-    # roll
-    unit_x = np.array([1, 0, 0])
-    Xc = np.reshape(unit_x, (3, 1))
-    Xw = np.dot(R_inv, Xc)  # world coordinate of camera X axis
-    xw = Xw.ravel()
-    xpan = np.array([np.cos(pan), np.sin(pan), 0])
-
-    roll = np.arccos(np.dot(xw, xpan))  # inner product
-    if xw[2] < 0:
-        roll = -roll
-
-    roll = roll
-    pitch = tilt
-    yaw = pan
-
-    optical_axis = R.T @ unit_z.T
-    optical_axis_x, optical_axis_y, optical_axis_z = optical_axis
-
-    return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pitch, yaw)
-def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, threshold_angle=80.0):
-    results = {}
-    # RVECS = np.array([[cam_dir[0]], [cam_dir[1]], [cam_dir[2]]], dtype=np.float64)
-    # cam_ori = R.from_rotvec(RVECS.reshape(3)).as_quat()
-    cam_pose = {'position': vector3(*cam_pos), 'orient': quat(*cam_dir)}
-    for pts3D_idx, blob_id in enumerate(blob_ids):
-        # Blob의 위치
-        blob_pos = points3D[pts3D_idx]        
-        # Blob의 방향 벡터
-        blob_dir = DIRECTION[blob_id]
-        # Blob의 위치와 방향 벡터를 카메라 pose에 맞게 변환
-        temp = transfer_point(vector3(*blob_pos), cam_pose)
-        ori = rotate_point(vector3(*blob_dir), cam_pose)
-        # facing_dot 찾기
-        facing_dot = get_dot_point(nomalize_point(temp), ori)
-        angle_rad = math.radians(180.0 - threshold_angle)
-        rad = np.cos(angle_rad)
-        # threshold_angle 이내인지 확인하고, facing_dot가 rad보다 작지 않은지 확인
-        results[blob_id] = (facing_dot < rad)
-        print(f"{blob_id} : facing_dot: {facing_dot} rad{rad}")
-    return results
-def cal_iqr_func(arr):
-    Q1 = np.percentile(arr, 25)
-    Q3 = np.percentile(arr, 75)
-
-    IQR = Q3 - Q1
-    outlier_step = 1.5 * IQR
-    lower_bound = Q1 - outlier_step
-    upper_bound = Q3 + outlier_step
-
-    mask = np.where((arr > upper_bound) | (arr < lower_bound))
-    return mask
-def detect_outliers(blob_array, remove_index_array):
-    for blob_data in blob_array:
-        if len(blob_data) != 0:
-            temp_x = np.array(cal_iqr_func(blob_data))
-            for x in temp_x:
-                for xx in x:
-                    if xx in remove_index_array:
-                        continue
-                    else:
-                        remove_index_array.append(xx)
-    remove_index_array.sort()
-def gathering_data_single(ax1, script_dir, bboxes, start, end):
+def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TEST = 0, DO_BA = 0):
     print('gathering_data_single START')
     BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
+    RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
+    RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
+    frame_cnt = 0
 
     CURR_TRACKER = {}
     PREV_TRACKER = {}
-
-    print('bboxes:', bboxes)
-    if bboxes is None:
-        return
-    
-    for i in range(len(bboxes)):
-        CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
 
     # Init Multi Tracker
     TRACKING_START = NOT_SET
@@ -1080,7 +357,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 
     mutex = threading.Lock()
     # Initialize each blob ID with a copy of the structure
-    for blob_id in range(BLOB_CNT):  # blob IDs: 0 to 14
+    for blob_id in range(BLOB_CNT):
         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
     if VIDEO_MODE == 1:
@@ -1090,7 +367,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
     else:
         print('lenght of images: ', len(image_files))
 
-    frame_cnt = 0
+
     while video.isOpened() if VIDEO_MODE else True:
         print('\n')
         print(f"########## Frame {frame_cnt} ##########")
@@ -1098,6 +375,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
             filename = f"VIDEO Mode {video_img_path}"
+            video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+            video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
             if not ret:
                 break
         else:
@@ -1109,7 +388,9 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             if frame_0 is None or frame_0.size == 0:
                 print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
                 continue
+            frame_0 = cv2.resize(frame_0, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
 
+        
         draw_frame = frame_0.copy()
         _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
@@ -1117,33 +398,45 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        height, width = frame_0.shape
-        center_x, center_y = width // 2, height // 2
-        cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
-        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)   
-        cv2.line(draw_frame, (0, TOP_BOTTOM_LINE_Y), (width, TOP_BOTTOM_LINE_Y), (0, 255, 0), 1)     
-        # print('CURR_TRACKER', CURR_TRACKER)
+        if frame_cnt < start or frame_cnt > end:
+            print(f"skip frame_cnt{frame_cnt}")
+            frame_cnt += 1
+            cv2.imshow("Tracking", draw_frame)
+            key = cv2.waitKey(1)
+            continue
 
         if TRACKING_START == NOT_SET:
+            print('bboxes:', bboxes)
+            if bboxes is None:
+                return            
+            for i in range(len(bboxes)):
+                CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
             init_trackers(CURR_TRACKER, frame_0)
             # for i, data in enumerate(bboxes):
             #     multiTracker.add(createTrackerByName(trackerType), frame_0, data['bbox'])
         TRACKING_START = DONE
 
+        height, width = frame_0.shape
+        center_x, center_y = width // 2, height // 2
+        cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
+        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)   
+        cv2.line(draw_frame, (0, TOP_BOTTOM_LINE_Y), (width, TOP_BOTTOM_LINE_Y), (0, 255, 0), 1)     
+
         # find Blob area by findContours
-        blob_area = detect_led_lights(frame_0, 2, 5, 500)
+        blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
         blob_centers = []    
         for blob_id, bbox in enumerate(blob_area):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
             gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
             if gsize < BLOB_SIZE:
                 continue
-
-            overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, max_level)
-            if overlapping == True:
-                cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
-                cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                continue
+            
+            if DO_PYRAMID == 1:
+                overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, max_level)
+                if overlapping == True:
+                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
+                    cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    continue
 
             cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
             # cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -1255,6 +548,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             '''
 
             if frame_cnt >= start and frame_cnt <= end:
+                blob_status = SUCCESS
                 camera_params_pos = frame_cnt - start + 1
                 # camera_params_pos = (camera_params_pos - 1) * ANGLE + 1  # Update this line
                 if camera_params_pos <= len(camera_params):                
@@ -1286,8 +580,10 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                         
                         points3D.append(MODEL_DATA[int(blob_id)])
                         if DO_CALIBRATION_TEST == 1:
-                            points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
-                            points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
+                            # points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
+                            # points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
+                            points3D_PCA.append(RIGID_3D_TRANSFORM_PCA[int(blob_id)])
+                            points3D_IQR.append(RIGID_3D_TRANSFORM_IQR[int(blob_id)])
                     
                     # print('START Pose Estimation')
                     points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
@@ -1300,8 +596,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                     # print('points2D\n', points2D)
                     # print('points2D_U\n', points2D_U)
                     # print('points3D\n', points3D)
- 
 
+                                        
                     # Make CAMERA_INFO data for check rt STD
                     CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
                     if DO_CALIBRATION_TEST == 1:
@@ -1311,6 +607,34 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                     CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
                     CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
                     CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
+                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
+
+                    if DO_BA == 1:
+                        ########################### BUNDLE ADJUSTMENT RT #######################
+                        ba_rvec = BA_RT[frame_cnt - start][:3]
+                        ba_tvec = BA_RT[frame_cnt - start][3:]
+                        ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
+                        ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
+                        print('ba_rvec : ', ba_rvec)
+                        print('ba_tvec : ', ba_tvec)
+                        image_points, _ = cv2.projectPoints(points3D,
+                                                            np.array(ba_rvec),
+                                                            np.array(ba_tvec),
+                                                            camera_matrix[CAM_ID][0],
+                                                            camera_matrix[CAM_ID][1])
+                        image_points = image_points.reshape(-1, 2)
+
+                        for point in image_points:
+                            pt = (int(point[0]), int(point[1]))
+                            cv2.circle(draw_frame, pt, 2, (0, 0, 0), -1)
+        
+                        for blob_id in LED_NUMBER:
+                            BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
+                            BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+                        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
+                        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
+                        ########################### BUNDLE ADJUSTMENT RT #######################
 
                     LENGTH = len(LED_NUMBER)
                     if LENGTH >= 4:
@@ -1333,6 +657,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                         for blob_id in LED_NUMBER:
                             BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(rvec_reshape)
                             BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(tvec_reshape)
+                            BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
 
                         # Draw OpenCV projection
                         image_points, _ = cv2.projectPoints(points3D,
@@ -1362,8 +687,6 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
 
                         CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec_reshape
                         CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec_reshape
-                        CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
-                        CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
 
                     elif LENGTH == 3:
                         if DO_P3P == 1:
@@ -1411,6 +734,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                                             for blob_id in LED_NUMBER:
                                                 BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
                                                 BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                                                BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
                                         ###############################
                                             
                                         for idx, point in enumerate(image_points):
@@ -1426,49 +750,23 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
                                             cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
 
                                 if visible_detection == NOT_SET:
-                                    for blob_id in LED_NUMBER:
-                                        # Use an 'empty' numpy array as our NOT_SET value
-                                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
-                                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
-
+                                    blob_status = ERROR
                             finally:
                                 mutex.release()
                         else:
-                            for blob_id in LED_NUMBER:
-                                # Use an 'empty' numpy array as our NOT_SET value
-                                BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.full_like(rvec, NOT_SET).reshape(-1, 1))
-                                BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.full_like(tvec, NOT_SET).reshape(-1, 1))
+                            blob_status = ERROR
                     else:
-                        print('NOT Enough blobs')
-                        if AUTO_LOOP == 1:
-                            frame_cnt += 1
-                        continue
+                        blob_status = ERROR
+                        print('NOT Enough blobs')                                                             
 
-                                       
-
-                    ########################### BUNDLE ADJUSTMENT RT #######################
-                    ba_rvec = BA_RT[frame_cnt][:3]
-                    ba_tvec = BA_RT[frame_cnt][3:]
-                    ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
-                    ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
-                    print('ba_rvec : ', ba_rvec)
-                    print('ba_tvec : ', ba_tvec)
-                    image_points, _ = cv2.projectPoints(points3D,
-                                                        np.array(ba_rvec),
-                                                        np.array(ba_tvec),
-                                                        camera_matrix[CAM_ID][0],
-                                                        camera_matrix[CAM_ID][1])
-                    image_points = image_points.reshape(-1, 2)
-
-                    for point in image_points:
-                        pt = (int(point[0]), int(point[1]))
-                        cv2.circle(draw_frame, pt, 1, (0, 0, 0), -1)
-                    for blob_id in LED_NUMBER:
-                        BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
-                        BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
-                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
-                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
-                    ########################### BUNDLE ADJUSTMENT RT #######################
+                    
+                    if blob_status == ERROR:
+                        for blob_id in LED_NUMBER:
+                            # Use an 'empty' numpy array as our NOT_SET value
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(NOT_SET)
+                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(NOT_SET)
+                            BLOB_INFO[blob_id]['OPENCV']['status'].append(NOT_SET)
+                        
                 else:
                     print('over camera_log_index:', camera_params_pos)
             else:
@@ -1478,7 +776,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end):
             frame_cnt += 1
 
         cv2.imshow("Tracking", draw_frame)
-        key = cv2.waitKey(8)
+        key = cv2.waitKey(1)
         # Exit if ESC key is
         if key & 0xFF == ord('q'):
             break
@@ -1517,64 +815,42 @@ def remake_3d_for_blob_info(undistort):
     # Create a pretty printer
     pp = pprint.PrettyPrinter(indent=4)
     
-    print('#################### CNT for BLOB ID  ####################')
-    # Iterate over the blob_ids in BLOB_INFO
-    for blob_id in range(BLOB_CNT):  # Assuming BLOB_ID range from 0 to 14       
+    print('#################### DYNAMIC RT (PNP SOLVER)  ####################')
+    for blob_id in range(BLOB_CNT):   
         CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
         print(f"BLOB_ID: {blob_id}, CNT {CNT}")
-        # pp.pprint(BLOB_INFO[blob_id])
-        REMADE_3D_INFO_B[blob_id] = []
         REMADE_3D_INFO_O[blob_id] = []
-        REMADE_3D_INFO_BA[blob_id] = [] # For BA_RT
-        # Get the RT dictionary for the first frame
-        rt_first_BA = {
-            'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][0],
-            'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][0]
-        }
-        rt_first_B = {
-            'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][0],
-            'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][0]
-        }
-        rt_first_O = {
-            'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][0],
-            'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][0]
-        }
-        points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
-        points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
-        # print('points2D_U_first: ', points2D_U_first)
-        # print('rt_first_B: ', rt_first_B)
 
-        # Iterate over the 2D coordinates for this blob_id
-        # 마지막 이미지가 시작 이미지와 같아 remake에서 이상치가 발현됨
-        for i in range(1, CNT):
-             # Get the 2D coordinates for the first and current frame
-            points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
-            points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
-            status_B = BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i]
-            status_O = BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][i]
-            status_BA = BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i]
-            # Check if 'rvec' is NOT_SET for BLENDER and OPENCV separately
-            if (status_B != NOT_SET).all():
-                rt_current_B = {
-                    'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
-                    'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
-                }
-                if undistort == 0:
-                    remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                rt_first_B, rt_current_B,
-                                                points2D_D_first, points2D_D_current).reshape(-1, 3)
-                else:
-                    remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
-                                                rt_first_B, rt_current_B,
-                                                points2D_U_first, points2D_U_current).reshape(-1, 3)
-                REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
-                
-                # print('cnt: ', i)
-                # print('points2D_U_current: ', points2D_U_current)
-                # print('rt_current_B: ', rt_current_B)
-                # print(remake_3d_B.reshape(-1, 3))
+        # rt_first_O = {
+        #     'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][0],
+        #     'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][0]
+        # }
+        # points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
+        # points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
+        # # print('points2D_U_first: ', points2D_U_first)
+        # print('rt_first_O: ', rt_first_O)
+
+        # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
+        rt_first_O = NOT_SET
+        points2D_D_first = NOT_SET
+        points2D_U_first = NOT_SET
+        # print(BLOB_INFO[blob_id]['OPENCV']['status'])
+        for i in range(0, CNT):
+            if BLOB_INFO[blob_id]['OPENCV']['status'][i] == NOT_SET:
+                continue
             
-            if (status_O != NOT_SET).all():
+            if rt_first_O == NOT_SET:
+                rt_first_O = {
+                    'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][i],
+                    'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][i]
+                } 
+                points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+                points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+            else:
+                # Get the 2D coordinates for the first and current frame
+                points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+                points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+            
                 rt_current_O = {
                     'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][i],
                     'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][i]
@@ -1588,21 +864,68 @@ def remake_3d_for_blob_info(undistort):
                                                 rt_first_O, rt_current_O,
                                                 points2D_U_first, points2D_U_current).reshape(-1, 3)
                 REMADE_3D_INFO_O[blob_id].append(remake_3d_O.reshape(-1, 3))
-            if (status_BA != NOT_SET).all():
-                rt_current_BA = {
-                    'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
-                    'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
-                }
-                # Create the 3D points using the BA_RT data
-                if undistort == 0:
-                    remake_3d_BA = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                    rt_first_BA, rt_current_BA,
-                                                    points2D_D_first, points2D_D_current).reshape(-1, 3)
-                else:
-                    remake_3d_BA = remake_3d_point(default_cameraK, default_cameraK,
-                                                    rt_first_BA, rt_current_BA,
-                                                    points2D_U_first, points2D_U_current).reshape(-1, 3)
-                REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
+    
+    
+    print('#################### STATIC RT (BLENDER)  ####################')
+    # Iterate over the blob_ids in BLOB_INFO
+    for blob_id in range(BLOB_CNT):   
+        CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
+        print(f"BLOB_ID: {blob_id}, CNT {CNT}")
+        # pp.pprint(BLOB_INFO[blob_id])
+        REMADE_3D_INFO_B[blob_id] = []
+        REMADE_3D_INFO_BA[blob_id] = [] # For BA_RT
+        # Get the RT dictionary for the first frame
+        rt_first_BA = {
+            'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][0],
+            'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][0]
+        }
+        rt_first_B = {
+            'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][0],
+            'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][0]
+        }
+        points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
+        points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
+
+        # Iterate over the 2D coordinates for this blob_id
+        # 마지막 이미지가 시작 이미지와 같아 remake에서 이상치가 발현됨
+        for i in range(1, CNT):
+             # Get the 2D coordinates for the first and current frame
+            points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+            points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+            
+            rt_current_B = {
+                'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
+                'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
+            }
+            if undistort == 0:
+                remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                            rt_first_B, rt_current_B,
+                                            points2D_D_first, points2D_D_current).reshape(-1, 3)
+            else:
+                remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
+                                            rt_first_B, rt_current_B,
+                                            points2D_U_first, points2D_U_current).reshape(-1, 3)
+            REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
+            
+            # print('cnt: ', i, ' len:', len(BLOB_INFO[blob_id]['BA_RT']['rt']['rvec']))
+            # print('points2D_U_current: ', points2D_U_current)
+            # print('rt_current_B: ', rt_current_B)
+            # print(remake_3d_B.reshape(-1, 3))
+            
+            rt_current_BA = {
+                'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
+                'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
+            }
+            # Create the 3D points using the BA_RT data
+            if undistort == 0:
+                remake_3d_BA = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                rt_first_BA, rt_current_BA,
+                                                points2D_D_first, points2D_D_current).reshape(-1, 3)
+            else:
+                remake_3d_BA = remake_3d_point(default_cameraK, default_cameraK,
+                                                rt_first_BA, rt_current_BA,
+                                                points2D_U_first, points2D_U_current).reshape(-1, 3)
+            REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
 
      
     file = 'REMADE_3D_INFO.pickle'
@@ -1613,7 +936,7 @@ def remake_3d_for_blob_info(undistort):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-def draw_result(ax1, ax2):
+def draw_result(ax1, ax2, TARGET_DEVICE):
     print('draw_result START')
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
@@ -1665,28 +988,28 @@ def draw_result(ax1, ax2):
                     label='BA_RT' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
 
     # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
-    distances_ba = []
-    ba_3d_dict = {}
-    for i, blob_id in enumerate(LED_INDICES):
-        point_3d = BA_3D[i].reshape(-1)
-        distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
-        distances_ba.append(distance)
-        if blob_id not in ba_3d_dict:
-            ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
-        ba_3d_dict[blob_id].append(point_3d)
-        ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='green', alpha=0.3, marker='o', s=7,
-                    label='BA_3D')
-    # BA에 대해서도 동일한 방식으로 scatter plot을 그립니다.
-    ax2.scatter(LED_INDICES, distances_ba, color='green', alpha=0.5, marker='o', s=10, label='BA_3D')
-    # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
-
+    # distances_ba = []
     # ba_3d_dict = {}
-    # for blob_id, data_list in REMADE_3D_INFO_BA.items():
-    #     for data in data_list:
-    #         point_3d = data.reshape(-1)
-    #         if blob_id not in ba_3d_dict:
-    #             ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
-    #         ba_3d_dict[blob_id].append(point_3d)
+    # for i, blob_id in enumerate(LED_INDICES):
+    #     point_3d = BA_3D[i].reshape(-1)
+    #     distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
+    #     distances_ba.append(distance)
+    #     if blob_id not in ba_3d_dict:
+    #         ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
+    #     ba_3d_dict[blob_id].append(point_3d)
+    #     ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='green', alpha=0.3, marker='o', s=7,
+    #                 label='BA_3D')
+    # # BA에 대해서도 동일한 방식으로 scatter plot을 그립니다.
+    # ax2.scatter(LED_INDICES, distances_ba, color='green', alpha=0.5, marker='o', s=10, label='BA_3D')
+    # # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
+
+    ba_3d_dict = {}
+    for blob_id, data_list in REMADE_3D_INFO_BA.items():
+        for data in data_list:
+            point_3d = data.reshape(-1)
+            if blob_id not in ba_3d_dict:
+                ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
+            ba_3d_dict[blob_id].append(point_3d)
  
     # 각 blob_id에 대해 PCA를 적용하고, 첫 번째 주성분에 대한 중심을 계산합니다.
     centers_ba = {}
@@ -1704,9 +1027,11 @@ def draw_result(ax1, ax2):
     PCA_ARRAY = []
     for blob_id, center in centers_ba.items():
         print(f"Center of PCA for blob_id {blob_id}: {center}")
-        PCA_ARRAY.append(center)
-    
-    PCA_ARRAY_LSM = module_lsm(PCA_ARRAY)
+        PCA_ARRAY.append(center)    
+    if TARGET_DEVICE == 'SEMI_SLAM_PLANE':
+        PCA_ARRAY_LSM = module_lsm_2D(MODEL_DATA, PCA_ARRAY)
+    else:
+        PCA_ARRAY_LSM = module_lsm_3D(MODEL_DATA, PCA_ARRAY)
     PCA_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in PCA_ARRAY_LSM]
     print('PCA_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(PCA_ARRAY_LSM):
@@ -1743,8 +1068,10 @@ def draw_result(ax1, ax2):
         mean_med_z = round(np.mean(med_blobs[2]), 8)
         IQR_ARRAY.append([mean_med_x, mean_med_y, mean_med_z])
         print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")           
-
-    IQR_ARRAY_LSM = module_lsm(IQR_ARRAY)
+    if TARGET_DEVICE ==  'SEMI_SLAM_PLANE':
+        IQR_ARRAY_LSM = module_lsm_2D(MODEL_DATA, IQR_ARRAY)
+    else:
+        IQR_ARRAY_LSM = module_lsm_3D(MODEL_DATA, IQR_ARRAY)
     IQR_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM]
     print('IQR_ARRAY_LSM\n')
     for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
@@ -1782,14 +1109,17 @@ def BA_RT():
     cam_id = 0
 
     for frame_cnt, cam_info in CAMERA_INFO.items():
-        print('frame_cnt ', frame_cnt)
+        print(cam_info['LED_NUMBER'])
+
         points3D = cam_info['points3D']
-        rvec = cam_info['OPENCV']['rt']['rvec']
-        tvec = cam_info['OPENCV']['rt']['tvec']
+        # 여기 다시 확인 해야 함
+        rvec = cam_info['BLENDER']['rt']['rvec']
+        tvec = cam_info['BLENDER']['rt']['tvec']
         points2D_D = cam_info['points2D']['greysum']
         points2D_U = cam_info['points2D_U']['greysum']
+        print('frame_cnt ', frame_cnt)
         print('rvec ', rvec)
-        print('tvec ', tvec)
+        print('tvec ', tvec)   
         
         # Add camera parameters (rvec and tvec)
         estimated_RTs.append((rvec.ravel(), tvec.ravel()))
@@ -1862,10 +1192,7 @@ def BA_RT():
     data['camera_indices'] = camera_indices
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
-        print('data saved')
-
-
-    
+        print('data saved')   
 def BA_3D_POINT():
     print('BA_3D_POINT START')
     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
@@ -1967,6 +1294,12 @@ def BA_3D_POINT():
 def Check_Calibration_data_combination():
     print('Check_Calibration_data_combination START')
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
+    RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+
+    print('Calibration cadidates')
+    for blob_id, points_3d in enumerate(RIGID_3D_TRANSFORM_IQR):
+        print(f"{points_3d},")    
+    
     def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
         points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
         # Squeeze the points2D_reprojection to match the dimensionality of points2D
@@ -1982,9 +1315,9 @@ def Check_Calibration_data_combination():
         rvec_std_arr = []
         tvec_std_arr = []
         reproj_err_rates = []
-
+        error_cnt = 0
         for frame_cnt, cam_data in CAMERA_INFO.items():           
-
+            
             rvec_list = []
             tvec_list = []
             reproj_err_list = []
@@ -1993,7 +1326,9 @@ def Check_Calibration_data_combination():
             points3D = cam_data[points3D_data]
             points2D = cam_data['points2D']['greysum']
             points2D_U = cam_data['points2D_U']['greysum']
-
+            # print('frame_cnt: ',frame_cnt)
+            # print('points2D_U: ',points2D_U)
+            # print('points3D\n',points3D)
             LENGTH = len(LED_NUMBER)
 
             if LENGTH >= combination:
@@ -2014,27 +1349,46 @@ def Check_Calibration_data_combination():
                             camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
                         ]
                         _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                        # rvec이나 tvec가 None인 경우 continue
+                        if rvec is None or tvec is None:
+                            continue
+                        
+                        # rvec이나 tvec에 nan이 포함된 경우 continue
+                        if np.isnan(rvec).any() or np.isnan(tvec).any():
+                            continue
 
-                        rvec_list.append(np.linalg.norm(rvec))
-                        tvec_list.append(np.linalg.norm(tvec))
+                        # rvec과 tvec의 모든 요소가 0인 경우 continue
+                        if np.all(rvec == 0) and np.all(tvec == 0):
+                            continue
+                        # print('rvec:', rvec)
+                        # print('tvec:', tvec)
 
                         RER = reprojection_error(points3D_perm,
                                                 points2D_perm,
                                                 rvec, tvec,
                                                 camera_matrix[CAM_ID][0],
-                                                camera_matrix[CAM_ID][1])                        
+                                                camera_matrix[CAM_ID][1])
+                        if RER > 1.0:
+                            error_cnt+=1
+                            continue
+    
+                        rvec_list.append(np.linalg.norm(rvec))
+                        tvec_list.append(np.linalg.norm(tvec))                      
                         reproj_err_list.append(RER)
+                                
+                
+                if rvec_list and tvec_list and reproj_err_list:
+                    frame_counts.append(frame_cnt)
+                    rvec_std = np.std(rvec_list)
+                    tvec_std = np.std(tvec_list)
+                    reproj_err_rate = np.mean(reproj_err_list)
 
-                frame_counts.append(frame_cnt)
-                rvec_std = np.std(rvec_list)
-                tvec_std = np.std(tvec_list)
-                reproj_err_rate = np.mean(reproj_err_list)
+                    rvec_std_arr.append(rvec_std)
+                    tvec_std_arr.append(tvec_std)
+                    reproj_err_rates.append(reproj_err_rate)
 
-                rvec_std_arr.append(rvec_std)
-                tvec_std_arr.append(tvec_std)
-                reproj_err_rates.append(reproj_err_rate)
 
-        return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label
+        return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, error_cnt
 
 
     all_data = []
@@ -2047,12 +1401,11 @@ def Check_Calibration_data_combination():
         summary_text = ""
 
         for idx, points3D_data in enumerate(points3D_datas):
-            frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label = STD_Analysis(points3D_data, points3D_data, COMBINATION)
+            frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, error_cnt = STD_Analysis(points3D_data, points3D_data, COMBINATION)
 
             axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}', alpha=0.5)
             axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}', alpha=0.5)
             axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}', alpha=0.5)
-
             
             # Calculate and store the average and standard deviation for each data set
             avg_rvec_std = np.mean(rvec_std_arr)
@@ -2062,11 +1415,11 @@ def Check_Calibration_data_combination():
             avg_reproj_err = np.mean(reproj_err_rates)
             std_reproj_err = np.std(reproj_err_rates)
             
-
             summary_text += f"== {label} ==\n"
             summary_text += f"Rvec Std: Mean = {avg_rvec_std:.6f}, Std = {std_rvec_std:.6f}\n"
             summary_text += f"Tvec Std: Mean = {avg_tvec_std:.6f}, Std = {std_tvec_std:.6f}\n"
             summary_text += f"Reproj Err: Mean = {avg_reproj_err:.6f}, Std = {std_reproj_err:.6f}\n"
+            # summary_text += f"error cnt (over RER 2px) {error_cnt:.6f}\n"
             summary_text += "\n"
             all_data.append([label, COMBINATION, avg_rvec_std, std_rvec_std, avg_tvec_std, std_tvec_std, avg_reproj_err, std_reproj_err])  # Store data for all combinations
 
@@ -2173,6 +1526,7 @@ def Check_Calibration_data_combination():
     axs[3].text(0.5, 0.5, summary_text, ha='center', va='center')
 
     # Print to console
+    print(f"error_cnt : {error_cnt}")
     print(summary_text)
 
     # Write to log file
@@ -2181,8 +1535,6 @@ def Check_Calibration_data_combination():
 
     plt.subplots_adjust(hspace=0.5)
     plt.show()
-
-
 
 def init_plot():
     root = tk.Tk()
@@ -2222,316 +1574,6 @@ def init_plot():
     f = zoom_factory(ax1, base_scale=scale)
     
     return ax1, ax2
-def init_coord_json(file):
-    print(init_coord_json.__name__)
-    try:
-        json_file = open(f'{file}')
-        jsonObject = json.load(json_file)
-        model_points = jsonObject.get('TrackedObject').get('ModelPoints')
-        pts = [0 for i in range(len(model_points))]
-        dir = [0 for i in range(len(model_points))]
-        for data in model_points:
-            idx = data.split('Point')[1]
-            x = model_points.get(data)[0]
-            y = model_points.get(data)[1]
-            z = model_points.get(data)[2]
-            u = model_points.get(data)[3]
-            v = model_points.get(data)[4]
-            w = model_points.get(data)[5]
-
-            pts[int(idx)] = np.array([x, y, z])
-            dir[int(idx)] = np.array([u, v, w])
-
-            # print(''.join(['{ .pos = {{', f'{x}', ',', f'{y}', ',', f'{z}',
-            #                     ' }}, .dir={{', f'{u}', ',', f'{v}', ',', f'{w}', ' }}, .pattern=', f'{idx}', '},']))
-    except:
-        print('exception')
-        traceback.print_exc()
-    finally:
-        print('done')
-    return pts, dir
-def show_calibrate_data(model_data, direction):    
-    # 3D plot 생성
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    # 점들을 plot에 추가
-    ax.scatter(model_data[:, 0], model_data[:, 1], model_data[:, 2])
-
-    # 각 점에 대한 인덱스를 추가
-    for i in range(model_data.shape[0]):
-        ax.text(model_data[i, 0], model_data[i, 1], model_data[i, 2], str(i))
-
-    # 각 점에서 방향 벡터를 나타내는 화살표를 그림
-    for i in range(model_data.shape[0]):
-        ax.quiver(model_data[i, 0], model_data[i, 1], model_data[i, 2], 
-                direction[i, 0], direction[i, 1], direction[i, 2],
-                color='b',length=0.01)
-
-
-    ax.scatter(0, 0, 0, marker='o', color='k', s=20)
-    ax.set_xlim([-0.2, 0.2])
-    ax.set_xlabel('X')
-    ax.set_ylim([-0.2, 0.2])
-    ax.set_ylabel('Y')
-    ax.set_zlim([-0.2, 0.2])
-    ax.set_zlabel('Z')
-    scale = 1.5
-    f = zoom_factory(ax, base_scale=scale)
-
-    plt.show()
-'''
-def recover_pose_essential_test():
-    print('recover_pose_essential_test START')
-    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']
-
-    # for frame_cnt, cam_data in CAMERA_INFO.items():
-    #     LED_NUMBER = cam_data['LED_NUMBER']
-    #     print(LED_NUMBER)
-
-    def recover_3d_points_combinations(groups, K):
-        recovered_3d_points = {}
-        for key, group in groups.items():
-            frames = list(group["frames"].keys())
-            if len(key) < 5:
-                continue
-            print('key: ', key, ' len: ', len(frames))
-            frame1 = min(frames)
-            frame2 = max(frames)
-            points1_2d = np.array(group["frames"][frame1]["points2D_U"])
-            points2_2d = np.array(group["frames"][frame2]["points2D_U"])
-            print('points1_2d:' , points1_2d)
-            print('points2_2d:' , points2_2d)
-
-            E, mask = cv2.findEssentialMat(points1_2d, points2_2d, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
-
-            # Check if Essential Matrix is None
-            if E is None:
-                continue
-
-            # Check the shape and validity of Essential Matrix
-            if E.shape != (3, 3) or np.isnan(E).any() or np.isinf(E).any():
-                continue
-                    
-            _, R, t, _ = cv2.recoverPose(E, points1_2d, points2_2d, K)
-            
-            R1 = np.eye(3)
-            t1 = np.zeros((3, 1))
-            R2 = R
-            t2 = t
-            points_3d_homogeneous = cv2.triangulatePoints(np.hstack((R1, t1)), np.hstack((R2, t2)), points1_2d.T, points2_2d.T)
-            points_3d = points_3d_homogeneous[:3, :] / points_3d_homogeneous[3, :]
-            combination_key = (key, (frame1, frame2))
-            recovered_3d_points[combination_key] = points_3d.T
-            print('points_3d.T:',points_3d.T)
-        return recovered_3d_points
-
-    def group_points_by_led_sequence(CAMERA_INFO):
-        groups = {}
-        for frame_cnt, cam_data in CAMERA_INFO.items():
-            led_numbers = cam_data['LED_NUMBER']
-            points2D = cam_data['points2D']['greysum']
-            points2D_U = cam_data['points2D_U']['greysum']
-
-            if int(frame_cnt) > 8:
-                break
-            # LED 번호의 순서를 키로 사용
-            key = tuple(led_numbers)
-
-            if key not in groups:
-                groups[key] = {"frames": {}}
-
-            if frame_cnt not in groups[key]["frames"]:
-                groups[key]["frames"][frame_cnt] = {"points2D": [], "points2D_U": []}
-
-            groups[key]["frames"][frame_cnt]["points2D"].extend(points2D)
-            groups[key]["frames"][frame_cnt]["points2D_U"].extend(points2D_U)
-        return groups
-    # 위의 함수를 사용해서 그룹 생성
-    groups = group_points_by_led_sequence(CAMERA_INFO)
-    recover_points = recover_3d_points_combinations(groups, camera_matrix[0][0])
-    # # 출력해보기
-    # for key, group in groups.items():
-    #     print(f"LED Sequence: {key}")
-    #     for frame, data in group["frames"].items():
-    #         print(f"Frame: {frame}")
-    #         print(f"2D Points: {data['points2D']}")
-    #         print(f"Undistorted 2D Points: {data['points2D_U']}")
-    #         print("\n")
-    recover_points_list = [point for key, point in recover_points.items()]
-    recover_points_array = np.array(recover_points_list)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111, projection='3d')
-
-    ax1.scatter(recover_points_array[:, 0], recover_points_array[:, 1], recover_points_array[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
-    
-    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
-    ax1.set_xlim([-0.2, 0.2])
-    ax1.set_xlabel('X')
-    ax1.set_ylim([-0.2, 0.2])
-    ax1.set_ylabel('Y')
-    ax1.set_zlim([-0.2, 0.2])
-    ax1.set_zlabel('Z')
-    scale = 1.5
-    f = zoom_factory(ax1, base_scale=scale)
-    plt.show()
-'''
-def recover_pose_essential_test_two(script_dir):
-    def recover_3d_points_combinations(cam_info, K):
-        recovered_3d_points = {}
-        frame_keys = list(cam_info.keys())
-        frame_pairs = list(combinations(frame_keys, 2))  # Generate combinations of frame pairs
-
-        for frame_pair in frame_pairs:
-            frame1, frame2 = frame_pair
-            points1_2d = np.array(cam_info[frame1]["points2D_U"]['greysum'])
-            points2_2d = np.array(cam_info[frame2]["points2D_U"]['greysum'])
-
-            print('frame1, frame2:', frame1, frame2)
-            print('points1_2d:' , points1_2d)
-            print('points2_2d:' , points2_2d)
-
-            E, mask = cv2.findEssentialMat(points1_2d, points2_2d, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
-
-            # Check if Essential Matrix is None
-            if E is None:
-                continue
-
-            # Check the shape and validity of Essential Matrix
-            if E.shape != (3, 3) or np.isnan(E).any() or np.isinf(E).any():
-                continue
-
-            _, R, t, _ = cv2.recoverPose(E, points1_2d, points2_2d, K)
-            print('t: ', t)
-            # Scale the translation vector
-            actual_movement = 0.01  # Assuming 0.01m movement in y-axis
-            t = t * (actual_movement / np.linalg.norm(t))
-
-            R1 = np.eye(3)
-            t1 = np.zeros((3, 1))
-            R2 = R
-            t2 = t
-            points_3d_homogeneous = cv2.triangulatePoints(np.hstack((R1, t1)), np.hstack((R2, t2)), points1_2d.T, points2_2d.T)
-            points_3d = points_3d_homogeneous[:3, :] / points_3d_homogeneous[3, :]
-            points_3d = points_3d * (actual_movement / np.linalg.norm(t))
-            combination_key = (frame_pair, (frame1, frame2))
-            recovered_3d_points[combination_key] = points_3d.T
-            print('points_3d.T:',points_3d.T)
-
-        return recovered_3d_points
- 
-    image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ESSENTIAL/" + '*.png')))
-    frame_cnt = 0
-    while True:
-        print('\n')
-        print(f"########## Frame {frame_cnt} ##########")
-
-        # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
-        if frame_cnt >= len(image_files):
-            break
-        frame_0 = cv2.imread(image_files[frame_cnt])
-        filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
-        if frame_0 is None or frame_0.size == 0:
-            print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
-            continue
-
-        draw_frame = frame_0.copy()
-        _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
-                                   cv2.THRESH_TOZERO)
-
-        cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 400, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-        height, width = frame_0.shape
-        center_x, center_y = width // 2, height // 2
-        cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
-        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
-                # find Blob area by findContours
-        blob_area = detect_led_lights(frame_0, 2, 5, 500)
-        blob_cent = []
-        points2D_D = []
-        points2D_U = []
-        LED_NUMBER = []
-        for blob_id, bbox in enumerate(blob_area):
-            (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-            gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
-            if gsize < BLOB_SIZE:
-                continue
-
-            cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-            cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            # cv2.putText(draw_frame, f"{int(gcx)},{int(gcy)},{gsize}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-            #             (255, 255, 255), 1)
-            # blob_centers.append((gcx, gcy, bbox))
-            # print(f"{blob_id} : {gcx}, {gcy}")
-            LED_NUMBER.append(blob_id)
-            temp_points_2d_d = np.array([gcx, gcy], dtype=np.float64)
-            temp_points_2d_u = np.array(cv2.undistortPoints(temp_points_2d_d, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
-            points2D_D.append(temp_points_2d_d)
-            points2D_U.append(temp_points_2d_u)
-            
-
-
-        CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-        points2D_D = np.array(np.array(points2D_D).reshape(len(points2D_D), -1), dtype=np.float64)
-        points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
-        CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D_D
-        CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
-        CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
-
-        frame_cnt += 1
-
-        cv2.imshow("Tracking", draw_frame)
-        key = cv2.waitKey(8)
-
-        # Exit if ESC key is
-        if key & 0xFF == ord('q'):
-            break
-        elif key & 0xFF == 27:
-            print('ESC pressed')
-            cv2.destroyAllWindows()
-            return ERROR
-        elif key & 0xFF == ord('c'):
-            while True:
-                key = cv2.waitKey(1)
-                if key & 0xFF == ord('q'):
-                    break
-        elif key == ord('n'):
-            frame_cnt += 1
-            print('go next IMAGE')
-        elif key == ord('b'):
-            frame_cnt -= 1
-            print('go back IMAGE')
-    
-    cv2.destroyAllWindows()
-
-    for frame_cnt, cam_data in CAMERA_INFO.items():
-        led_numbers = cam_data['LED_NUMBER']
-        points2D = cam_data['points2D']['greysum']
-        points2D_U = cam_data['points2D_U']['greysum']
-        print('led_numbers:', led_numbers)
-        print(points2D_U)
-
-    recover_points = recover_3d_points_combinations(CAMERA_INFO, camera_matrix[0][0])
-    recover_points_list = [point for key, point in recover_points.items()]
-    recover_points_array = np.array(recover_points_list)
-
-    fig = plt.figure()
-    ax1 = fig.add_subplot(111, projection='3d')
-
-    ax1.scatter(recover_points_array[:, 0], recover_points_array[:, 1], recover_points_array[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
-    
-    ax1.scatter(0, 0, 0, marker='o', color='k', s=20)
-    ax1.set_xlim([-0.2, 0.2])
-    ax1.set_xlabel('X')
-    ax1.set_ylim([-0.2, 0.2])
-    ax1.set_ylabel('Y')
-    ax1.set_zlim([-0.2, 0.2])
-    ax1.set_zlabel('Z')
-    scale = 1.5
-    f = zoom_factory(ax1, base_scale=scale)
-    plt.show()
 def init_camera_path(script_dir, video_path, first_image_path):
     bboxes = []
     centers1 = []
@@ -2554,7 +1596,7 @@ def init_camera_path(script_dir, video_path, first_image_path):
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
                 
-        blob_area = detect_led_lights(frame_0, 2, 5, 500)
+        blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame_0, blob_area_0=blob_area, bboxes=bboxes)
         cv2.setMouseCallback('image', partial_click_event)
@@ -2683,7 +1725,7 @@ def init_camera_path(script_dir, video_path, first_image_path):
                 cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)            
 
                 # LED blob 찾기
-                blobs2 = detect_led_lights(frame, 2, 5, 500)
+                blobs2 = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
                 # 두 번째 이미지의 LED blob 중심점 계산
                 centers2 = []
                 for blob_id, blob in enumerate(blobs2):
@@ -2795,16 +1837,118 @@ def save_camera_position():
             rvec_str = ' '.join(map(str, barvec.flatten()))
             tvec_str = ' '.join(map(str, batvec.flatten()))
             file.write(f"Frame:{int(key) + 1}, Rvec:[{rvec_str}], Tvec:[{tvec_str}]\n")
+        
+        print('camera_log_final.txt saved')
 
 
 
 if __name__ == "__main__":
-    # Get the directory of the current script
-    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
-    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/{controller_name}.json"))    
+    AUTO_LOOP = 1
+    DO_P3P = 0
+    DO_PYRAMID = 1
+    # Camera RT 마지막 버전 test_7
+    TARGET_DEVICE = 'SEMI_SLAM_POLYHEDRON'
+
+    if TARGET_DEVICE == 'RIFTS':
+        # Test_7 보고
+        RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
+        LEDS_POSITION = RIFTS_PATTERN_RIGHT
+        LEFT_RIGHT_DIRECTION = PLUS
+        BLOB_SIZE = 150
+        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        controller_name = 'rifts_right_9'
+        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_7/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+        START_FRAME = 0
+        STOP_FRAME = 121
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 2
+    elif TARGET_DEVICE == 'ARCTURAS':
+        ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
+        LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
+        LEFT_RIGHT_DIRECTION = MINUS
+        BLOB_SIZE = 50
+        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        controller_name = 'arcturas'
+        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_2/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
+        START_FRAME = 0
+        STOP_FRAME = 121
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 2
+    elif TARGET_DEVICE == 'SEMI_SLAM_CURVE':
+        # Test_6 보고
+        # 6, 7
+        SEMI_SLAM_CURVE = [0,1,0,1,0,1,0,1]
+        LEDS_POSITION = SEMI_SLAM_CURVE
+        LEFT_RIGHT_DIRECTION = MINUS
+        BLOB_SIZE = 150
+        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        controller_name = 'semi_slam_curve'
+        camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_6/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
+        START_FRAME = 0
+        STOP_FRAME = 72
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 5
+    elif TARGET_DEVICE == 'SEMI_SLAM_PLANE':
+        # 6,5
+        SEMI_SLAM_PLANE = [0,1,0,1,0,1,0]
+        LEDS_POSITION = SEMI_SLAM_PLANE
+        LEFT_RIGHT_DIRECTION = MINUS
+        BLOB_SIZE = 100
+        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        controller_name = 'semi_slam_plane'
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_plane.json"))
+        START_FRAME = 30
+        STOP_FRAME = 50
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 5
+
+    elif TARGET_DEVICE == 'SEMI_SLAM_POLYHEDRON':
+        # 5,6 
+        SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
+        LEDS_POSITION = SEMI_SLAM_POLYHEDRON
+        LEFT_RIGHT_DIRECTION = MINUS
+        BLOB_SIZE = 50
+        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        controller_name = 'semi_slam_polyhedron'
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_polyhedron.json"))
+        START_FRAME = 25
+        STOP_FRAME = 50
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 5
+    else:
+        print(f"DEVICE TEST {TARGET_DEVICE}")
+        RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
+        LEDS_POSITION = RIFTS_PATTERN_RIGHT
+        LEFT_RIGHT_DIRECTION = PLUS
+        BLOB_SIZE = 40
+        TOP_BOTTOM_LINE_Y = 494
+        controller_name = 'rifts_right_9'
+        camera_log_path = f"./tmp/render/RIFTS/{controller_name}/camera_log_final.txt"
+        camera_img_path = f"./tmp/render/RIFTS/{controller_name}/"
+        combination_cnt = [4,5]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+        START_FRAME = 0
+        STOP_FRAME = 121
+        THRESHOLD_DISTANCE = 10
+        TRACKER_PADDING = 2
+
+    
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -2816,22 +1960,33 @@ if __name__ == "__main__":
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot()
-
-
-
     bboxes = blob_setting(script_dir)
-    gathering_data_single(ax1, script_dir, bboxes, 0, 121)
 
+    '''
+    1차 보정
+    * SEED PATH 사용 이유
+        -설계값으로 초기 카메라 path를 만들 때 노이즈와 이상치를 fit circular algorithm으로 제거함
+        -BA에 안정적인 input R|T 제공하여 보정
+        -pnpSolver로만 보정하려고 하면 특정 카메라뷰에서는 블롭 갯수가 부족하거나 BA를 위한 데이터 모집단이 부족할 수 있음
+        -블롭갯수가 부족한 위치를 원형방정식으로 구한 Blender RT로 채우고 
+         해당 부분은 BA와 소수의 블롭으로 BA를 완성시켜서 R|T를 생성
+        -BA를 통해 다른 frame과의 RER 비교를 통해 global 데이터를 보정함
+    '''
+    gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
+    BA_RT() 
+    
+    # 2차 보정
+    gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 1)
     remake_3d_for_blob_info(undistort)
-    BA_3D_POINT()
-    # BA_RT()    
-    draw_result(ax1, ax2)
-#
-    # Check_Calibration_data_combination()
+    BA_3D_POINT()      
+    draw_result(ax1, ax2, TARGET_DEVICE)
 
-   
-   
+    # 결과 확인
+    gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+    Check_Calibration_data_combination()
+     
+
     # save_camera_position()
-# 
+
     print('\n\n')
     print('########## DONE ##########')

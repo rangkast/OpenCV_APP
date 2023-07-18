@@ -64,8 +64,6 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}..
 from connection.socket.socket_def import *
 
 
-
-
 def terminal_cmd(cmd_m, cmd_s):
     print('start ', terminal_cmd.__name__)
     try:
