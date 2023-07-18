@@ -14,7 +14,7 @@ CAP_PROP_FRAME_HEIGHT = 960
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 150
 
-HOPPING_CNT = 4
+HOPPING_CNT = 3
 BLOB_CNT = -1
 
 ANGLE = 3
@@ -370,7 +370,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
 
     while video.isOpened() if VIDEO_MODE else True:
         print('\n')
-        print(f"########## Frame {frame_cnt} ##########")
+        print(f"########## FraSme {frame_cnt} ##########")
         if VIDEO_MODE == 1:
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
@@ -440,8 +440,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
 
             cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
             # cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            # cv2.putText(draw_frame, f"{int(gcx)},{int(gcy)},{gsize}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
-            #             (255, 255, 255), 1)
+            cv2.putText(draw_frame, f"{int(gcx)},{int(gcy)},{gsize}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3,
+                        (255, 255, 255), 1)
             blob_centers.append((gcx, gcy, bbox))
             # print(f"{blob_id} : {gcx}, {gcy}")
 
@@ -936,7 +936,7 @@ def remake_3d_for_blob_info(undistort):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-def draw_result(ax1, ax2, TARGET_DEVICE):
+def LSM(TARGET_DEVICE):
     print('draw_result START')
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
@@ -944,48 +944,6 @@ def draw_result(ax1, ax2, TARGET_DEVICE):
     BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
     LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
     origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
-
-    for blob_id, data_list in REMADE_3D_INFO_B.items():
-        distances_remade = []
-        for data in data_list:
-            point_3d = data.reshape(-1)
-            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
-            distances_remade.append(distance)
-            if distances_remade.index(distance) == 0:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='blue', alpha=0.3, marker='o', s=7,
-                            label='BLENDER')
-            else:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='blue', alpha=0.3, marker='o', s=7)
-        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='blue', alpha=0.5, marker='o', s=10,
-                    label='BLENDER' if blob_id == list(REMADE_3D_INFO_B.keys())[0] else "_nolegend_")
-
-    for blob_id, data_list in REMADE_3D_INFO_O.items():
-        distances_remade = []
-        for data in data_list:
-            point_3d = data.reshape(-1)
-            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
-            distances_remade.append(distance)
-            if distances_remade.index(distance) == 0:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='red', alpha=0.3, marker='o', s=7,
-                            label='OPENCV')
-            else:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='red', alpha=0.3, marker='o', s=7)
-        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='red', alpha=0.5, marker='o', s=10,
-                    label='OPENCV' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
-
-    for blob_id, data_list in REMADE_3D_INFO_BA.items():
-        distances_remade = []
-        for data in data_list:
-            point_3d = data.reshape(-1)
-            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
-            distances_remade.append(distance)
-            if distances_remade.index(distance) == 0:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7,
-                            label='BA_RT')
-            else:
-                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7)
-        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='magenta', alpha=0.5, marker='o', s=10,
-                    label='BA_RT' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
 
     # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
     # distances_ba = []
@@ -1077,16 +1035,6 @@ def draw_result(ax1, ax2, TARGET_DEVICE):
     for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
         print(f"{points_3d},")    
     
-    
-    # Remove duplicate labels in legend
-    handles1, labels1 = ax1.get_legend_handles_labels()
-    by_label1 = dict(zip(labels1, handles1))
-    ax1.legend(by_label1.values(), by_label1.keys())
-
-    handles2, labels2 = ax2.get_legend_handles_labels()
-    by_label2 = dict(zip(labels2, handles2))
-    ax2.legend(by_label2.values(), by_label2.keys())
-
     file = 'RIGID_3D_TRANSFORM.pickle'
     data = OrderedDict()
     data['PCA_ARRAY_LSM'] = PCA_ARRAY_LSM
@@ -1095,8 +1043,6 @@ def draw_result(ax1, ax2, TARGET_DEVICE):
     if ret != ERROR:
         print('data saved')
 
-    if SHOW_PLOT == 1:
-        plt.show()
 def BA_RT():
     print('BA_RT START')
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']   
@@ -1316,6 +1262,7 @@ def Check_Calibration_data_combination():
         tvec_std_arr = []
         reproj_err_rates = []
         error_cnt = 0
+        fail_reason = []
         for frame_cnt, cam_data in CAMERA_INFO.items():           
             
             rvec_list = []
@@ -1341,6 +1288,7 @@ def Check_Calibration_data_combination():
                             METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                         elif combination == 4:
                             METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+
                         INPUT_ARRAY = [
                             CAM_ID,
                             points3D_perm,
@@ -1368,14 +1316,17 @@ def Check_Calibration_data_combination():
                                                 rvec, tvec,
                                                 camera_matrix[CAM_ID][0],
                                                 camera_matrix[CAM_ID][1])
-                        if RER > 1.0:
+                        if RER > 10.0:
                             error_cnt+=1
-                            continue
+                            # print('points3D_perm ', points3D_perm)
+                            # print('points3D_data ', points3D_data)
+                            # print('list(perm): ', list(perm), ' RER: ', RER)
+                            fail_reason.append([points3D_data, error_cnt, list(perm), RER, rvec.flatten(), tvec.flatten()])
+
     
                         rvec_list.append(np.linalg.norm(rvec))
                         tvec_list.append(np.linalg.norm(tvec))                      
-                        reproj_err_list.append(RER)
-                                
+                        reproj_err_list.append(RER)                                
                 
                 if rvec_list and tvec_list and reproj_err_list:
                     frame_counts.append(frame_cnt)
@@ -1388,7 +1339,7 @@ def Check_Calibration_data_combination():
                     reproj_err_rates.append(reproj_err_rate)
 
 
-        return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, error_cnt
+        return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason
 
 
     all_data = []
@@ -1401,7 +1352,7 @@ def Check_Calibration_data_combination():
         summary_text = ""
 
         for idx, points3D_data in enumerate(points3D_datas):
-            frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, error_cnt = STD_Analysis(points3D_data, points3D_data, COMBINATION)
+            frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason = STD_Analysis(points3D_data, points3D_data, COMBINATION)
 
             axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}', alpha=0.5)
             axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}', alpha=0.5)
@@ -1526,13 +1477,19 @@ def Check_Calibration_data_combination():
     axs[3].text(0.5, 0.5, summary_text, ha='center', va='center')
 
     # Print to console
-    print(f"error_cnt : {error_cnt}")
     print(summary_text)
 
     # Write to log file
     with open('summary.log', 'w') as f:
         f.write(summary_text)
 
+    file = 'FAIL_REASON.pickle'
+    data = OrderedDict()
+    data['FAIL_REASON'] = fail_reason
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')
+    
     plt.subplots_adjust(hspace=0.5)
     plt.show()
 
@@ -1841,10 +1798,70 @@ def save_camera_position():
         print('camera_log_final.txt saved')
 
 
+def draw_result(ax1, ax2):
+    print('draw_result START')
+    REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
+    REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
+    REMADE_3D_INFO_BA = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_BA']
+    BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
+    LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
+    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
+
+    for blob_id, data_list in REMADE_3D_INFO_B.items():
+        distances_remade = []
+        for data in data_list:
+            point_3d = data.reshape(-1)
+            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
+            distances_remade.append(distance)
+            if distances_remade.index(distance) == 0:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='blue', alpha=0.3, marker='o', s=7,
+                            label='BLENDER')
+            else:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='blue', alpha=0.3, marker='o', s=7)
+        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='blue', alpha=0.5, marker='o', s=10,
+                    label='BLENDER' if blob_id == list(REMADE_3D_INFO_B.keys())[0] else "_nolegend_")
+
+    for blob_id, data_list in REMADE_3D_INFO_O.items():
+        distances_remade = []
+        for data in data_list:
+            point_3d = data.reshape(-1)
+            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
+            distances_remade.append(distance)
+            if distances_remade.index(distance) == 0:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='red', alpha=0.3, marker='o', s=7,
+                            label='OPENCV')
+            else:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='red', alpha=0.3, marker='o', s=7)
+        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='red', alpha=0.5, marker='o', s=10,
+                    label='OPENCV' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
+
+    for blob_id, data_list in REMADE_3D_INFO_BA.items():
+        distances_remade = []
+        for data in data_list:
+            point_3d = data.reshape(-1)
+            distance = np.linalg.norm(origin_pts[blob_id] - point_3d)
+            distances_remade.append(distance)
+            if distances_remade.index(distance) == 0:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7,
+                            label='BA_RT')
+            else:
+                ax1.scatter(point_3d[0], point_3d[1], point_3d[2], color='magenta', alpha=0.3, marker='o', s=7)
+        ax2.scatter([blob_id] * len(distances_remade), distances_remade, color='magenta', alpha=0.5, marker='o', s=10,
+                    label='BA_RT' if blob_id == list(REMADE_3D_INFO_O.keys())[0] else "_nolegend_")
+     
+    # Remove duplicate labels in legend
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    by_label1 = dict(zip(labels1, handles1))
+    ax1.legend(by_label1.values(), by_label1.keys())
+
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    by_label2 = dict(zip(labels2, handles2))
+    ax2.legend(by_label2.values(), by_label2.keys())
+
 
 if __name__ == "__main__":
 
-    AUTO_LOOP = 1
+    AUTO_LOOP = 0
     DO_P3P = 0
     DO_PYRAMID = 1
     # Camera RT 마지막 버전 test_7
@@ -1852,14 +1869,15 @@ if __name__ == "__main__":
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
+        # 0, 2
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
         BLOB_SIZE = 150
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_7/"
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
         START_FRAME = 0
@@ -1890,8 +1908,8 @@ if __name__ == "__main__":
         BLOB_SIZE = 150
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_curve'
-        camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_6/"
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
         START_FRAME = 0
@@ -1903,35 +1921,36 @@ if __name__ == "__main__":
         SEMI_SLAM_PLANE = [0,1,0,1,0,1,0]
         LEDS_POSITION = SEMI_SLAM_PLANE
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 100
+        BLOB_SIZE = 300
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_plane'
-        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_log_path = f"./render_img/{controller_name}/test_41/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_41/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_plane.json"))
         START_FRAME = 30
         STOP_FRAME = 50
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
-
+    
     elif TARGET_DEVICE == 'SEMI_SLAM_POLYHEDRON':
         # 5,6 
         SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
         LEDS_POSITION = SEMI_SLAM_POLYHEDRON
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 50
+        BLOB_SIZE = 300
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_polyhedron'
-        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_log_path = f"./render_img/{controller_name}/test_21/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_21/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_polyhedron.json"))
         START_FRAME = 25
-        STOP_FRAME = 50
+        STOP_FRAME = 48
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
     else:
+        # 피라미드 하면 이상해짐....
         print(f"DEVICE TEST {TARGET_DEVICE}")
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
@@ -1979,13 +1998,16 @@ if __name__ == "__main__":
     gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 1)
     remake_3d_for_blob_info(undistort)
     BA_3D_POINT()      
-    draw_result(ax1, ax2, TARGET_DEVICE)
+    LSM(TARGET_DEVICE)
 
     # 결과 확인
     gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+    draw_result(ax1, ax2)
     Check_Calibration_data_combination()
      
-
+    '''
+    SEED PATH 저장
+    ''' 
     # save_camera_position()
 
     print('\n\n')
