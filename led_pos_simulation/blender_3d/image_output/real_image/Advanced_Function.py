@@ -440,8 +440,9 @@ def find_circles_or_ellipses(image, draw_frame):
     for contour in contours:
         if len(contour) >= 5:  # A contour must have at least 5 points for fitEllipse
             ellipse = cv2.fitEllipse(contour)
-            cv2.ellipse(draw_frame, ellipse, (0, 0, 255), 1)
-            ellipse_count += 1
+            if ellipse[1][0] > 0 and ellipse[1][1] > 0:  # width and height must be positive
+                cv2.ellipse(draw_frame, ellipse, (0, 0, 255), 1)
+                ellipse_count += 1
 
     # Draw all contours for debugging purposes
     cv2.drawContours(image, contours, -1, (0, 255, 0), 1)
