@@ -194,13 +194,8 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     #     print(right_data)
 
     return led_candidates_left, led_candidates_right
-def blob_setting(script_dir, blob_file):
+def blob_setting(script_dir, bboxes):
     print('blob_setting START')
-    bboxes = []
-    json_file = os.path.join(script_dir, blob_file)
-    json_data = rw_json_data(READ, json_file, None)
-    if json_data != ERROR:
-        bboxes = json_data['bboxes']
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     # camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     if VIDEO_MODE == 1:
@@ -278,8 +273,10 @@ def blob_setting(script_dir, blob_file):
             print('go back IMAGE')
 
         draw_blobs_and_ids(draw_frame, blob_area, bboxes)
-        cv2.imshow('image', draw_frame)
+        if SERVER == 0:
+            cv2.imshow('image', draw_frame)
 
+    print('done')
     cv2.destroyAllWindows()
 
     return bboxes
@@ -400,7 +397,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
         if frame_cnt < start:
             print(f"skip frame_cnt{frame_cnt}")
             frame_cnt += 1
-            cv2.imshow("Tracking", draw_frame)
+            if SERVER == 0:
+                cv2.imshow("Tracking", draw_frame)
             key = cv2.waitKey(1)
             continue
 
@@ -502,7 +500,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                                 break
                             else:
                                 print('Tracker Change Failed')
-                                cv2.imshow("Tracking", draw_frame)
+                                if SERVER == 0:
+                                    cv2.imshow("Tracking", draw_frame)
                                 while True:
                                     key = cv2.waitKey(1)
                                     if key & 0xFF == ord('q'):
@@ -778,8 +777,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
 
         if AUTO_LOOP == 1:
             frame_cnt += 1
-
-        cv2.imshow("Tracking", draw_frame)
+        if SERVER == 0:
+            cv2.imshow("Tracking", draw_frame)
         key = cv2.waitKey(1)
         # Exit if ESC key is
         if key & 0xFF == ord('q'):
@@ -1737,7 +1736,8 @@ def init_camera_path(script_dir, video_path, first_image_path):
             break
 
         draw_blobs_and_ids(draw_frame, blob_area, bboxes)
-        cv2.imshow('image', draw_frame)
+        if SERVER == 0:
+            cv2.imshow('image', draw_frame)
 
     cv2.destroyAllWindows()
     
@@ -1831,7 +1831,8 @@ def init_camera_path(script_dir, video_path, first_image_path):
 
 
                 # Show the frames
-                cv2.imshow('Frame', draw_frame)
+                if SERVER == 0:
+                    cv2.imshow('Frame', draw_frame)
 
                 # Wait for a key press and break the loop if 'q' is pressed
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -1868,8 +1869,8 @@ def init_camera_path(script_dir, video_path, first_image_path):
 
             # Weighted addition of two frames
             overlapped_frame = cv2.addWeighted(frame_start, 0.5, frame_closest, 0.5, 0)
-
-            cv2.imshow('Overlapped frame', overlapped_frame)
+            if SERVER == 0:
+                cv2.imshow('Overlapped frame', overlapped_frame)
             cv2.waitKey(0)  # Wait until any key is pressed
 
         cap.release()
@@ -1976,8 +1977,23 @@ def draw_result(**kwargs):
     ax2.legend(by_label2.values(), by_label2.keys())
 
 
+
+    '''
+    1. TRACKER
+        Specify the tracker type 특정 버전 에서만 됨
+        pip uninstall opencv-python
+        pip uninstall opencv-contrib-python
+        pip uninstall opencv-contrib-python-headless
+        pip3 install opencv-contrib-python==4.5.5.62
+    
+    2. poselib
+        linux system only
+    '''
+
+
 if __name__ == "__main__":
 
+    SERVER = 1
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
@@ -2095,13 +2111,20 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     SOLUTION = 1
 
     ax1, ax2 = init_plot()
-    bboxes = blob_setting(script_dir, f"{script_dir}/render_img/{controller_name}/blob_area.json")
+    bboxes = []
+    json_file = os.path.join(script_dir, f"{script_dir}/render_img/{controller_name}/blob_area.json")
+    json_data = rw_json_data(READ, json_file, None)
+    if json_data != ERROR:
+        bboxes = json_data['bboxes']
+    if SERVER == 0:
+        bboxes = blob_setting(script_dir, bboxes)
+
     if SOLUTION == 1:
         ######################################## SOLUTION 1 ########################################
         # 설계 좌표가 있는 경우 BA_RT : 설계 값에  BLENDER RT를 BA 처리 할 수 있음
