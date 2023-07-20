@@ -38,18 +38,18 @@ CAMERA_INFO_STRUCTURE = {
     'points3D': [],
     'points3D_PCA': [],
     'points3D_IQR': [],
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
 }
 
 BLOB_INFO = {}
 BLOB_INFO_STRUCTURE = {
     'points2D_D': {'greysum': []},
     'points2D_U': {'greysum': []},
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}},
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'BA_RT': {'rt': {'rvec': [], 'tvec': []}},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
 }
 
 def init_trackers(trackers, frame):
@@ -397,12 +397,15 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        if frame_cnt < start or frame_cnt > end:
+        if frame_cnt < start:
             print(f"skip frame_cnt{frame_cnt}")
             frame_cnt += 1
             cv2.imshow("Tracking", draw_frame)
             key = cv2.waitKey(1)
             continue
+
+        if frame_cnt > end + 1:
+            break
 
         if TRACKING_START == NOT_SET:
             print('bboxes:', bboxes)
@@ -576,6 +579,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                         BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
                         BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
                         BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
+                        BLOB_INFO[blob_id]['BLENDER']['status'].append(DONE)
                         
                         points3D.append(MODEL_DATA[int(blob_id)])
                         if DO_CALIBRATION_TEST == 1:
@@ -631,6 +635,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                         for blob_id in LED_NUMBER:
                             BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
                             BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+                            BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)
                         CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
                         CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
                         ########################### BUNDLE ADJUSTMENT RT #######################
@@ -826,22 +831,13 @@ def remake_3d_for_blob_info(**kwargs):
             print(f"BLOB_ID: {blob_id}, CNT {CNT}")
             REMADE_3D_INFO_O[blob_id] = []
 
-            # rt_first_O = {
-            #     'rvec': BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'][0],
-            #     'tvec': BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'][0]
-            # }
-            # points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
-            # points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
-            # # print('points2D_U_first: ', points2D_U_first)
-            # print('rt_first_O: ', rt_first_O)
-
             # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
             rt_first_O = NOT_SET
             points2D_D_first = NOT_SET
             points2D_U_first = NOT_SET
             # print(BLOB_INFO[blob_id]['OPENCV']['status'])
             for i in range(0, CNT):
-                if BLOB_INFO[blob_id]['OPENCV']['status'][i] == NOT_SET:
+                if BLOB_INFO[blob_id]['OPENCV']['status'][i] != DONE:
                     continue
                 
                 if rt_first_O == NOT_SET:
@@ -872,78 +868,118 @@ def remake_3d_for_blob_info(**kwargs):
 
     if blender == DONE:
         print('#################### STATIC RT (BLENDER)  ####################')
-        for blob_id in range(BLOB_CNT):   
+        for blob_id in range(BLOB_CNT):
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
-            print(f"BLOB_ID: {blob_id}, CNT {CNT}")
-            # pp.pprint(BLOB_INFO[blob_id])
-            REMADE_3D_INFO_B[blob_id] = []
+            if CNT != 0:
+                REMADE_3D_INFO_B[blob_id] = []
+                # 서로 다른 2개 조합
+                for idx in combinations(range(CNT), 2):
+                    rt_first_B = {
+                        'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][idx[0]],
+                        'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][idx[0]]
+                    }
+                    points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][idx[0]]]
+                    points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][idx[0]]]
+                    # Get the 2D coordinates for the first and current frame
+                    points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][idx[1]]]
+                    points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][idx[1]]]
+                    rt_current_B = {
+                        'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][idx[1]],
+                        'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][idx[1]]
+                    }
+                    if undistort == 0:
+                        remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                    rt_first_B, rt_current_B,
+                                                    points2D_D_first, points2D_D_current).reshape(-1, 3)
+                    else:
+                        remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
+                                                    rt_first_B, rt_current_B,
+                                                    points2D_U_first, points2D_U_current).reshape(-1, 3)
+                    REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
 
-            rt_first_B = {
-                'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][0],
-                'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][0]
-            }
-            points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
-            points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
+        # # 0 번 부터 순서대로 복원
+        # for blob_id in range(BLOB_CNT):
+        #     CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
+        #     print(f"BLOB_ID: {blob_id}, CNT {CNT}")
+        #     REMADE_3D_INFO_B[blob_id] = []
 
-            # Iterate over the 2D coordinates for this blob_id
-            # 마지막 이미지가 시작 이미지와 같아 remake에서 이상치가 발현됨
-            for i in range(1, CNT):
-                # Get the 2D coordinates for the first and current frame
-                points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
-                points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+        #     # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
+        #     rt_first_B = NOT_SET
+        #     points2D_D_first = NOT_SET
+        #     points2D_U_first = NOT_SET
+        #     for i in range(0, CNT):
+        #         if BLOB_INFO[blob_id]['BLENDER']['status'][i] != DONE:
+        #             continue
                 
-                rt_current_B = {
-                    'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
-                    'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
-                }
-                if undistort == 0:
-                    remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                rt_first_B, rt_current_B,
-                                                points2D_D_first, points2D_D_current).reshape(-1, 3)
-                else:
-                    remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
-                                                rt_first_B, rt_current_B,
-                                                points2D_U_first, points2D_U_current).reshape(-1, 3)
-                REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
+        #         if rt_first_B == NOT_SET:
+        #             rt_first_B = {
+        #                 'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
+        #                 'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
+        #             }
+        #             points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+        #             points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+        #         else:
+        #             # Get the 2D coordinates for the first and current frame
+        #             points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+        #             points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
                 
+        #             rt_current_B = {
+        #                 'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][i],
+        #                 'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][i]
+        #             }
+        #             if undistort == 0:
+        #                 remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+        #                                             rt_first_B, rt_current_B,
+        #                                             points2D_D_first, points2D_D_current).reshape(-1, 3)
+        #             else:
+        #                 remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
+        #                                             rt_first_B, rt_current_B,
+        #                                             points2D_U_first, points2D_U_current).reshape(-1, 3)
+        #             REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
+
+               
     if ba_rt == DONE:
         # Iterate over the blob_ids in BLOB_INFO
         print('#################### DYNAMIC RT (BA RT)  ####################')
-        for blob_id in range(BLOB_CNT):   
+        for blob_id in range(BLOB_CNT):
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
             print(f"BLOB_ID: {blob_id}, CNT {CNT}")
-            # pp.pprint(BLOB_INFO[blob_id])
-            REMADE_3D_INFO_BA[blob_id] = [] # For BA_RT
-            # Get the RT dictionary for the first frame
-            rt_first_BA = {
-                'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][0],
-                'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][0]
-            }
+            REMADE_3D_INFO_BA[blob_id] = []
 
-            points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][0]]
-            points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][0]]
-
-            # Iterate over the 2D coordinates for this blob_id
-            # 마지막 이미지가 시작 이미지와 같아 remake에서 이상치가 발현됨
-            for i in range(1, CNT):
-                # Get the 2D coordinates for the first and current frame
-                points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
-                points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]                
-                            
-                rt_current_BA = {
-                    'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
-                    'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
-                }
-                # Create the 3D points using the BA_RT data
-                if undistort == 0:
-                    remake_3d_BA = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
-                                                    rt_first_BA, rt_current_BA,
-                                                    points2D_D_first, points2D_D_current).reshape(-1, 3)
+            # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
+            rt_first_BA = NOT_SET
+            points2D_D_first = NOT_SET
+            points2D_U_first = NOT_SET
+            for i in range(0, CNT):
+                if BLOB_INFO[blob_id]['BA_RT']['status'][i] != DONE:
+                    continue
+                
+                if rt_first_BA == NOT_SET:
+                    rt_first_BA = {
+                        'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
+                        'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
+                    }
+                    points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+                    points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
                 else:
-                    remake_3d_BA = remake_3d_point(default_cameraK, default_cameraK,
-                                                    rt_first_BA, rt_current_BA,
-                                                    points2D_U_first, points2D_U_current).reshape(-1, 3)
-                REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
+                    # Get the 2D coordinates for the first and current frame
+                    points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
+                    points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+                
+                    rt_current_BA = {
+                        'rvec': BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'][i],
+                        'tvec': BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'][i]
+                    }
+                    # Create the 3D points using the BA_RT data
+                    if undistort == 0:
+                        remake_3d_BA = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+                                                        rt_first_BA, rt_current_BA,
+                                                        points2D_D_first, points2D_D_current).reshape(-1, 3)
+                    else:
+                        remake_3d_BA = remake_3d_point(default_cameraK, default_cameraK,
+                                                        rt_first_BA, rt_current_BA,
+                                                        points2D_U_first, points2D_U_current).reshape(-1, 3)
+                    REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
 
      
     file = 'REMADE_3D_INFO.pickle'
@@ -1949,7 +1985,7 @@ if __name__ == "__main__":
     CV_MIN_THRESHOLD = 150
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'SEMI_SLAM_CURVE'
+    TARGET_DEVICE = 'RIFTS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -1960,12 +1996,12 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final_ARCTURAS.txt"
+        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_XY.txt"
         camera_img_path = f"./render_img/{controller_name}/test_7/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-        START_FRAME = 0
-        STOP_FRAME = 121
+        START_FRAME = 31
+        STOP_FRAME = 41
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
     elif TARGET_DEVICE == 'ARCTURAS':
@@ -1975,7 +2011,7 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final.txt"
+        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_XY.txt"
         camera_img_path = f"./render_img/{controller_name}/test_2/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
@@ -2079,6 +2115,8 @@ if __name__ == "__main__":
             -블롭갯수가 부족한 위치를 원형방정식으로 구한 Blender RT로 채우고 
             해당 부분은 BA와 소수의 블롭으로 BA를 완성시켜서 R|T를 생성
             -BA를 통해 다른 frame과의 RER 비교를 통해 global 데이터를 보정함
+            -noise가 많이 섞인 경우는 pnp solver를 통한 RT의 신뢰도가 낮음
+            -설계값을 모르는 경우에도 방안 생간
         '''
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
         BA_RT() 
@@ -2087,17 +2125,20 @@ if __name__ == "__main__":
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 1)
         remake_3d_for_blob_info(undistort=undistort, opencv=DONE, blender=DONE, ba_rt=DONE)
         # BA_3D_POINT(RT='BLENDER')  // 사용 안함
-        LSM(TARGET_DEVICE)
 
-        # 결과 확인
-        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+        '''
+        부분 LSM 안됨
+        '''
+        # LSM(TARGET_DEVICE)
+        # gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+    
         draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
-        Check_Calibration_data_combination()
+        # Check_Calibration_data_combination()
         
         '''
         SEED PATH 저장
         ''' 
-        save_camera_position(TARGET_DEVICE)
+        # save_camera_position(TARGET_DEVICE)
 
     elif SOLUTION == 2:
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
