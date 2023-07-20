@@ -557,232 +557,230 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
             Algorithm Added            
             '''
 
-            if frame_cnt >= start and frame_cnt <= end:
-                blob_status = SUCCESS
-                camera_params_pos = frame_cnt - start + 1
-                # camera_params_pos = (camera_params_pos - 1) * ANGLE + 1  # Update this line
-                if camera_params_pos <= len(camera_params):                
-                    brvec, btvec = camera_params[camera_params_pos]
-                    brvec_reshape = np.array(brvec).reshape(-1, 1)
-                    btvec_reshape = np.array(btvec).reshape(-1, 1)
-                    # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
+            blob_status = SUCCESS
+            camera_params_pos = frame_cnt + 1
+            # camera_params_pos = frame_cnt - start + 1
+            # camera_params_pos = (camera_params_pos - 1) * ANGLE + 1  # Update this line
+            if camera_params_pos <= len(camera_params):                
+                brvec, btvec = camera_params[camera_params_pos]
+                brvec_reshape = np.array(brvec).reshape(-1, 1)
+                btvec_reshape = np.array(btvec).reshape(-1, 1)
+                # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())
 
-                    CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-                    LED_NUMBER = []
-                    points2D = []
-                    points2D_U = []
-                    points3D = []
+                CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+                LED_NUMBER = []
+                points2D = []
+                points2D_U = []
+                points3D = []
+                
+                # TEST CODE
+                points3D_PCA = []
+                points3D_IQR = []            
+                
+                TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
+                for blob_id, blob_data in TEMP_BLOBS.items():
+                    LED_NUMBER.append(int(blob_id))
+                    points2D.append(blob_data['D'])
+                    points2D_U.append(blob_data['U'])
                     
-                    # TEST CODE
-                    points3D_PCA = []
-                    points3D_IQR = []            
+                    BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
+                    BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
+                    BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
+                    BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
+                    BLOB_INFO[blob_id]['BLENDER']['status'].append(DONE)
                     
-                    TEMP_BLOBS = OrderedDict(sorted(TEMP_BLOBS.items(), key=lambda t: t[0], reverse=True))
-                    for blob_id, blob_data in TEMP_BLOBS.items():
-                        LED_NUMBER.append(int(blob_id))
-                        points2D.append(blob_data['D'])
-                        points2D_U.append(blob_data['U'])
-                        
-                        BLOB_INFO[blob_id]['points2D_D']['greysum'].append(blob_data['D'])
-                        BLOB_INFO[blob_id]['points2D_U']['greysum'].append(blob_data['U'])
-                        BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
-                        BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
-                        BLOB_INFO[blob_id]['BLENDER']['status'].append(DONE)
-                        
-                        points3D.append(MODEL_DATA[int(blob_id)])
-                        if DO_CALIBRATION_TEST == 1:
-                            # points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
-                            # points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
-                            points3D_PCA.append(RIGID_3D_TRANSFORM_PCA[int(blob_id)])
-                            points3D_IQR.append(RIGID_3D_TRANSFORM_IQR[int(blob_id)])
-                    
-                    # print('START Pose Estimation')
-                    points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
-                    points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
-                    points3D = np.array(points3D, dtype=np.float64)
+                    points3D.append(MODEL_DATA[int(blob_id)])
                     if DO_CALIBRATION_TEST == 1:
-                        points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
-                        points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-                    # print('LED_NUMBER: ', LED_NUMBER)
-                    # print('points2D\n', points2D)
-                    # print('points2D_U\n', points2D_U)
-                    # print('points3D\n', points3D)
+                        # points3D_PCA.append(calibrated_led_data_PCA[int(blob_id)])
+                        # points3D_IQR.append(calibrated_led_data_IQR[int(blob_id)])
+                        points3D_PCA.append(RIGID_3D_TRANSFORM_PCA[int(blob_id)])
+                        points3D_IQR.append(RIGID_3D_TRANSFORM_IQR[int(blob_id)])
+                
+                # print('START Pose Estimation')
+                points2D = np.array(np.array(points2D).reshape(len(points2D), -1), dtype=np.float64)
+                points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
+                points3D = np.array(points3D, dtype=np.float64)
+                if DO_CALIBRATION_TEST == 1:
+                    points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
+                    points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
+                # print('LED_NUMBER: ', LED_NUMBER)
+                # print('points2D\n', points2D)
+                # print('points2D_U\n', points2D_U)
+                # print('points3D\n', points3D)
 
+                                    
+                # Make CAMERA_INFO data for check rt STD
+                CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
+                if DO_CALIBRATION_TEST == 1:
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+                    CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+                    
+                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
+                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
+                CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
+
+                if DO_BA == 1:
+                    ########################### BUNDLE ADJUSTMENT RT #######################
+                    ba_rvec = BA_RT[frame_cnt - start][:3]
+                    ba_tvec = BA_RT[frame_cnt - start][3:]
+                    ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
+                    ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
+                    print('ba_rvec : ', ba_rvec)
+                    print('ba_tvec : ', ba_tvec)
+                    image_points, _ = cv2.projectPoints(points3D,
+                                                        np.array(ba_rvec),
+                                                        np.array(ba_tvec),
+                                                        camera_matrix[CAM_ID][0],
+                                                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+
+                    for point in image_points:
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 2, (0, 0, 0), -1)
+    
+                    for blob_id in LED_NUMBER:
+                        BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
+                        BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+                        BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)
+                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
+                    CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
+                    ########################### BUNDLE ADJUSTMENT RT #######################
+
+                LENGTH = len(LED_NUMBER)
+                if LENGTH >= 4:
+                    # print('PnP Solver OpenCV')
+                    if LENGTH >= 5:
+                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+                    elif LENGTH == 4:
+                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                    INPUT_ARRAY = [
+                        CAM_ID,
+                        points3D,
+                        points2D if undistort == 0 else points2D_U,
+                        camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+                        camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+                    ]
+                    ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+                    rvec_reshape = np.array(rvec).reshape(-1, 1)
+                    tvec_reshape = np.array(tvec).reshape(-1, 1)
+                    print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
+                    for blob_id in LED_NUMBER:
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(rvec_reshape)
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(tvec_reshape)
+                        BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
+
+                    # Draw OpenCV projection
+                    image_points, _ = cv2.projectPoints(points3D,
+                                                        rvec_reshape,
+                                                        tvec_reshape,
+                                                        camera_matrix[CAM_ID][0],
+                                                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+
+                    for point in image_points:
+                        # 튜플 형태로 좌표 변환
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
+                    
+                    # Draw Blender projection
+                    image_points, _ = cv2.projectPoints(points3D,
+                                                        np.array(brvec_reshape),
+                                                        np.array(btvec_reshape),
+                                                        camera_matrix[CAM_ID][0],
+                                                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+
+                    for point in image_points:
+                        # 튜플 형태로 좌표 변환
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)                        
+
+                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec_reshape
+                    CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec_reshape
+
+                elif LENGTH == 3:
+                    if DO_P3P == 1:
+                        #P3P
+                        mutex.acquire()
+                        try:
+                            print('P3P LamdaTwist')
+                            points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
+                            X = np.array(points3D)   
+                            x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
+                            # print('normalized x\n', x)
+                            poselib_result = poselib.p3p(x, X)
+                            visible_detection = NOT_SET
+                            for solution_idx, pose in enumerate(poselib_result):
+                                colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
+                                colorstr = ['blue', 'green', 'purple', 'yellow']
+                                if is_valid_pose(pose):
+                                    quat = pose.q
+                                    tvec = pose.t
+                                    rotm = quat_to_rotm(quat)
+                                    rvec, _ = cv2.Rodrigues(rotm)
+                                    print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
+                                    image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
+                                        np.array(rvec),
+                                        np.array(tvec),
+                                        camera_matrix[CAM_ID][0],
+                                        camera_matrix[CAM_ID][1])
+                                    image_points = image_points.reshape(-1, 2)
+                                    # print('image_points\n', image_points)
+                                    cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
+                                    ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
+                                    ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
+                                    
+                                    ###############################            
+                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
+                                    # print('visible_result:', visible_result)
+                                    visible_status = SUCCESS
+                                    for blob_id, status in visible_result.items():
+                                        if status == False:
+                                            visible_status = ERROR
+                                            print(f"{solution_idx} pose unvisible led {blob_id}")
+                                            break                                
+                                    if visible_status == SUCCESS:
+                                        visible_detection = DONE
+                                        for blob_id in LED_NUMBER:
+                                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
+                                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
+                                            BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
+                                    ###############################
                                         
-                    # Make CAMERA_INFO data for check rt STD
-                    CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
-                    if DO_CALIBRATION_TEST == 1:
-                        CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
-                        CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
-                        
-                    CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
-                    CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
-                    CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
-                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
-                    CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
-
-                    if DO_BA == 1:
-                        ########################### BUNDLE ADJUSTMENT RT #######################
-                        ba_rvec = BA_RT[frame_cnt - start][:3]
-                        ba_tvec = BA_RT[frame_cnt - start][3:]
-                        ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
-                        ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
-                        print('ba_rvec : ', ba_rvec)
-                        print('ba_tvec : ', ba_tvec)
-                        image_points, _ = cv2.projectPoints(points3D,
-                                                            np.array(ba_rvec),
-                                                            np.array(ba_tvec),
-                                                            camera_matrix[CAM_ID][0],
-                                                            camera_matrix[CAM_ID][1])
-                        image_points = image_points.reshape(-1, 2)
-
-                        for point in image_points:
-                            pt = (int(point[0]), int(point[1]))
-                            cv2.circle(draw_frame, pt, 2, (0, 0, 0), -1)
-        
-                        for blob_id in LED_NUMBER:
-                            BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
-                            BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
-                            BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)
-                        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
-                        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
-                        ########################### BUNDLE ADJUSTMENT RT #######################
-
-                    LENGTH = len(LED_NUMBER)
-                    if LENGTH >= 4:
-                        # print('PnP Solver OpenCV')
-                        if LENGTH >= 5:
-                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
-                        elif LENGTH == 4:
-                            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
-                        INPUT_ARRAY = [
-                            CAM_ID,
-                            points3D,
-                            points2D if undistort == 0 else points2D_U,
-                            camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                            camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
-                        ]
-                        ret, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                        rvec_reshape = np.array(rvec).reshape(-1, 1)
-                        tvec_reshape = np.array(tvec).reshape(-1, 1)
-                        print('PnP_Solver rvec:', rvec.flatten(), ' tvec:',  tvec.flatten())
-                        for blob_id in LED_NUMBER:
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(rvec_reshape)
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(tvec_reshape)
-                            BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
-
-                        # Draw OpenCV projection
-                        image_points, _ = cv2.projectPoints(points3D,
-                                                            rvec_reshape,
-                                                            tvec_reshape,
-                                                            camera_matrix[CAM_ID][0],
-                                                            camera_matrix[CAM_ID][1])
-                        image_points = image_points.reshape(-1, 2)
-
-                        for point in image_points:
-                            # 튜플 형태로 좌표 변환
-                            pt = (int(point[0]), int(point[1]))
-                            cv2.circle(draw_frame, pt, 1, (0, 0, 255), -1)
-                        
-                        # Draw Blender projection
-                        image_points, _ = cv2.projectPoints(points3D,
-                                                            np.array(brvec_reshape),
-                                                            np.array(btvec_reshape),
-                                                            camera_matrix[CAM_ID][0],
-                                                            camera_matrix[CAM_ID][1])
-                        image_points = image_points.reshape(-1, 2)
-
-                        for point in image_points:
-                            # 튜플 형태로 좌표 변환
-                            pt = (int(point[0]), int(point[1]))
-                            cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)                        
-
-                        CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec_reshape
-                        CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec_reshape
-
-                    elif LENGTH == 3:
-                        if DO_P3P == 1:
-                            #P3P
-                            mutex.acquire()
-                            try:
-                                print('P3P LamdaTwist')
-                                points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
-                                X = np.array(points3D)   
-                                x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-                                # print('normalized x\n', x)
-                                poselib_result = poselib.p3p(x, X)
-                                visible_detection = NOT_SET
-                                for solution_idx, pose in enumerate(poselib_result):
-                                    colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
-                                    colorstr = ['blue', 'green', 'purple', 'yellow']
-                                    if is_valid_pose(pose):
-                                        quat = pose.q
-                                        tvec = pose.t
-                                        rotm = quat_to_rotm(quat)
-                                        rvec, _ = cv2.Rodrigues(rotm)
-                                        print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
-                                        image_points, _ = cv2.projectPoints(np.array(MODEL_DATA),
-                                            np.array(rvec),
-                                            np.array(tvec),
-                                            camera_matrix[CAM_ID][0],
-                                            camera_matrix[CAM_ID][1])
-                                        image_points = image_points.reshape(-1, 2)
-                                        # print('image_points\n', image_points)
-                                        cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
-                                        ax1.scatter(*cam_pos, c=colorstr[solution_idx], marker='o', label=f"POS{solution_idx}")
-                                        ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
+                                    for idx, point in enumerate(image_points):
+                                        # 튜플 형태로 좌표 변환
+                                        pt = (int(point[0]), int(point[1]))
+                                        if idx in LED_NUMBER:
+                                            cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
+                                        else:
+                                            cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
                                         
-                                        ###############################            
-                                        visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
-                                        # print('visible_result:', visible_result)
-                                        visible_status = SUCCESS
-                                        for blob_id, status in visible_result.items():
-                                            if status == False:
-                                                visible_status = ERROR
-                                                print(f"{solution_idx} pose unvisible led {blob_id}")
-                                                break                                
-                                        if visible_status == SUCCESS:
-                                            visible_detection = DONE
-                                            for blob_id in LED_NUMBER:
-                                                BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(np.array(rvec).reshape(-1, 1))
-                                                BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(np.array(tvec).reshape(-1, 1))
-                                                BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
-                                        ###############################
-                                            
-                                        for idx, point in enumerate(image_points):
-                                            # 튜플 형태로 좌표 변환
-                                            pt = (int(point[0]), int(point[1]))
-                                            if idx in LED_NUMBER:
-                                                cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
-                                            else:
-                                                cv2.circle(draw_frame, pt, 1, colors[solution_idx], -1)
-                                            
-                                            text_offset = (5, -5)
-                                            text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
-                                            cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
+                                        text_offset = (5, -5)
+                                        text_pos = (pt[0] + text_offset[0], pt[1] + text_offset[1])
+                                        cv2.putText(draw_frame, str(idx), text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[solution_idx], 1, cv2.LINE_AA)
 
-                                if visible_detection == NOT_SET:
-                                    blob_status = ERROR
-                            finally:
-                                mutex.release()
-                        else:
-                            blob_status = ERROR
+                            if visible_detection == NOT_SET:
+                                blob_status = ERROR
+                        finally:
+                            mutex.release()
                     else:
                         blob_status = ERROR
-                        print('NOT Enough blobs')                                                             
-
-                    
-                    if blob_status == ERROR:
-                        for blob_id in LED_NUMBER:
-                            # Use an 'empty' numpy array as our NOT_SET value
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(NOT_SET)
-                            BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(NOT_SET)
-                            BLOB_INFO[blob_id]['OPENCV']['status'].append(NOT_SET)
-                        
                 else:
-                    print('over camera_log_index:', camera_params_pos)
+                    blob_status = ERROR
+                    print('NOT Enough blobs')                                                             
+
+                
+                if blob_status == ERROR:
+                    for blob_id in LED_NUMBER:
+                        # Use an 'empty' numpy array as our NOT_SET value
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(NOT_SET)
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(NOT_SET)
+                        BLOB_INFO[blob_id]['OPENCV']['status'].append(NOT_SET)
+                    
             else:
-                print('over frame_cnt:', frame_cnt)
+                print('over camera_log_index:', camera_params_pos)
 
         if AUTO_LOOP == 1:
             frame_cnt += 1
@@ -876,12 +874,17 @@ def remake_3d_for_blob_info(**kwargs):
 
     if blender == DONE:
         print('#################### STATIC RT (BLENDER)  ####################')
+        # Sliding Window
+        def sliding_window(data, window_size):
+            for i in range(len(data) - window_size + 1):
+                yield data[i:i + window_size]
         for blob_id in range(BLOB_CNT):
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
             if CNT != 0:
+                window_size = 10
                 REMADE_3D_INFO_B[blob_id] = []
-                # 서로 다른 2개 조합
-                for idx in combinations(range(CNT), 2):
+                for idx in sliding_window(range(CNT), window_size):
+                    # print(idx)
                     rt_first_B = {
                         'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][idx[0]],
                         'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][idx[0]]
@@ -904,6 +907,38 @@ def remake_3d_for_blob_info(**kwargs):
                                                     rt_first_B, rt_current_B,
                                                     points2D_U_first, points2D_U_current).reshape(-1, 3)
                     REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
+
+
+
+
+        # # 서로 다른 2개 조합
+        # for blob_id in range(BLOB_CNT):
+        #     CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
+        #     if CNT != 0:
+        #         REMADE_3D_INFO_B[blob_id] = []
+        #         for idx in combinations(range(CNT), 2):
+        #             rt_first_B = {
+        #                 'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][idx[0]],
+        #                 'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][idx[0]]
+        #             }
+        #             points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][idx[0]]]
+        #             points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][idx[0]]]
+        #             # Get the 2D coordinates for the first and current frame
+        #             points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][idx[1]]]
+        #             points2D_U_current = [BLOB_INFO[blob_id]['points2D_U']['greysum'][idx[1]]]
+        #             rt_current_B = {
+        #                 'rvec': BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'][idx[1]],
+        #                 'tvec': BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'][idx[1]]
+        #             }
+        #             if undistort == 0:
+        #                 remake_3d_B = remake_3d_point(camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][0],
+        #                                             rt_first_B, rt_current_B,
+        #                                             points2D_D_first, points2D_D_current).reshape(-1, 3)
+        #             else:
+        #                 remake_3d_B = remake_3d_point(default_cameraK, default_cameraK,
+        #                                             rt_first_B, rt_current_B,
+        #                                             points2D_U_first, points2D_U_current).reshape(-1, 3)
+        #             REMADE_3D_INFO_B[blob_id].append(remake_3d_B.reshape(-1, 3))
 
         # # 0 번 부터 순서대로 복원
         # for blob_id in range(BLOB_CNT):
@@ -2002,7 +2037,7 @@ def draw_result(**kwargs):
 
 if __name__ == "__main__":
 
-    SERVER = 1
+    SERVER = 0
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
@@ -2027,7 +2062,7 @@ if __name__ == "__main__":
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
         START_FRAME = 0
-        STOP_FRAME = 121
+        STOP_FRAME = 80
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
     elif TARGET_DEVICE == 'ARCTURAS':
