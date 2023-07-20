@@ -194,8 +194,17 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     #     print(right_data)
 
     return led_candidates_left, led_candidates_right
-def blob_setting(script_dir, bboxes):
+def blob_setting(script_dir, SERVER, blob_file):
     print('blob_setting START')
+
+    bboxes = []
+    json_file = os.path.join(script_dir, blob_file)
+    json_data = rw_json_data(READ, json_file, None)
+    if json_data != ERROR:
+        bboxes = json_data['bboxes']
+    if SERVER == 1:
+        return bboxes
+    
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     # camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     if VIDEO_MODE == 1:
@@ -1997,6 +2006,7 @@ if __name__ == "__main__":
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
+    SOLUTION = 2
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
 
@@ -2016,8 +2026,8 @@ if __name__ == "__main__":
         camera_img_path = f"./render_img/{controller_name}/test_7/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-        START_FRAME = 31
-        STOP_FRAME = 41
+        START_FRAME = 0
+        STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
     elif TARGET_DEVICE == 'ARCTURAS':
@@ -2067,8 +2077,7 @@ if __name__ == "__main__":
         START_FRAME = 30
         STOP_FRAME = 50
         THRESHOLD_DISTANCE = 10
-        TRACKER_PADDING = 5
-    
+        TRACKER_PADDING = 5 
     elif TARGET_DEVICE == 'SEMI_SLAM_POLYHEDRON':
         # 5,6 
         SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
@@ -2114,16 +2123,8 @@ if __name__ == "__main__":
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
-    SOLUTION = 1
-
     ax1, ax2 = init_plot()
-    bboxes = []
-    json_file = os.path.join(script_dir, f"{script_dir}/render_img/{controller_name}/blob_area.json")
-    json_data = rw_json_data(READ, json_file, None)
-    if json_data != ERROR:
-        bboxes = json_data['bboxes']
-    if SERVER == 0:
-        bboxes = blob_setting(script_dir, bboxes)
+    bboxes = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area.json")
 
     if SOLUTION == 1:
         ######################################## SOLUTION 1 ########################################
@@ -2152,11 +2153,11 @@ if __name__ == "__main__":
         '''
         부분 LSM 안됨
         '''
-        # LSM(TARGET_DEVICE)
-        # gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+        LSM(TARGET_DEVICE)
+        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
     
         draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
-        # Check_Calibration_data_combination()
+        Check_Calibration_data_combination()
         
         '''
         SEED PATH 저장
@@ -2166,8 +2167,8 @@ if __name__ == "__main__":
     elif SOLUTION == 2:
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
         remake_3d_for_blob_info(undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
-        BA_3D_POINT(RT='BLENDER')
-        draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=DONE)
+        # BA_3D_POINT(RT='BLENDER')
+        draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
 
     if SHOW_PLOT == 1:
         plt.show()
