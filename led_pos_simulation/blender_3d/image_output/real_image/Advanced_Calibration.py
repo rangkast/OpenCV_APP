@@ -2046,7 +2046,7 @@ if __name__ == "__main__":
     CV_MIN_THRESHOLD = 150
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'SEMI_SLAM_CURVE'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2057,8 +2057,8 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_XY.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_7/"
+        camera_log_path = f"./render_img/{controller_name}/camera_log_XY.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
         START_FRAME = 0
@@ -2089,8 +2089,8 @@ if __name__ == "__main__":
         BLOB_SIZE = 150
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_curve'
-        camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final_ARCTURAS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_6/"
+        camera_log_path = f"./render_img/{controller_name}/camera_log_final_ARCTURAS.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
         START_FRAME = 0
