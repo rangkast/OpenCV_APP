@@ -645,6 +645,13 @@ def module_lsm_3D(MODEL_DATA, blob_data):
     # print(dist)
 
     return after_pts
+def rotation_matrix_to_quaternion(r):
+    q0 = np.sqrt(1 + r[0, 0] + r[1, 1] + r[2, 2]) / 2
+    q1 = (r[2, 1] - r[1, 2]) / (4 * q0)
+    q2 = (r[0, 2] - r[2, 0]) / (4 * q0)
+    q3 = (r[1, 0] - r[0, 1]) / (4 * q0)
+    return [q0, q1, q2, q3]
+
 def calculate_camera_position_direction(rvec, tvec):
     # Extract rotation matrix
     R, _ = cv2.Rodrigues(rvec)
@@ -687,14 +694,14 @@ def calculate_camera_position_direction(rvec, tvec):
     optical_axis_x, optical_axis_y, optical_axis_z = optical_axis
 
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pitch, yaw)
-def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, DIRECTION, threshold_angle=80.0):
+def check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, cam_dir, blob_ids, threshold_angle=80.0):
     results = {}
     # RVECS = np.array([[cam_dir[0]], [cam_dir[1]], [cam_dir[2]]], dtype=np.float64)
     # cam_ori = R.from_rotvec(RVECS.reshape(3)).as_quat()
     cam_pose = {'position': vector3(*cam_pos), 'orient': quat(*cam_dir)}
-    for pts3D_idx, blob_id in enumerate(blob_ids):
+    for blob_id in blob_ids:
         # Blob의 위치
-        blob_pos = points3D[pts3D_idx]        
+        blob_pos = MODEL_DATA[blob_id]        
         # Blob의 방향 벡터
         blob_dir = DIRECTION[blob_id]
         # Blob의 위치와 방향 벡터를 카메라 pose에 맞게 변환
@@ -706,8 +713,17 @@ def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, DIRECTION, thre
         rad = np.cos(angle_rad)
         # threshold_angle 이내인지 확인하고, facing_dot가 rad보다 작지 않은지 확인
         results[blob_id] = (facing_dot < rad)
-        print(f"{blob_id} : facing_dot: {facing_dot} rad{rad}")
+        # print(f"{blob_id} : facing_dot: {facing_dot} rad{rad}")
     return results
+def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
+        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
+        # Squeeze the points2D_reprojection to match the dimensionality of points2D
+        points2D_reprojection = points2D_reprojection.squeeze()
+        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+        # print('points2D:\n', points2D)
+        # print('points2D_reprojection:\n', points2D_reprojection)
+        # print('RER:', RER)
+        return RER
 def cal_iqr_func(arr):
     Q1 = np.percentile(arr, 25)
     Q3 = np.percentile(arr, 75)

@@ -734,7 +734,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                                     ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
                                     
                                     ###############################            
-                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER, DIRECTION)
+                                    visible_result = check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, quat, LED_NUMBER)
                                     # print('visible_result:', visible_result)
                                     visible_status = SUCCESS
                                     for blob_id, status in visible_result.items():
@@ -1387,15 +1387,6 @@ def Check_Calibration_data_combination():
     for blob_id, points_3d in enumerate(RIGID_3D_TRANSFORM_IQR):
         print(f"{points_3d},")    
     
-    def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
-        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
-        # Squeeze the points2D_reprojection to match the dimensionality of points2D
-        points2D_reprojection = points2D_reprojection.squeeze()
-        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
-        # print('points2D:\n', points2D)
-        # print('points2D_reprojection:\n', points2D_reprojection)
-        # print('RER:', RER)
-        return RER
     def STD_Analysis(points3D_data, label, combination):
         print(f"dataset:{points3D_data} combination_cnt:{combination}")
         frame_counts = []
@@ -2040,8 +2031,8 @@ if __name__ == "__main__":
 
     SERVER = 0
     AUTO_LOOP = 1
-    DO_P3P = 1
-    DO_PYRAMID = 0
+    DO_P3P = 0
+    DO_PYRAMID = 1
     SOLUTION = 1
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
@@ -2055,7 +2046,7 @@ if __name__ == "__main__":
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 200
+        BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'rifts_right_9'
         camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
