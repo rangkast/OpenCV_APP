@@ -709,7 +709,8 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                             points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
                             X = np.array(points3D)   
                             x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-                            # print('normalized x\n', x)
+                            print('X ', X)
+                            print('x ', x)
                             poselib_result = poselib.p3p(x, X)
                             visible_detection = NOT_SET
                             for solution_idx, pose in enumerate(poselib_result):
@@ -733,7 +734,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                                     ax1.quiver(*cam_pos, *cam_dir, color=colorstr[solution_idx], label=f"DIR{solution_idx}", length=0.1)    
                                     
                                     ###############################            
-                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER)
+                                    visible_result = check_angle_and_facing(points3D, cam_pos, quat, LED_NUMBER, DIRECTION)
                                     # print('visible_result:', visible_result)
                                     visible_status = SUCCESS
                                     for blob_id, status in visible_result.items():
@@ -874,7 +875,7 @@ def remake_3d_for_blob_info(**kwargs):
 
     if blender == DONE:
         print('#################### STATIC RT (BLENDER)  ####################')
-        # # Sliding Window
+        # Sliding Window
         # def sliding_window(data, window_size):
         #     for i in range(len(data) - window_size + 1):
         #         yield data[i:i + window_size]
@@ -2039,8 +2040,8 @@ if __name__ == "__main__":
 
     SERVER = 0
     AUTO_LOOP = 1
-    DO_P3P = 0
-    DO_PYRAMID = 1
+    DO_P3P = 1
+    DO_PYRAMID = 0
     SOLUTION = 1
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
@@ -2054,11 +2055,11 @@ if __name__ == "__main__":
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 100
+        BLOB_SIZE = 200
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/camera_log_final_RIFTS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_7/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
         START_FRAME = 0
@@ -2072,7 +2073,7 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/camera_log_final_RIFTS.txt"
+        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_2/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
@@ -2089,8 +2090,8 @@ if __name__ == "__main__":
         BLOB_SIZE = 150
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_curve'
-        camera_log_path = f"./render_img/camera_log_final_ARCTURAS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_6/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
         START_FRAME = 0
@@ -2135,7 +2136,7 @@ if __name__ == "__main__":
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 40
+        BLOB_SIZE = 250
         TOP_BOTTOM_LINE_Y = 494
         controller_name = 'rifts_right_9'
         camera_log_path = f"./tmp/render/RIFTS/{controller_name}/camera_log_final.txt"
@@ -2186,13 +2187,14 @@ if __name__ == "__main__":
         # BA_3D_POINT(RT='BLENDER')  // 사용 안함
 
         '''
+        ToDO
         부분 LSM 안됨
         '''
         LSM(TARGET_DEVICE)
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
     
         draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
-        # Check_Calibration_data_combination()
+        Check_Calibration_data_combination()
         
         '''
         SEED PATH 저장

@@ -687,7 +687,7 @@ def calculate_camera_position_direction(rvec, tvec):
     optical_axis_x, optical_axis_y, optical_axis_z = optical_axis
 
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pitch, yaw)
-def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, threshold_angle=80.0):
+def check_angle_and_facing(points3D, cam_pos, cam_dir, blob_ids, DIRECTION, threshold_angle=80.0):
     results = {}
     # RVECS = np.array([[cam_dir[0]], [cam_dir[1]], [cam_dir[2]]], dtype=np.float64)
     # cam_ori = R.from_rotvec(RVECS.reshape(3)).as_quat()
@@ -1020,3 +1020,55 @@ def recover_pose_essential_test_two(script_dir):
     plt.show()
     
 '''
+
+
+
+def terminal_cmd(cmd_m, cmd_s):
+    print('start ', terminal_cmd.__name__)
+    try:
+        result = subprocess.run([cmd_m, cmd_s], stdout=subprocess.PIPE).stdout.decode('utf-8')
+
+        device_re = re.compile(b"Bus\s+(?P<bus>\d+)\s+Device\s+(?P<device>\d+).+ID\s(?P<id>\w+:\w+)\s(?P<tag>.+)$",
+                               re.I)
+        df = subprocess.check_output("lsusb")
+        devices = []
+        for i in df.split(b'\n'):
+            if i:
+                info = device_re.match(i)
+                if info:
+                    dinfo = info.groupdict()
+                    dinfo['device'] = '/dev/bus/usb/%s/%s' % (dinfo.pop('bus'), dinfo.pop('device'))
+                    devices.append(dinfo)
+    except:
+        print('exception')
+        traceback.print_exc()
+    else:
+        print('done')
+    finally:
+        print(devices)
+    temp = result.split('\n\n')
+    Rift_Sensor = "Rift Sensor"
+    print("==================================================")
+    ret_val = []
+    for i in range(len(temp)):
+        if Rift_Sensor in temp[i]:
+            ret_val.append(temp[i])
+            print("add list rift_sensor", temp[i])
+        else:
+            print("skipping camera", temp[i])
+    print("==================================================")
+    return ret_val
+
+def init_model_json(cam_dev_list):
+    print('start ', init_model_json.__name__)
+    camera_info_array = []
+    try:
+        for i in range(len(cam_dev_list)):
+            cam_info = cam_dev_list[i].split('\n\t')
+            camera_info_array.append({'name': cam_info[0], 'port': cam_info[1]})
+    except:
+        print('exception')
+        traceback.print_exc()
+    finally:
+        print('done')
+    return camera_info_array
