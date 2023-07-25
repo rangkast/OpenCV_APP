@@ -53,6 +53,9 @@ sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
 import poselib
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
 
+
+CAP_PROP_FRAME_WIDTH = 1280
+CAP_PROP_FRAME_HEIGHT = 960
 READ = 0
 WRITE = 1
 SUCCESS = 0
@@ -65,6 +68,41 @@ BOTTOM = 1
 
 PLUS = 0
 MINUS = 1
+
+
+camera_matrix = [
+    [np.array([[715.159, 0.0, 650.741],
+               [0.0, 715.159, 489.184],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)],
+]
+
+default_dist_coeffs = np.zeros((4, 1))
+default_cameraK = np.eye(3).astype(np.float64)
+
+
+CAMERA_INFO = {}
+CAMERA_INFO_STRUCTURE = {
+    'LED_NUMBER': [],
+    'points2D': {'greysum': [], 'opencv': [], 'blender': []},
+    'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
+    'points3D': [],
+    'points3D_PCA': [],
+    'points3D_IQR': [],
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+}
+
+BLOB_INFO = {}
+BLOB_INFO_STRUCTURE = {
+    'points2D_D': {'greysum': []},
+    'points2D_U': {'greysum': []},
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+}
+
 
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 class POSE_ESTIMATION_METHOD(Enum):
@@ -190,12 +228,16 @@ def find_center(frame, SPEC_AREA):
 
     for y in range(Y, Y + H):
         for x in range(X, X + W):
+            if y < 0 or y >= CAP_PROP_FRAME_HEIGHT or x < 0 or x >= CAP_PROP_FRAME_WIDTH:
+                continue
             x_sum += x * frame[y][x]
             t_sum += frame[y][x]
             m_count += 1
 
     for x in range(X, X + W):
         for y in range(Y, Y + H):
+            if y < 0 or y >= CAP_PROP_FRAME_HEIGHT or x < 0 or x >= CAP_PROP_FRAME_WIDTH:
+                continue
             y_sum += y * frame[y][x]
 
     if t_sum != 0:
@@ -694,10 +736,27 @@ def calculate_camera_position_direction(rvec, tvec):
     optical_axis_x, optical_axis_y, optical_axis_z = optical_axis
 
     return (X, Y, Z), (optical_axis_x, optical_axis_y, optical_axis_z), (roll, pitch, yaw)
+
+def check_simple_facing(MODEL_DATA, cam_pos, blob_ids, angle_spec=90.0):
+    results = {}
+    for blob_id in blob_ids:
+        blob_pos = MODEL_DATA[blob_id]
+        o_to_led = blob_pos - [0, 0, 0]
+        led_to_cam = blob_pos - cam_pos
+        normalize = led_to_cam / np.linalg.norm(led_to_cam)
+        facing_dot = np.dot(normalize, o_to_led)
+        angle = np.radians(180.0 - angle_spec)
+        if facing_dot < np.cos(angle):
+            results[blob_id] = True
+        else:
+            results[blob_id] = False
+        # print('blob_id ', blob_id, 'facing_dot ',  facing_dot, ' rad ', np.cos(angle))
+    return results
+
+
 def check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, cam_dir, blob_ids, threshold_angle=80.0):
     results = {}
-    # RVECS = np.array([[cam_dir[0]], [cam_dir[1]], [cam_dir[2]]], dtype=np.float64)
-    # cam_ori = R.from_rotvec(RVECS.reshape(3)).as_quat()
+
     cam_pose = {'position': vector3(*cam_pos), 'orient': quat(*cam_dir)}
     for blob_id in blob_ids:
         # Blob의 위치
@@ -1088,3 +1147,28 @@ def init_model_json(cam_dev_list):
     finally:
         print('done')
     return camera_info_array
+
+
+def world_location_rotation_from_opencv(rvec, tvec, isCamera=True):
+    R_BlenderView_to_OpenCVView = np.matrix([
+        [1 if isCamera else -1, 0, 0],
+        [0, -1, 0],
+        [0, 0, -1],
+    ])
+    # Convert rvec to rotation matrix
+    R_OpenCV, _ = cv2.Rodrigues(rvec)
+
+    # Convert OpenCV R|T to Blender R|T
+    R_BlenderView = R_BlenderView_to_OpenCVView @ np.matrix(R_OpenCV.tolist())
+    T_BlenderView = R_BlenderView_to_OpenCVView @ vector3(tvec[0], tvec[1], tvec[2])
+
+    print('tvec', tvec)
+    # Invert rotation matrix
+    R_BlenderView_inv = np.array(R_BlenderView).T
+    print(R_BlenderView_inv)
+    print(T_BlenderView)
+    # Calculate location
+    location = -1.0 * R_BlenderView_inv @ T_BlenderView
+    # Convert rotation matrix to quaternion
+    rotation = R_BlenderView_inv.to_quaternion()
+    return location, rotation

@@ -1,13 +1,7 @@
 from Advanced_Function import *
+from data_class import *
 
-camera_matrix = [
-    [np.array([[712.623, 0.0, 653.448],
-               [0.0, 712.623, 475.572],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
-]
-default_dist_coeffs = np.zeros((4, 1))
-default_cameraK = np.eye(3).astype(np.float64)
+RER_SPEC = 2.0
 BLOB_SIZE = 150
 TRACKER_PADDING = 3
 CV_MAX_THRESHOLD = 255
@@ -16,8 +10,8 @@ MAX_LEVEL = 3
 CAM_ID = 0
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-UVC_MODE = 0
-AUTO_LOOP = 0
+UVC_MODE = 1
+AUTO_LOOP = 1
 undistort = 1
 
 def sliding_window(data, window_size):
@@ -30,6 +24,7 @@ def circular_sliding_window(data, window_size):
         yield data[i:i + window_size]
 
 def auto_labeling():
+    frame_cnt = 0
     # Select the first camera device
     if UVC_MODE:
         cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
@@ -42,20 +37,41 @@ def auto_labeling():
         video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
         video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
     else:
-        image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))
-        frame_cnt = 0
+        image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
         print('lenght of images: ', len(image_files))
 
 
+    # Initialize each blob ID with a copy of the structure
+    for blob_id in range(BLOB_CNT):
+        BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
+
+    plt.style.use('default')
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(111, projection='3d')
+    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
+    ax.set_title('3D plot')    
+    ax.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
+    
+    ax.scatter(0, 0, 0, marker='o', color='k', s=20)
+    ax.set_xlim([-0.2, 0.2])
+    ax.set_xlabel('X')
+    ax.set_ylim([-0.2, 0.2])
+    ax.set_ylabel('Y')
+    ax.set_zlim([-0.2, 0.2])
+    ax.set_zlabel('Z')
+    scale = 1.5
+    f = zoom_factory(ax, base_scale=scale)
+    # plt.show()
+
     while video.isOpened() if UVC_MODE else True:
-        print('\n')
-        print(f"########## Frame {frame_cnt} ##########")
+        print('\n')        
         if UVC_MODE:
-            video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
+            filename = f"VIDEO Mode {camera_port}"
             if not ret:
                 break
         else:
+            print(f"########## Frame {frame_cnt} ##########")
             # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
             if frame_cnt >= len(image_files):
                 break
@@ -103,16 +119,15 @@ def auto_labeling():
         CNT = len(blobs)
         # print('CNT ', CNT)
         if CNT >= 4:            
-            window_size = 4
-            def is_decreasing(arr):
-                return all(x>y for x, y in zip(arr, arr[1:]))
-
+            window_size = CNT
             min_RER_global = float('inf')
             best_LED_NUMBER_global = None
             sliding_pos = None
             BRFS_GLOBAL = None
             RVEC_GLOBAL = None
             TVEC_GLOBAL = None
+            POINTS2D_U_GLOBAL = None
+            POINTS2D_D_GLOBAL = None
             for blob_idx in sliding_window(range(CNT), window_size):
                 # print('blob_idx', blob_idx)
                 
@@ -122,6 +137,8 @@ def auto_labeling():
                 BRFS = None
                 RVEC = None
                 TVEC = None
+                points2D_D_local = None
+                points2D_U_local = None
                 for i in blob_idx:
                     candidates.append((blobs[i][0], blobs[i][1]))
                     (x, y, w, h) = (int(blobs[i][2][0]), int(blobs[i][2][1]), int(blobs[i][2][2]), int(blobs[i][2][3]))
@@ -149,7 +166,7 @@ def auto_labeling():
                         if brfs_idx:
                             LED_NUMBER = np.flip(LED_NUMBER)
                             
-                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
 
                         INPUT_ARRAY = [
                             CAM_ID,
@@ -159,7 +176,6 @@ def auto_labeling():
                             camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
                         ]
                         _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-                        # 로드리게즈 변환을 사용해 회전 벡터를 회전 행렬로 변환
 
                         # print('PnP_Solver rvec:', rvec, ' tvec:',  tvec)
                         # rvec이나 tvec가 None인 경우 continue
@@ -181,15 +197,26 @@ def auto_labeling():
                                                  rvec, tvec,
                                                  camera_matrix[CAM_ID][0],
                                                  camera_matrix[CAM_ID][1])
-                        if RER < 1:
-                            # print(f"{LED_NUMBER} RER {RER}")
-                            # 순차적으로 감소하면서 최소 RER 값을 갖는 LED_NUMBER 업데이트
-                            if RER < min_RER_blob and is_decreasing(LED_NUMBER):
+                        if RER < RER_SPEC:
+                            # pos, dir = world_location_rotation_from_opencv(rvec, tvec.flatten())
+                            # ax.quiver(*pos, *dir, color='g', label='Direction Right', length=0.1)                                              
+                            # cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
+                            # observed_rot = R.from_rotvec(rvec.reshape(3)).as_quat()
+                            # quaternion = (observed_rot[0], observed_rot[1], observed_rot[2], observed_rot[3])
+                            # print(f"CNT {CNT} {LED_NUMBER} RER {RER} blob_idx {blob_idx} cam_pos {cam_pos}")
+                            # visible_result = check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, quaternion, LED_NUMBER)
+                            # print(f"1. visible_result {visible_result}")
+                            # visible_result = check_simple_facing(MODEL_DATA, cam_pos, LED_NUMBER, angle_spec=80)
+                            # print(f"2. visible_result {visible_result}")
+                            plt.draw()
+                            if RER < min_RER_blob:
                                 min_RER_blob = RER
                                 best_LED_NUMBER_blob = LED_NUMBER
                                 BRFS = brfs
                                 RVEC = rvec
                                 TVEC = tvec
+                                points2D_D_local = points2D_D
+                                points2D_U_local = points2D_U
                 
 
                 # 각 슬라이딩 윈도우에서 최적의 결과를 전체 결과와 비교
@@ -200,23 +227,49 @@ def auto_labeling():
                     BRFS_GLOBAL = BRFS
                     RVEC_GLOBAL = RVEC
                     TVEC_GLOBAL = TVEC
-            # projectPoints를 사용해 3D points를 2D image points로 변환
-            image_points, _ = cv2.projectPoints(np.array(BRFS_GLOBAL),
-                                                np.array(RVEC_GLOBAL),
-                                                np.array(TVEC_GLOBAL),
-                                                camera_matrix[CAM_ID][0],
-                                                camera_matrix[CAM_ID][1])
-            image_points = image_points.reshape(-1, 2)
+                    POINTS2D_D_GLOBAL = points2D_D_local
+                    POINTS2D_U_GLOBAL = points2D_U_local
+            
+            # print('BRFS_GLOBAL\n', BRFS_GLOBAL)
+            # print('RVEC_GLOBAL\n', RVEC_GLOBAL)
+            # print('TVEC_GLOBAL\n', TVEC_GLOBAL)
+            if BRFS_GLOBAL is not None and RVEC_GLOBAL is not None and TVEC_GLOBAL is not None:
+                rvec_reshape = np.array(RVEC_GLOBAL).reshape(-1, 1)
+                tvec_reshape = np.array(TVEC_GLOBAL).reshape(-1, 1)
+                CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+                CAMERA_INFO[f"{frame_cnt}"]['points3D'] = BRFS_GLOBAL
+                CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = POINTS2D_D_GLOBAL
+                CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = POINTS2D_U_GLOBAL            
+                CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] = best_LED_NUMBER_global                
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = rvec_reshape
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = tvec_reshape
 
-            for point, led_num in zip(image_points, best_LED_NUMBER_global):
-                pt = (int(point[0]), int(point[1]))
-                # cv2.circle을 사용해 표시
-                cv2.circle(draw_frame, tuple(pt), 2, (0, 0, 255), -1)
-                # cv2.putText를 사용해 LED 번호 표시
-                cv2.putText(draw_frame, f"{led_num}", (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                for bid, blob_id in enumerate(best_LED_NUMBER_global):
+                        BLOB_INFO[blob_id]['points2D_D']['greysum'].append(POINTS2D_D_GLOBAL[bid])
+                        BLOB_INFO[blob_id]['points2D_U']['greysum'].append(POINTS2D_U_GLOBAL[bid])
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(rvec_reshape)
+                        BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(tvec_reshape)
+                        BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
 
-            print(f"Best LED_NUMBER: {best_LED_NUMBER_global}, with RER: {min_RER_global} sliding_window: {sliding_pos}")
-                           
+
+                # projectPoints를 사용해 3D points를 2D image points로 변환
+                image_points, _ = cv2.projectPoints(np.array(BRFS_GLOBAL),
+                                                    np.array(RVEC_GLOBAL),
+                                                    np.array(TVEC_GLOBAL),
+                                                    camera_matrix[CAM_ID][0],
+                                                    camera_matrix[CAM_ID][1])
+                image_points = image_points.reshape(-1, 2)
+
+                for point, led_num in zip(image_points, best_LED_NUMBER_global):
+                    pt = (int(point[0]), int(point[1]))
+
+                    cv2.circle(draw_frame, tuple(pt), 2, (0, 0, 255), -1)
+                    cv2.putText(draw_frame, f"{led_num}", (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+                print(f"Best LED_NUMBER: {best_LED_NUMBER_global}, with RER: {min_RER_global} sliding_window: {sliding_pos}")
+                if AUTO_LOOP and UVC_MODE:
+                    frame_cnt += 1
+                            
         
         elif CNT == 3:
             window_size = 3
@@ -261,9 +314,9 @@ def auto_labeling():
                         for solution_idx, pose in enumerate(poselib_result):
                             colors = [(255, 0, 0), (0, 255, 0), (255, 0, 255), (0, 255, 255)]
                             if is_valid_pose(pose):
-                                quat = pose.q
+                                quaternion = pose.q
                                 tvec = pose.t
-                                rotm = quat_to_rotm(quat)
+                                rotm = quat_to_rotm(quaternion)
                                 rvec, _ = cv2.Rodrigues(rotm)
                                 # print("PoseLib rvec: ", rvec.flatten(), ' tvec:', tvec)                               
                                 image_points, _ = cv2.projectPoints(np.array(brfs),
@@ -276,7 +329,7 @@ def auto_labeling():
                                 cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
                                 
                                 ###############################            
-                                visible_result = check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, quat, LED_NUMBER)
+                                visible_result = check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, quaternion, LED_NUMBER)
                                 # print(f"{brfs_idx} visible_result {visible_result}")
                                 visible_status = SUCCESS
                                 for blob_id, status in visible_result.items():
@@ -286,7 +339,7 @@ def auto_labeling():
                                         break   
                                 if visible_status == SUCCESS:
                                     print('candidates LED_NUMBER ', LED_NUMBER)
-        if AUTO_LOOP:
+        if AUTO_LOOP and UVC_MODE == 0:
             frame_cnt += 1
         # Display the resulting frame
         cv2.imshow('Frame', draw_frame)
@@ -294,16 +347,77 @@ def auto_labeling():
         if key & 0xFF == ord('e'): 
             # Use 'e' key to exit the loop
             break
-        elif key & 0xFF == ord('n'):  
-            frame_cnt += 1     
-        elif key & 0xFF == ord('b'):  
-            frame_cnt -= 1    
+        elif key & 0xFF == ord('n'):
+            if AUTO_LOOP and UVC_MODE == 0:
+                frame_cnt += 1     
+        elif key & 0xFF == ord('b'):
+            if AUTO_LOOP and UVC_MODE == 0:
+                frame_cnt -= 1    
+
+    data = OrderedDict()
+    data['BLOB_INFO'] = BLOB_INFO
+    pickle_data(WRITE, 'BLOB_INFO.pickle', data)
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
 
     # Release everything when done
     if UVC_MODE == 1:
         video.release()
     cv2.destroyAllWindows()
 
+
+def insert_ba_rt(**kwargs):
+    print('insert_ba_rt START')
+    BA_RT = pickle_data(READ, kwargs.get('ba_name'), None)['BA_RT']
+    CAMERA_INFO = copy.deepcopy(pickle_data(READ, kwargs.get('camera_info_name'), None)['CAMERA_INFO'])
+    BLOB_INFO = copy.deepcopy(pickle_data(READ, kwargs.get('blob_info_name'), None)['BLOB_INFO'])
+    for frame_cnt, cam_info in CAMERA_INFO.items():
+        LED_NUMBER = cam_info['LED_NUMBER']
+        # print(f"{frame_cnt} {LED_NUMBER}")
+        ba_rvec = BA_RT[int(frame_cnt)][:3]
+        ba_tvec = BA_RT[int(frame_cnt)][3:]
+        ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
+        ba_tvec_reshape = np.array(ba_tvec).reshape(-1, 1)
+        points3D = []
+        for blob_id in LED_NUMBER:
+            points3D.append(MODEL_DATA[int(blob_id)])               
+            BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
+            BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+            BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)
+        CAMERA_INFO[f"{frame_cnt}"]['points3D'] = np.array(points3D, dtype=np.float64)
+        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
+        CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
+
+    data = OrderedDict()
+    data['BLOB_INFO'] = BLOB_INFO
+    pickle_data(WRITE, kwargs.get('blob_info_name'), data)
+
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    pickle_data(WRITE, kwargs.get('camera_info_name'), data)
+
+
+def insert_remake_3d():
+    RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
+    RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+    CAMERA_INFO = copy.deepcopy(pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO'])
+    for frame_cnt, cam_info in CAMERA_INFO.items():
+        LED_NUMBER = cam_info['LED_NUMBER']
+        points3D_PCA = []
+        points3D_IQR = []
+        for blob_id in LED_NUMBER:
+            points3D_PCA.append(RIGID_3D_TRANSFORM_PCA[int(blob_id)])
+            points3D_IQR.append(RIGID_3D_TRANSFORM_IQR[int(blob_id)])
+                
+        points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
+        points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
+        CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+        CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+
+    data = OrderedDict()
+    data['CAMERA_INFO'] = CAMERA_INFO
+    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -312,8 +426,31 @@ if __name__ == "__main__":
     MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
     BLOB_CNT = len(MODEL_DATA)
 
+    # Set the seed for Python's random module.
+    random.seed(1)
+    # Set the seed for NumPy's random module.
+    np.random.seed(1)
+    noise_std_dev = 0.0005 # Noise standard deviation. Adjust this value to your needs.
+    # Generate noise with the same shape as the original data.
+    noise = np.random.normal(scale=noise_std_dev, size=np.array(MODEL_DATA).shape)
+    # Add noise to the original data.
+    MODEL_DATA += noise
+
+    TARGET_DEVICE = 'RIFTS'
+    combination_cnt = [4,5]
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
         print(f"{np.array2string(leds, separator=', ')},")
 
     auto_labeling()
+
+    from Advanced_Calibration import BA_RT, remake_3d_for_blob_info, LSM, draw_result, Check_Calibration_data_combination, init_plot
+    ax1, ax2 = init_plot(MODEL_DATA)
+    BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='OPENCV') 
+    insert_ba_rt(camera_info_name='CAMERA_INFO.pickle', blob_info_name='BLOB_INFO.pickle', ba_name='BA_RT.pickle')
+    remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=NOT_SET, ba_rt=DONE)
+    LSM(TARGET_DEVICE, MODEL_DATA)
+    insert_remake_3d()
+    draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=NOT_SET, ba_rt=DONE, ba_3d=NOT_SET)
+    Check_Calibration_data_combination(combination_cnt)
+    plt.show()

@@ -18,39 +18,7 @@ BLOB_CNT = -1
 ANGLE = 3
 VIDEO_MODE = 0
 video_img_path = 'output_rifts_right_9.mkv'
-
-camera_matrix = [
-    [np.array([[715.159, 0.0, 650.741],
-               [0.0, 715.159, 489.184],
-               [0.0, 0.0, 1.0]], dtype=np.float64),
-     np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)],
-]
-
-default_dist_coeffs = np.zeros((4, 1))
-default_cameraK = np.eye(3).astype(np.float64)
 blob_status = [[0, 'new'] for _ in range(BLOB_CNT)]
-
-CAMERA_INFO = {}
-CAMERA_INFO_STRUCTURE = {
-    'LED_NUMBER': [],
-    'points2D': {'greysum': [], 'opencv': [], 'blender': []},
-    'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
-    'points3D': [],
-    'points3D_PCA': [],
-    'points3D_IQR': [],
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-}
-
-BLOB_INFO = {}
-BLOB_INFO_STRUCTURE = {
-    'points2D_D': {'greysum': []},
-    'points2D_U': {'greysum': []},
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-}
 
 def init_trackers(trackers, frame):
     for id, data in trackers.items():
@@ -818,12 +786,14 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
     data['CAMERA_INFO'] = CAMERA_INFO
     pickle_data(WRITE, 'CAMERA_INFO.pickle', data)   
 def remake_3d_for_blob_info(**kwargs):
+    BLOB_CNT = kwargs.get('blob_cnt')
+    info_name = kwargs.get('info_name')
     undistort = kwargs.get('undistort')
     opencv = kwargs.get('opencv')
     blender = kwargs.get('blender')
     ba_rt = kwargs.get('ba_rt')
     print('remake_3d_for_blob_info START')
-    BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
+    BLOB_INFO = pickle_data(READ, info_name, None)['BLOB_INFO']
 
     REMADE_3D_INFO_B = {}
     REMADE_3D_INFO_O = {}
@@ -1024,8 +994,8 @@ def remake_3d_for_blob_info(**kwargs):
                                                         rt_first_BA, rt_current_BA,
                                                         points2D_U_first, points2D_U_current).reshape(-1, 3)
                     REMADE_3D_INFO_BA[blob_id].append(remake_3d_BA.reshape(-1, 3))
+ 
 
-     
     file = 'REMADE_3D_INFO.pickle'
     data = OrderedDict()
     data['REMADE_3D_INFO_B'] = REMADE_3D_INFO_B
@@ -1033,8 +1003,8 @@ def remake_3d_for_blob_info(**kwargs):
     data['REMADE_3D_INFO_BA'] = REMADE_3D_INFO_BA # For BA_RT
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
-        print('data saved')
-def LSM(TARGET_DEVICE):
+        print('data saved remake 3d')
+def LSM(TARGET_DEVICE, MODEL_DATA):
     print('draw_result START')
     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
@@ -1077,7 +1047,8 @@ def LSM(TARGET_DEVICE):
     PCA_ARRAY = []
     for blob_id, center in centers_ba.items():
         print(f"Center of PCA for blob_id {blob_id}: {center}")
-        PCA_ARRAY.append(center)    
+        PCA_ARRAY.append(center)
+
     if TARGET_DEVICE == 'SEMI_SLAM_PLANE':
         PCA_ARRAY_LSM = module_lsm_2D(MODEL_DATA, PCA_ARRAY)
     else:
@@ -1182,10 +1153,13 @@ def LSM(TARGET_DEVICE):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-
-def BA_RT():
+ 
+def BA_RT(**kwargs):
+    info_name = kwargs.get('info_name')
+    save_to = kwargs.get('save_to')
+    target = kwargs.get('target')
     print('BA_RT START')
-    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']   
+    CAMERA_INFO = pickle_data(READ, info_name, None)['CAMERA_INFO']   
     camera_indices = []
     point_indices = []
     estimated_RTs = []
@@ -1194,18 +1168,21 @@ def BA_RT():
     n_points = 0
     cam_id = 0
 
+    if len(CAMERA_INFO) <= 0:
+        return ERROR
+
     for frame_cnt, cam_info in CAMERA_INFO.items():
-        print(cam_info['LED_NUMBER'])
+        # print(cam_info['LED_NUMBER'])
 
         points3D = cam_info['points3D']
         # 여기 다시 확인 해야 함
-        rvec = cam_info['BLENDER']['rt']['rvec']
-        tvec = cam_info['BLENDER']['rt']['tvec']
+        rvec = cam_info[target]['rt']['rvec']
+        tvec = cam_info[target]['rt']['tvec']
         points2D_D = cam_info['points2D']['greysum']
         points2D_U = cam_info['points2D_U']['greysum']
-        print('frame_cnt ', frame_cnt)
-        print('rvec ', rvec)
-        print('tvec ', tvec)   
+        # print('frame_cnt ', frame_cnt)
+        # print('rvec ', rvec)
+        # print('tvec ', tvec)   
         
         # Add camera parameters (rvec and tvec)
         estimated_RTs.append((rvec.ravel(), tvec.ravel()))
@@ -1271,8 +1248,8 @@ def BA_RT():
 
     # You are only optimizing camera parameters, so the result only contains camera parameters data
     n_cameras_params = res.x.reshape((n_cameras, 6))
-    print("Optimized camera parameters: ", n_cameras_params, ' ', len(n_cameras_params))
-    file = 'BA_RT.pickle'
+    # print("Optimized camera parameters: ", n_cameras_params, ' ', len(n_cameras_params))
+    file = save_to
     data = OrderedDict()
     data['BA_RT'] = n_cameras_params
     data['camera_indices'] = camera_indices
@@ -1378,7 +1355,7 @@ def BA_3D_POINT(**kwargs):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-def Check_Calibration_data_combination():
+def Check_Calibration_data_combination(combination_cnt):
     print('Check_Calibration_data_combination START')
     CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
     RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
@@ -1624,7 +1601,7 @@ def Check_Calibration_data_combination():
     
     plt.subplots_adjust(hspace=0.5)
 
-def init_plot():
+def init_plot(MODEL_DATA):
     root = tk.Tk()
     width_px = root.winfo_screenwidth()
     height_px = root.winfo_screenheight()
@@ -1931,14 +1908,14 @@ def save_camera_position(TARGET_DEVICE):
         print('camera_log_final.txt saved')
 
 
-def draw_result(**kwargs):
+def draw_result(MODEL_DATA, **kwargs):
     print('draw_result START')
     ax1 = kwargs.get('ax1')
     ax2 = kwargs.get('ax2')
     opencv = kwargs.get('opencv')
     blender = kwargs.get('blender')
     ba_rt = kwargs.get('ba_rt')
-    ba_3d = kwargs.get('ba_3d')    
+    ba_3d = kwargs.get('ba_3d')
     origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
 
     if opencv == DONE:
@@ -2150,7 +2127,7 @@ if __name__ == "__main__":
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
-    ax1, ax2 = init_plot()
+    ax1, ax2 = init_plot(MODEL_DATA)
     bboxes = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area.json")
 
     if SOLUTION == 1:
@@ -2170,22 +2147,22 @@ if __name__ == "__main__":
             -설계값을 모르는 경우에도 방안 생간
         '''
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
-        BA_RT() 
+        BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
         
         # 2차 보정
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 1)
-        remake_3d_for_blob_info(undistort=undistort, opencv=DONE, blender=DONE, ba_rt=DONE)
+        remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=DONE)
         # BA_3D_POINT(RT='BLENDER')  // 사용 안함
 
         '''
         ToDO
         부분 LSM 안됨
         '''
-        LSM(TARGET_DEVICE)
+        LSM(TARGET_DEVICE, MODEL_DATA)
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
     
-        draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
-        Check_Calibration_data_combination()
+        draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
+        Check_Calibration_data_combination(combination_cnt)
         
         '''
         SEED PATH 저장
@@ -2194,9 +2171,9 @@ if __name__ == "__main__":
 
     elif SOLUTION == 2:
         gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
-        remake_3d_for_blob_info(undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
+        remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
         # BA_3D_POINT(RT='BLENDER')
-        draw_result(ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
+        draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
 
     if SHOW_PLOT == 1:
         plt.show()
