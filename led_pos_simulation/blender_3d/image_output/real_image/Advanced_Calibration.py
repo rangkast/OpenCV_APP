@@ -2124,7 +2124,7 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot(MODEL_DATA)
@@ -2174,6 +2174,9 @@ if __name__ == "__main__":
         remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
         # BA_3D_POINT(RT='BLENDER')
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
+    else:
+        print('Do Nothing')
+        
 
     if SHOW_PLOT == 1:
         plt.show()

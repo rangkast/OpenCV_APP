@@ -1,7 +1,7 @@
 from Advanced_Function import *
 from data_class import *
 
-RER_SPEC = 2.0
+RER_SPEC = 3.0
 BLOB_SIZE = 150
 TRACKER_PADDING = 3
 CV_MAX_THRESHOLD = 255
@@ -44,24 +44,6 @@ def auto_labeling():
     # Initialize each blob ID with a copy of the structure
     for blob_id in range(BLOB_CNT):
         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
-
-    plt.style.use('default')
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
-    ax.set_title('3D plot')    
-    ax.scatter(origin_pts[:, 0], origin_pts[:, 1], origin_pts[:, 2], color='gray', alpha=1.0, marker='o', s=10, label='ORIGIN')
-    
-    ax.scatter(0, 0, 0, marker='o', color='k', s=20)
-    ax.set_xlim([-0.2, 0.2])
-    ax.set_xlabel('X')
-    ax.set_ylim([-0.2, 0.2])
-    ax.set_ylabel('Y')
-    ax.set_zlim([-0.2, 0.2])
-    ax.set_zlabel('Z')
-    scale = 1.5
-    f = zoom_factory(ax, base_scale=scale)
-    # plt.show()
 
     while video.isOpened() if UVC_MODE else True:
         print('\n')        
@@ -119,7 +101,7 @@ def auto_labeling():
         CNT = len(blobs)
         # print('CNT ', CNT)
         if CNT >= 4:            
-            window_size = CNT
+            window_size = 6
             min_RER_global = float('inf')
             best_LED_NUMBER_global = None
             sliding_pos = None
@@ -367,6 +349,151 @@ def auto_labeling():
     cv2.destroyAllWindows()
 
 
+
+# def auto_labeling():
+#     frame_cnt = 0
+#     # Select the first camera device
+#     if UVC_MODE:
+#         cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
+#         camera_devices = init_model_json(cam_dev_list)
+#         print(camera_devices)
+#         camera_port = camera_devices[0]['port']
+#         # Open the video capture
+#         video = cv2.VideoCapture(camera_port)
+#         # Set the resolution
+#         video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+#         video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
+#     else:
+#         image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
+#         print('lenght of images: ', len(image_files))
+
+
+#     # Initialize each blob ID with a copy of the structure
+#     for blob_id in range(BLOB_CNT):
+#         BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
+
+#     while video.isOpened() if UVC_MODE else True:
+#         print('\n')        
+#         if UVC_MODE:
+#             ret, frame_0 = video.read()
+#             filename = f"VIDEO Mode {camera_port}"
+#             if not ret:
+#                 break
+#         else:
+#             print(f"########## Frame {frame_cnt} ##########")
+#             # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
+#             if frame_cnt >= len(image_files):
+#                 break
+#             frame_0 = cv2.imread(image_files[frame_cnt])
+#             filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
+#             if frame_0 is None or frame_0.size == 0:
+#                 print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
+#                 continue
+#             frame_0 = cv2.resize(frame_0, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
+
+
+
+#         draw_frame = frame_0.copy()
+#         _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+#                                    cv2.THRESH_TOZERO)
+
+#         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
+#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+#         center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+#         cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
+#         cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
+
+
+#         # find Blob area by findContours
+#         blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+#         blobs = []
+
+#         for blob_id, bbox in enumerate(blob_area):
+#             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+#             gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
+#             if gsize < BLOB_SIZE:
+#                 continue 
+
+#             overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, MAX_LEVEL)
+#             if overlapping == True:
+#                 cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
+#                 cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+#                 continue
+            
+#             cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+#             blobs.append((gcx, gcy, bbox))
+
+#         blobs = sorted(blobs, key=lambda x:x[0]) ## 또는 l.sort(key=lambda x:x[1])
+#         CNT = len(blobs)
+#         # print('CNT ', CNT)
+#         if CNT >= 4:            
+#             window_size = 4
+#             for blob_idx in sliding_window(range(CNT), window_size):
+#                 print('blob_idx', blob_idx)                
+#                 candidates = []
+#                 for i in blob_idx:
+#                     candidates.append((blobs[i][0], blobs[i][1]))
+#                     (x, y, w, h) = (int(blobs[i][2][0]), int(blobs[i][2][1]), int(blobs[i][2][2]), int(blobs[i][2][3]))
+#                     cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+#                     # cv2.putText(draw_frame, f"{i}", (x, y- 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+#                 points2D_D = np.array(np.array(candidates).reshape(len(candidates), -1), dtype=np.float64)
+#                 points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[0][0], camera_matrix[0][1])).reshape(-1, 2)
+#                 # print('points2D_D\n', points2D_D)
+#                 # print('points2D_U\n', points2D_U)
+#                 for perm in permutations(range(BLOB_CNT), window_size):
+#                     # print(perm)
+#                     points3D_perm = []
+#                     for idx in perm:
+#                         points3D_perm.append(MODEL_DATA[idx])
+
+#                     points3D = np.array(points3D_perm, dtype=np.float64)
+#                     METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+
+#                     INPUT_ARRAY = [
+#                         CAM_ID,
+#                         points3D,
+#                         points2D_D if undistort == 0 else points2D_U,
+#                         camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+#                         camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs
+#                     ]
+#                     _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)                    
+
+
+#                 if AUTO_LOOP and UVC_MODE:
+#                     frame_cnt += 1
+                            
+        
+       
+#         if AUTO_LOOP and UVC_MODE == 0:
+#             frame_cnt += 1
+#         # Display the resulting frame
+#         cv2.imshow('Frame', draw_frame)
+#         key = cv2.waitKey(1)
+#         if key & 0xFF == ord('e'): 
+#             # Use 'e' key to exit the loop
+#             break
+#         elif key & 0xFF == ord('n'):
+#             if AUTO_LOOP and UVC_MODE == 0:
+#                 frame_cnt += 1     
+#         elif key & 0xFF == ord('b'):
+#             if AUTO_LOOP and UVC_MODE == 0:
+#                 frame_cnt -= 1    
+
+#     data = OrderedDict()
+#     data['BLOB_INFO'] = BLOB_INFO
+#     pickle_data(WRITE, 'BLOB_INFO.pickle', data)
+#     data = OrderedDict()
+#     data['CAMERA_INFO'] = CAMERA_INFO
+#     pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
+
+#     # Release everything when done
+#     if UVC_MODE == 1:
+#         video.release()
+#     cv2.destroyAllWindows()
+
+
 def insert_ba_rt(**kwargs):
     print('insert_ba_rt START')
     BA_RT = pickle_data(READ, kwargs.get('ba_name'), None)['BA_RT']
@@ -423,18 +550,18 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
     BLOB_CNT = len(MODEL_DATA)
 
-    # Set the seed for Python's random module.
-    random.seed(1)
-    # Set the seed for NumPy's random module.
-    np.random.seed(1)
-    noise_std_dev = 0.0005 # Noise standard deviation. Adjust this value to your needs.
-    # Generate noise with the same shape as the original data.
-    noise = np.random.normal(scale=noise_std_dev, size=np.array(MODEL_DATA).shape)
-    # Add noise to the original data.
-    MODEL_DATA += noise
+    # # Set the seed for Python's random module.
+    # random.seed(1)
+    # # Set the seed for NumPy's random module.
+    # np.random.seed(1)
+    # noise_std_dev = 0.0005 # Noise standard deviation. Adjust this value to your needs.
+    # # Generate noise with the same shape as the original data.
+    # noise = np.random.normal(scale=noise_std_dev, size=np.array(MODEL_DATA).shape)
+    # # Add noise to the original data.
+    # MODEL_DATA += noise
 
     TARGET_DEVICE = 'RIFTS'
     combination_cnt = [4,5]
@@ -444,13 +571,13 @@ if __name__ == "__main__":
 
     auto_labeling()
 
-    from Advanced_Calibration import BA_RT, remake_3d_for_blob_info, LSM, draw_result, Check_Calibration_data_combination, init_plot
-    ax1, ax2 = init_plot(MODEL_DATA)
-    BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='OPENCV') 
-    insert_ba_rt(camera_info_name='CAMERA_INFO.pickle', blob_info_name='BLOB_INFO.pickle', ba_name='BA_RT.pickle')
-    remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=NOT_SET, ba_rt=DONE)
-    LSM(TARGET_DEVICE, MODEL_DATA)
-    insert_remake_3d()
-    draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=NOT_SET, ba_rt=DONE, ba_3d=NOT_SET)
-    Check_Calibration_data_combination(combination_cnt)
-    plt.show()
+    # from Advanced_Calibration import BA_RT, remake_3d_for_blob_info, LSM, draw_result, Check_Calibration_data_combination, init_plot
+    # ax1, ax2 = init_plot(MODEL_DATA)
+    # BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='OPENCV') 
+    # insert_ba_rt(camera_info_name='CAMERA_INFO.pickle', blob_info_name='BLOB_INFO.pickle', ba_name='BA_RT.pickle')
+    # remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=NOT_SET, ba_rt=DONE)
+    # LSM(TARGET_DEVICE, MODEL_DATA)
+    # insert_remake_3d()
+    # draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=NOT_SET, ba_rt=DONE, ba_3d=NOT_SET)
+    # Check_Calibration_data_combination(combination_cnt)
+    # plt.show()

@@ -20,6 +20,7 @@ from collections import OrderedDict
 from scipy.spatial.transform import Rotation as Rot
 import random
 from mathutils import Quaternion
+import copy
 
 READ = 0
 WRITE = 1
@@ -46,7 +47,8 @@ emission_strength = 0.01
 
 default_cameraK = {'serial': "default", 'camera_f': [1, 1], 'camera_c': [0, 0]}
 default_dist_coeffs = np.zeros((4, 1))
-cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572], 'dist_coeff': np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)}
+cam_0_matrix = {'serial': "WMTD307H601AF2", 'camera_f': [715.159, 715.159], 'camera_c': [650.741, 489.184], 'dist_coeff': np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)}
+#cam_0_matrix = {'serial': "WMTD306N100AXM", 'camera_f': [712.623, 712.623], 'camera_c': [653.448, 475.572], 'dist_coeff': np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)}
 cam_1_matrix = {'serial': "WMTD305L6003D6", 'camera_f': [716.896, 716.896], 'camera_c': [668.902, 460.618], 'dist_coeff': np.array([[0.07542], [-0.026874], [0.006662], [-0.000775]], dtype=np.float64)}
 
 
@@ -72,6 +74,7 @@ exclude_object_names = [
 #                        "CAMERA_0",
 #                        "CAMERA_1",
 #                        "CAMERA_0_DEFAULT",
+#                        "CAMERA_1_DEFAULT",
                         "Oculus_L_05.002",
 #                        "EMPTY_CAMERA_0",
 #                        "EMPTY_CAMERA_1",
@@ -82,8 +85,9 @@ exclude_object_names = [
                         "axis_circle",
                         "robot_circle",
                         "custom_circle",
-                        "RELATIVE_PATH"
-                        ]
+                        "RELATIVE_PATH",
+                        "FITTING_CIRCLE_PATH"
+                         ]
 
 
 
@@ -109,6 +113,13 @@ if os_name == 'Windows':
     camera_info_path = "D:/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/rt_std.pickle"
     ba_result_path = "D:/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/bundle.pickle"
     render_folder = 'D:/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/tmp/render'
+    
+    BA_3D_PATH = "D:/OpenCV_APP/BA_3D.pickle"
+    REMADE_3D_INFO_PATH = "D:/OpenCV_APP/REMADE_3D_INFO.pickle"
+    RIGID_3D_TRANSFORM_PATH = "D:/OpenCV_APP/RIGID_3D_TRANSFORM.pickle"
+    CAMERA_INFO_PATH = "D:/OpenCV_APP/CAMERA_INFO.pickle"
+    FITTING_CIRCLE_PATH = "D:/OpenCV_APP/FITTING_CIRCLE.pickle"
+    
 elif os_name == 'Linux':
     print("This is Linux")
     if shape == 'sphere':
@@ -128,55 +139,155 @@ elif os_name == 'Linux':
     camera_info_path = "/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/rt_std.pickle"
     ba_result_path = "/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/bundle.pickle"
     render_folder = "/home/rangkast.jeong/Project/OpenCV_APP/led_pos_simulation/blender_3d/image_output/real_image/tmp/render/"
+    
+    BA_3D_PATH = "/home/rangkast.jeong/Project/OpenCV_APP/BA_3D.pickle"
+    REMADE_3D_INFO_PATH = "/home/rangkast.jeong/Project/OpenCV_APP/REMADE_3D_INFO.pickle"
+    RIGID_3D_TRANSFORM_PATH = "/home/rangkast.jeong/Project/OpenCV_APP/RIGID_3D_TRANSFORM.pickle"
+    CAMERA_INFO_PATH = "/home/rangkast.jeong/Project/OpenCV_APP/CAMERA_INFO.pickle"
+    FITTING_CIRCLE_PATH = "/home/rangkast.jeong/Project/OpenCV_APP/FITTING_CIRCLE.pickle"
+    
 else:
     print("Unknown OS")
 
 image_file_path = base_file_path
 blend_file_path = base_file_path + 'blender_test_image.blend'
 
-
-## origin
+# origin RIGHT 9
 origin_led_data = np.array([
-    [-0.02146761, -0.00343424, -0.01381839],
-    [-0.0318701, 0.00568587, -0.01206734],
-    [-0.03692925, 0.00930785, 0.00321071],
-    [-0.04287211, 0.02691347, -0.00194137],
-    [-0.04170018, 0.03609551, 0.01989264],
-    [-0.02923584, 0.06186962, 0.0161972],
-    [-0.01456789, 0.06295633, 0.03659283],
-    [0.00766914, 0.07115411, 0.0206431],
-    [0.02992447, 0.05507271, 0.03108736],
-    [0.03724313, 0.05268665, 0.01100446],
-    [0.04265723, 0.03016438, 0.01624689],
-    [0.04222733, 0.0228845, -0.00394005],
-    [0.03300807, 0.00371497, 0.00026865],
-    [0.03006234, 0.00378822, -0.01297127],
-    [0.02000199, -0.00388647, -0.014973]
+    [ 0.02157939, -0.00317375, -0.01408719],
+    [ 0.03201193,  0.00573596, -0.01205159],
+    [0.03710598, 0.00931646, 0.00300296],
+    [ 0.04281938,  0.02696581, -0.00181747],
+    [0.0417978 , 0.035768  , 0.01995002],
+    [0.02980453, 0.06146441, 0.01634117],
+    [0.01421409, 0.06335167, 0.03653155],
+    [-0.00769287,  0.07118517,  0.02057653],
+    [-0.03005586,  0.05517061,  0.03101068],
+    [-0.03741999,  0.05266236,  0.01092897],
+    [-0.04276714,  0.03014933,  0.01624303],
+    [-0.04231997,  0.02278019, -0.00379373],
+    [-0.03299069,  0.00366661,  0.00041477],
+    [-0.03015073,  0.00384203, -0.01293364],
+    [-0.02008658, -0.00391139, -0.01488362],
 ])
 
 origin_led_dir = np.array([
-    [-0.52706841, -0.71386452, -0.46108171],
-    [-0.71941994, -0.53832866, -0.43890456],
-    [-0.75763735, -0.6234486, 0.19312559],
-    [-0.95565641, 0.00827838, -0.29436762],
-    [-0.89943476, -0.04857372, 0.43434745],
-    [-0.57938915, 0.80424722, -0.13226727],
-    [-0.32401356, 0.5869508, 0.74195955],
-    [0.14082806, 0.97575588, -0.16753482],
-    [0.66436362, 0.41503629, 0.62158335],
-    [0.77126662, 0.61174447, -0.17583089],
-    [0.90904575, -0.17393345, 0.37865945],
-    [0.9435189, -0.10477919, -0.31431419],
-    [0.7051038, -0.6950803, 0.14032818],
-    [0.67315478, -0.5810967, -0.45737213],
-    [0.49720891, -0.70839529, -0.5009585]
+    [ 0.52706841, -0.71386452, -0.46108171],
+    [ 0.71941994, -0.53832866, -0.43890456],
+    [ 0.75763735, -0.6234486 ,  0.19312559],
+    [ 0.95565641,  0.00827838, -0.29436762],
+    [ 0.89943476, -0.04857372,  0.43434745],
+    [ 0.57938915,  0.80424722, -0.13226727],
+    [0.32401356, 0.5869508 , 0.74195955],
+    [-0.14082806,  0.97575588, -0.16753482],
+    [-0.66436362,  0.41503629,  0.62158335],
+    [-0.77126662,  0.61174447, -0.17583089],
+    [-0.90904575, -0.17393345,  0.37865945],
+    [-0.9435189 , -0.10477919, -0.31431419],
+    [-0.7051038 , -0.6950803 ,  0.14032818],
+    [-0.67315478, -0.5810967 , -0.45737213],
+    [-0.49720891, -0.70839529, -0.5009585 ],
 ])
+
+
+# origin LEFT 2
+#origin_led_data = np.array([
+#    [-0.02146761, -0.00343424, -0.01381839],
+#    [-0.0318701, 0.00568587, -0.01206734],
+#    [-0.03692925, 0.00930785, 0.00321071],
+#    [-0.04287211, 0.02691347, -0.00194137],
+#    [-0.04170018, 0.03609551, 0.01989264],
+#    [-0.02923584, 0.06186962, 0.0161972],
+#    [-0.01456789, 0.06295633, 0.03659283],
+#    [0.00766914, 0.07115411, 0.0206431],
+#    [0.02992447, 0.05507271, 0.03108736],
+#    [0.03724313, 0.05268665, 0.01100446],
+#    [0.04265723, 0.03016438, 0.01624689],
+#    [0.04222733, 0.0228845, -0.00394005],
+#    [0.03300807, 0.00371497, 0.00026865],
+#    [0.03006234, 0.00378822, -0.01297127],
+#    [0.02000199, -0.00388647, -0.014973]
+#])
+
+#origin_led_dir = np.array([
+#    [-0.52706841, -0.71386452, -0.46108171],
+#    [-0.71941994, -0.53832866, -0.43890456],
+#    [-0.75763735, -0.6234486, 0.19312559],
+#    [-0.95565641, 0.00827838, -0.29436762],
+#    [-0.89943476, -0.04857372, 0.43434745],
+#    [-0.57938915, 0.80424722, -0.13226727],
+#    [-0.32401356, 0.5869508, 0.74195955],
+#    [0.14082806, 0.97575588, -0.16753482],
+#    [0.66436362, 0.41503629, 0.62158335],
+#    [0.77126662, 0.61174447, -0.17583089],
+#    [0.90904575, -0.17393345, 0.37865945],
+#    [0.9435189, -0.10477919, -0.31431419],
+#    [0.7051038, -0.6950803, 0.14032818],
+#    [0.67315478, -0.5810967, -0.45737213],
+#    [0.49720891, -0.70839529, -0.5009585]
+#])
+
+#origin_led_data = np.array([
+#[-0.00528225,  0.0366059 ,  0.00451083],
+#[0.00974598, 0.0472809 , 0.00426303],
+#[0.029932 , 0.051415 , 0.0039068],
+#[0.0516873 , 0.0454725 , 0.00347272],
+#[0.0696064 , 0.0294595 , 0.00309645],
+#[0.0774698 , 0.0129741 , 0.00295799],
+#[ 0.0783658 , -0.00933334,  0.00294223],
+#[ 0.0717354 , -0.0261962 ,  0.00305024],
+#[ 0.053283  , -0.0445682 ,  0.00343601],
+#[ 0.0344388 , -0.0510703 ,  0.00382741],
+#[ 0.0124534 , -0.0484432 ,  0.00423956],
+#[-0.00528225, -0.0366059 ,  0.00451083],
+#[-0.0172553,  0.0248263,  0.0168957],
+#[-0.00733024,  0.0363881 ,  0.0171509 ],
+#[0.0245455, 0.0508898, 0.0179013],
+#[0.0445366, 0.0472811, 0.0184052],
+#[0.0612489, 0.0358151, 0.0188228],
+#[0.073585 , 0.0147213, 0.0191252],
+#[ 0.0714617, -0.0204929,  0.0190769],
+#[ 0.0545824, -0.0416286,  0.0186546],
+#[ 0.0342966, -0.0502636,  0.0181346],
+#[ 0.0123831, -0.0487058,  0.0175963],
+#[-0.00732576, -0.0363831 ,  0.0171499 ],
+#[-0.0172944, -0.0247583,  0.0168933],
+#])
+
+#origin_led_dir = np.array([
+#[-0.60690608,  0.7558081 , -0.24580303],
+#[-0.33721106,  0.90002916, -0.27610905],
+#[ 0.11029794,  0.95578547, -0.27259585],
+#[ 0.51198002,  0.84106703, -0.17459301],
+#[ 0.83832391,  0.54171494, -0.06130199],
+#[ 0.96997164,  0.23539291, -0.06119798],
+#[ 0.98373035, -0.16890506, -0.06120202],
+#[ 0.87571497, -0.48070798, -0.045201  ],
+#[ 0.54200717, -0.82531026, -0.15840205],
+#[ 0.19281007, -0.94275034, -0.2721141 ],
+#[-0.21959387, -0.92057345, -0.32299081],
+#[-0.60690608, -0.7558081 , -0.24580303],
+#[-0.75343206,  0.64332705,  0.13590601],
+#[-0.64614031,  0.74784636,  0.15240907],
+#[0.0102    , 0.93982314, 0.34150905],
+#[0.36838884, 0.84657463, 0.38418883],
+#[0.65267367, 0.62647469, 0.42608279],
+#[0.84771199, 0.251203  , 0.46720599],
+#[ 0.81854471, -0.35281887,  0.45332484],
+#[ 0.54000294, -0.73370392,  0.41240196],
+#[ 0.18589307, -0.90366632,  0.38578614],
+#[-0.22080702, -0.92403008,  0.31211003],
+#[-0.64614031, -0.74784636,  0.15240907],
+#[-0.80511726, -0.57731219,  0.13600304],
+#])
+
+
 
 # Set the seed for Python's random module.
 random.seed(1)
 # Set the seed for NumPy's random module.
 np.random.seed(1)
-noise_std_dev = 0.0015  # Noise standard deviation. Adjust this value to your needs.
+noise_std_dev = 0.0005 # Noise standard deviation. Adjust this value to your needs.
 # Generate noise with the same shape as the original data.
 noise = np.random.normal(scale=noise_std_dev, size=origin_led_data.shape)
 # Add noise to the original data.
@@ -187,8 +298,8 @@ target_led_data = origin_led_data + noise
 translation_vector = np.array([0.01, 0, 0])
 
 # 각 축에 대한 회전 각도 정의
-rotation_degrees_x = 5
-rotation_degrees_y = 5
+rotation_degrees_x = 2
+rotation_degrees_y = 2
 rotation_degrees_z = 0
 
 # 각 축에 대한 회전 객체 생성
@@ -212,18 +323,17 @@ for i in range(len(target_led_data)):
     new_led_dir[i] = rotation_z.apply(new_led_dir[i])
 
 
-offset = 0.009593
-new_led_data[:, 2] -= offset
 
+#offset = 0.009593
+#new_led_data[:, 2] -= offset
+
+origin_led_data = new_led_data
+origin_led_dir = new_led_dir
 
 print('#############################')
 print("target_led_data:\n", target_led_data)
 print("New LED coordinates:\n", new_led_data)
 print("New LED directions:\n", new_led_dir)
-
-origin_led_data = new_led_data
-origin_led_dir = new_led_dir
-
 
 
 ## rifts3
@@ -1213,7 +1323,7 @@ def create_filled_emission_sphere(led_coords, origin_led_dir, sphere_radius):
         sphere_obj.data.materials.append(mat_emission)  # Apply material to sphere      
 
       # Create a cylinder with Diffuse shader
-        bpy.ops.mesh.primitive_cylinder_add(radius=(sphere_radius * 2.0), depth=sphere_radius * 2.0, location=location_inner)
+        bpy.ops.mesh.primitive_cylinder_add(radius=(sphere_radius * 1.2), depth=sphere_radius * 2.0, location=location_inner)
         inner_circle_obj = bpy.context.object
 
         # Rotate the cylinder to match the plane and point towards origin
@@ -1784,49 +1894,6 @@ def make_models(shape):
         #########################
 
 
-def make_cameras_model():
-
-    real_camera_data = pickle_data(READ, camera_pickle_file, None)            
-                
-#            # Use Real Camera R|T from Python Simulator
-#            LRVEC = real_camera_data['L_CAM']['rvec'][0]
-#            LTVEC = real_camera_data['L_CAM']['tvec'][0]
-#            RRVEC = real_camera_data['R_CAM']['rvec'][0]
-#            RTVEC = real_camera_data['R_CAM']['tvec'][0]
-
-#            print('LRVEC\n', LRVEC)
-#            print('LTVEC\n', LTVEC)
-#            print('RRVEC\n', RRVEC)
-#            print('RTVEC\n', RTVEC)
-
-#            make_cameras("CAMERA_0", LRVEC, LTVEC, cam_0_matrix)
-#            make_cameras("CAMERA_1", RRVEC, RTVEC, cam_1_matrix)
-
-#            #Custom Camera Posion
-#            rvec_left = np.array([ 1.2091998,   1.20919946, -1.20919946])
-#            tvec_left = np.array([-2.82086248e-08, -2.35607960e-08,  2.00000048e-01])
-
-#            rvec_right = np.array([ 0.86044094,  1.63833515, -1.63833502])
-#            tvec_right = np.array([-7.45058060e-08, -1.88919191e-08,  2.00000152e-01])
-
-    LRVEC = np.array([ 0.865009,   -1.37796869,  0.7863227 ])
-    LTVEC = np.array([ 0.02188013, -0.0133368,   0.32024709])
-    make_cameras("CAMERA_0", LRVEC, LTVEC, cam_0_matrix)
- 
-    # Default
-    #default_rvec_left = np.array([1.5707964, 0.0, 0.0])
-    #default_tvec_left = np.array([0.0, 0.0, 0.4])
-
-    default_rvec_left = np.array([0.0, 0.0, 0.0])
-    default_tvec_left = np.array([0.0, 0.0, 0.0])
-
-#    default_rvec_right = np.array([0.0, 0.0, 0.0])
-#    default_tvec_right = np.array([0.0, 0.0, 0.0])
-    make_cameras("CAMERA_0_DEFAULT", default_rvec_left, default_tvec_left, cam_0_matrix)
-#        make_cameras("CAMERA_1", default_rvec_right, default_tvec_right, cam_1_matrix)
-#    make_cameras_default("CAMERA_0", rvec_left, tvec_left)
-#    make_cameras_default("CAMERA_1", rvec_right, tvec_right)
-
 
 def draw_camera_pos_and_dir():  
 
@@ -1907,7 +1974,7 @@ def draw_camera_pos_and_dir():
         cylinder.data.materials.append(blue_mat)  # Assign the blue material to the cylinder
 
 
-def log_and_render(cam_name, frame, f, render_folder, f_transform):
+def log_and_render(cam_name, frame, f, render_folder, f_transform,save_pose,do_render):
     cam = bpy.data.objects[cam_name]
     bpy.context.view_layer.objects.active = cam
     cam.select_set(True)
@@ -1936,14 +2003,18 @@ def log_and_render(cam_name, frame, f, render_folder, f_transform):
     T_inverse_flat = T_inverse.ravel()
     # Convert the numpy array to a comma-separated string
     T_inverse_str = ' '.join(str(x) for x in T_inverse_flat)
-    f_transform.write(f"Frame:{frame}, T_inverse:[{T_inverse_str}]\n") 
-    scene.render.filepath = os.path.join(render_folder, f"frame_{frame:04d}.png")
-    bpy.ops.render.render(write_still=True)
+    if save_pose == 1:
+        f_transform.write(f"Frame:{frame}, T_inverse:[{T_inverse_str}]\n") 
+    if do_render == 1:
+        scene.render.filepath = os.path.join(render_folder, f"frame_{frame:04d}.png")
+        bpy.ops.render.render(write_still=True)
 
 
 def render_camera_pos_and_png(cam_name, **kwargs):
     start_frame = kwargs.get('start_frame')
     end_frame = kwargs.get('end_frame')
+    save_pose = kwargs.get('save_pose')
+    do_render = kwargs.get('do_render')
     scene = bpy.context.scene
     scene.render.image_settings.file_format = 'PNG'
 
@@ -1959,12 +2030,12 @@ def render_camera_pos_and_png(cam_name, **kwargs):
     with open(transformations_log_path, 'w') as f_transform:
         f_transform.write("")
 
-
+    
     for frame in range(start_frame, end_frame + 1):
         scene.frame_set(frame)
 
         with open(camera_log_path, 'a') as f, open(transformations_log_path, 'a') as f_transform:
-            log_and_render(cam_name, frame - start_frame + 1, f, render_folder, f_transform)
+            log_and_render(cam_name, frame - start_frame + 1, f, render_folder, f_transform,save_pose,do_render)
 
 
 def render_image_inverse(cam_name):
@@ -2025,7 +2096,6 @@ def make_camera_follow_path(camera, path, **kwargs):
     follow_path = camera.constraints.new(type='FOLLOW_PATH')
     follow_path.target = path
     follow_path.use_curve_follow = True
-    
     if start_frame > -1 and end_frame > -1:
         # Create a keyframe for the follow_path offset_factor at the start frame
         follow_path.offset_factor = 1  # Set offset_factor to 1 at the start frame
@@ -2098,6 +2168,9 @@ def draw_camera_recording(cam_name, default_cam_name):
 #    var.targets[0].transform_type = 'LOC_Z'
 #    driver.driver.expression = "z"
 
+    #make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('robot_circle'))
+    #make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('Controller'))
+    #set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(0), math.radians(-90))
 
 
 def custom_camera_tracker(cam_name, default_cam_name):
@@ -2151,15 +2224,6 @@ def custom_camera_tracker(cam_name, default_cam_name):
     diff_vector = mathutils.Vector((curve_object.location.x, curve_object.location.y, curve_object.location.z, 0))
     # Apply the difference to each point
     polyline_points_world = [p + diff_vector for p in polyline_points_world]
-#    print('polyline_points_world\n',polyline_points_world)
-#    # After defining and populating polyline_points_world
-#    for i, p in enumerate(polyline_points_world):
-#        bpy.ops.mesh.primitive_uv_sphere_add(location=p.xyz, radius=0.001)
-#        sphere = bpy.context.object
-#        sphere.name = f"DEBUG_SPHERE_{i}"
-#        sphere.data.materials.append(bpy.data.materials.new(name="Red"))
-#        sphere.data.materials[0].diffuse_color = (1, 0, 0, 1)  # Set to red color
-
 
     # Calculate the distances from the camera to each point
     distances = [(cam_location - p.xyz).length for p in polyline_points_world]
@@ -2182,13 +2246,13 @@ def custom_camera_tracker(cam_name, default_cam_name):
 
     # Set the animation start and end frames
     start_frame = closest_point_index
-    end_frame = closest_point_index + 360
+    end_frame = closest_point_index + num_points
 
     bpy.context.scene.frame_start = start_frame
     bpy.context.scene.frame_end = end_frame    
     
     # Create a red sphere at the closest point for debugging
-    bpy.ops.mesh.primitive_uv_sphere_add(location=polyline_points_world[closest_point_index].xyz, radius=0.005)
+    bpy.ops.mesh.primitive_uv_sphere_add(location=polyline_points_world[closest_point_index].xyz, radius=0.002)
     sphere = bpy.context.object
     sphere.name = f"START_POINT_{start_frame}"
     mat = bpy.data.materials.new(name="START")
@@ -2203,5 +2267,307 @@ def custom_camera_tracker(cam_name, default_cam_name):
     relative_path_collection.objects.link(bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP'))
     relative_path_collection.objects.link(bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP_CENTER_TARGET'))
     relative_path_collection.objects.link(bpy.data.objects.get('CENTER_POINT'))
-    relative_path_collection.objects.link(bpy.data.objects.get('START_POINT_90'))
+    relative_path_collection.objects.link(bpy.data.objects.get(f"START_POINT_{start_frame}"))
+#    relative_path_collection.objects.link(bpy.data.objects.get('INIT_LINE'))
+    print('sfart_frame ', start_frame, ' end_frame ', end_frame)
 
+    return start_frame, end_frame
+
+
+def fit_circle_tracker(cam_name, default_cam_name):
+    rgid_mat = bpy.data.materials.new(name="GreenMaterial")
+    rgid_mat.diffuse_color = (0.0, 1.0, 0.0, 1.0) 
+
+    path_name = f"{cam_name}_FIT_CIRCLE_LOOP"
+    camera = bpy.data.objects[cam_name]
+    default_camera = bpy.data.objects[default_cam_name]
+    cam_location = camera.location
+    cam_orientation = camera.rotation_euler
+#    radius = math.sqrt(cam_location.x**2 + cam_location.y**2 + cam_location.z**2)
+
+    # Get camera rotation values (pitch, yaw, roll)
+    pitch = cam_orientation.x - math.radians(90)  # subtracting 90 degrees
+    yaw = cam_orientation.y
+    roll = cam_orientation.z
+
+    curve_data = bpy.data.curves.new(path_name, type='CURVE')
+    curve_data.dimensions = '3D'
+    polyline = curve_data.splines.new('NURBS')
+  
+
+    FITTING_CIRCLE = pickle_data(READ, "/home/rangkast.jeong/Project/OpenCV_APP/FITTING_CIRCLE.pickle", None)['P_fitcircle']
+    FITTING_PLANE = pickle_data(READ, "/home/rangkast.jeong/Project/OpenCV_APP/FITTING_CIRCLE.pickle", None)['Fitting_plane']
+#    FITTING_CIRCLE = pickle_data(READ, "D:/OpenCV_APP/FITTING_CIRCLE.pickle", None)['P_fitcircle']
+#    FITTING_PLANE = pickle_data(READ, "D:/OpenCV_APP/FITTING_CIRCLE.pickle", None)['Fitting_plane']
+        
+    # Reverse the order of the points in FITTING_CIRCLE
+#    FITTING_CIRCLE = FITTING_CIRCLE[::-1]
+
+    num_points = len(FITTING_CIRCLE)
+    polyline.points.add(num_points - 1)
+    FITTING_PLANE_NORMAL = Vector([FITTING_PLANE[0], FITTING_PLANE[1], FITTING_PLANE[2]])
+
+    def rotate_points_to_xy(points, normal):
+        # Calculate the rotation matrix that aligns the normal to the z-axis
+        rotation_matrix = Vector(normal).rotation_difference(Vector((0,0,1))).to_matrix()
+        
+        # Rotate each point
+        return [rotation_matrix @ Vector(point) for point in points]
+
+    # Rotate the points to the xy plane
+    FITTING_CIRCLE = rotate_points_to_xy(FITTING_CIRCLE, FITTING_PLANE_NORMAL)
+
+
+    print('num_points: ', num_points)
+    for i, fitting_data in enumerate(FITTING_CIRCLE):
+        polyline.points[i].co = (fitting_data[0], fitting_data[1], fitting_data[2], 1)
+    
+    polyline.use_cyclic_u = True
+    curve_object = bpy.data.objects.new(path_name, curve_data)
+    scene = bpy.context.scene
+    scene.collection.objects.link(curve_object)
+    curve_object.data.path_duration = num_points
+    curve_object.data.use_path = True
+
+    rotation_quat = FITTING_PLANE_NORMAL.to_track_quat('Z', 'Y')
+    rotation_matrix_4x4 = rotation_quat.to_matrix().to_4x4()
+    # Apply rotation to curve object in world coordinates
+    curve_object.matrix_world = bpy.context.object.matrix_world @ rotation_matrix_4x4
+
+    polyline_points_world = [curve_object.matrix_world @ p.co for p in polyline.points]
+    # Calculate the difference vector and extend it to 4D
+    diff_vector = mathutils.Vector((curve_object.location.x, curve_object.location.y, curve_object.location.z, 0))
+    # Apply the difference to each point
+    polyline_points_world = [p + diff_vector for p in polyline_points_world]
+    print('cam_location:', np.array(cam_location))
+    # Calculate the distances from the camera to each point
+    distances = [(cam_location - p.xyz).length for p in polyline_points_world]
+
+    # Find the index of the closest point
+    closest_point_index = distances.index(min(distances))
+    print('closest_point_index ', closest_point_index)
+
+    # Create an empty object at the center of the path
+    bpy.ops.object.empty_add(location=curve_object.location)
+    center_target = bpy.context.object
+    center_target.name = f'{path_name}_CENTER_TARGET'  # Name the empty object
+    # Create a red sphere at the center_target location
+    bpy.ops.mesh.primitive_uv_sphere_add(location=center_target.location, radius=0.005)
+    sphere = bpy.context.object
+    sphere.name = f"CENTER_POINT"
+    mat = bpy.data.materials.new(name="Center")
+    mat.diffuse_color = (1.0, 0, 0, 1.0)  # Set to red color
+    sphere.data.materials.append(mat)
+
+    # Set the animation start and end frames
+    start_frame = closest_point_index 
+    end_frame = closest_point_index + num_points 
+#    start_frame = num_points - closest_point_index
+#    end_frame = start_frame + num_points
+
+    bpy.context.scene.frame_start = start_frame
+    bpy.context.scene.frame_end = end_frame    
+    
+    # Create a red sphere at the closest point for debugging
+    bpy.ops.mesh.primitive_uv_sphere_add(location=polyline_points_world[closest_point_index].xyz, radius=0.002)
+    sphere = bpy.context.object
+    sphere.name = f"START_POINT_{start_frame}"
+    mat = bpy.data.materials.new(name="START")
+    mat.diffuse_color = (1.0, 0, 0, 1.0)
+    sphere.data.materials.append(mat)
+
+
+    # At the beginning of your function
+    relative_path_collection = bpy.data.collections.new('FITTING_CIRCLE_PATH')
+    bpy.context.scene.collection.children.link(relative_path_collection)
+
+    relative_path_collection.objects.link(bpy.data.objects.get(f"{cam_name}_FIT_CIRCLE_LOOP"))
+    relative_path_collection.objects.link(bpy.data.objects.get(f"{cam_name}_FIT_CIRCLE_LOOP_CENTER_TARGET"))
+    relative_path_collection.objects.link(bpy.data.objects.get('CENTER_POINT'))
+    relative_path_collection.objects.link(bpy.data.objects.get(f"START_POINT_{start_frame}"))
+    print('sfart_frame ', start_frame, ' end_frame ', end_frame)
+
+    return start_frame, end_frame
+
+
+FITTING_CIRCLE = pickle_data(READ, FITTING_CIRCLE_PATH, None)['P_fitcircle']
+CAMERA_INFO = pickle_data(READ, CAMERA_INFO_PATH, None)['CAMERA_INFO']
+BA_3D = pickle_data(READ, BA_3D_PATH, None)['BA_3D']
+BA_3D_LED_INDICIES = pickle_data(READ, BA_3D_PATH, None)['LED_INDICES']
+REMADE_3D_INFO_O = pickle_data(READ, REMADE_3D_INFO_PATH, None)['REMADE_3D_INFO_O']
+RIGID_3D_TRANSFORM__PCA = pickle_data(READ, RIGID_3D_TRANSFORM_PATH, None)['PCA_ARRAY_LSM']
+RIGID_3D_TRANSFORM__IQR = pickle_data(READ, RIGID_3D_TRANSFORM_PATH, None)['IQR_ARRAY_LSM']
+
+def draw_objects(data, shape, radius, color, use_emission=False, use_simplify=False):
+    # Set the render engine to 'BLENDER_EEVEE'
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+
+    # Enable Simplify and lower render quality settings if use_simplify is True
+    if use_simplify:
+        bpy.context.scene.render.use_simplify = True
+        bpy.context.scene.render.simplify_subdivision = 0
+        bpy.context.scene.render.simplify_child_particles = 0
+        bpy.context.scene.render.simplify_gpencil = 1
+        
+        # Lower resolution
+        bpy.context.scene.render.resolution_x = 640  # For example, set to 640x480
+        bpy.context.scene.render.resolution_y = 480
+
+        # Lower sampling
+        bpy.context.scene.eevee.taa_render_samples = 32  # Lower number of samples
+    else:
+        bpy.context.scene.render.use_simplify = False
+
+    # Create a new material
+    material = bpy.data.materials.new(name="ColoredMaterial")
+    material.use_nodes = True
+
+    # Get material node tree
+    nodes = material.node_tree.nodes
+
+    # Clear all nodes
+    for node in nodes:
+        nodes.remove(node)
+
+    if use_emission:
+        # Add emission node
+        emission = nodes.new(type='ShaderNodeEmission')
+        emission.inputs["Strength"].default_value = 1.0
+        emission.inputs["Color"].default_value = (*color, 1)  # input color
+
+        # Add output node
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+
+        # Link nodes
+        links = material.node_tree.links
+        link = links.new(emission.outputs["Emission"], output.inputs["Surface"])
+
+    else:
+        # Add Principled BSDF node
+        bsdf = nodes.new(type='ShaderNodeBsdfPrincipled')
+        bsdf.inputs["Base Color"].default_value = (*color, 1)  # input color
+
+        # Add output node
+        output = nodes.new(type='ShaderNodeOutputMaterial')
+
+        # Link nodes
+        links = material.node_tree.links
+        link = links.new(bsdf.outputs["BSDF"], output.inputs["Surface"])
+
+    # Create object at each point with specified radius/size and assign the material
+    for point in data:
+        if shape == 'sphere':
+            bpy.ops.mesh.primitive_uv_sphere_add(location=point, radius=radius)
+        elif shape == 'cube':
+            bpy.ops.mesh.primitive_cube_add(location=point, size=2*radius)  # Cube size is edge length, so use 2*radius
+
+        obj = bpy.context.object
+        obj.data.materials.append(material)
+
+def draw_arrow(position, direction, length, material, radius=0.0005):
+    """
+    Draw an arrow to represent a vector.
+    
+    Parameters:
+    position: The starting point of the arrow
+    direction: The direction of the arrow
+    length: The length of the arrow
+    material: The material of the arrow
+    radius: The radius of the arrow (default is 0.0005)
+    """
+    # Normalize the direction
+    direction_norm = direction.normalized()
+    # Calculate the end point of the arrow
+    end_point = position + length * direction_norm
+    # Draw a cylinder from the starting point to the end point
+    bpy.ops.mesh.primitive_cylinder_add(
+        radius=radius, depth=length,
+        location=(position + end_point) / 2,  # The center of the cylinder
+    )
+    # Get the cylinder object
+    cylinder = bpy.context.object
+    # Rotate the cylinder to align with the direction
+    rot_quat = direction_norm.to_track_quat('Z', 'Y')
+    cylinder.rotation_euler = rot_quat.to_euler()
+    # Assign the material to the cylinder
+    cylinder.data.materials.append(material)
+
+def draw_camera_pos_and_dir_final():
+     # Create a new material
+    omat = bpy.data.materials.new(name="RedMaterial")
+    omat.diffuse_color = (1.0, 0.0, 0.0, 1.0) 
+    bmat = bpy.data.materials.new(name="BlueMaterial")
+    bmat.diffuse_color = (0.0, 0.0, 1.0, 1.0)
+    bamat = bpy.data.materials.new(name="YellowMaterial")
+    bamat.diffuse_color = (0.0, 1.0, 1.0, 1.0)
+    rgid_mat = bpy.data.materials.new(name="GreenMaterial")
+    rgid_mat.diffuse_color = (0.0, 1.0, 0.0, 1.0)
+    opositions = []
+    bpositions = []
+    bapositions = []
+    for key, camera_info in CAMERA_INFO.items():
+        print('frame_cnt: ', key)
+        orvec = camera_info['OPENCV']['rt']['rvec']
+        otvec = camera_info['OPENCV']['rt']['tvec']
+        brvec = camera_info['BLENDER']['rt']['rvec']
+        btvec = camera_info['BLENDER']['rt']['tvec']
+        barvec = camera_info['BA_RT']['rt']['rvec']
+        batvec = camera_info['BA_RT']['rt']['tvec']
+        
+        
+        # Add Camera Position
+        oposition, orotation_quat = blender_location_rotation_from_opencv(orvec, otvec)        
+        # Convert quaternion rotation to Euler rotation
+        rotation_mat = orotation_quat.to_matrix().to_4x4()
+        rotation_euler = rotation_mat.to_euler()        
+        # Create a small sphere at the camera position
+        bpy.ops.mesh.primitive_uv_sphere_add(location=oposition, radius=0.001)
+        osphere = bpy.context.object
+        osphere.data.materials.append(omat)  # Assign the material to the sphere
+        opositions.append(np.array(oposition))
+        # For OpenCV Camera
+        draw_arrow(oposition, orotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.01, omat)
+
+        
+        # Add Camera Position
+        bposition, brotation_quat = blender_location_rotation_from_opencv(brvec, btvec)        
+        # Convert quaternion rotation to Euler rotation
+        rotation_mat = brotation_quat.to_matrix().to_4x4()
+        rotation_euler = rotation_mat.to_euler()        
+        # Create a small sphere at the camera position
+        bpy.ops.mesh.primitive_uv_sphere_add(location=bposition, radius=0.001)
+        bsphere = bpy.context.object
+        bsphere.data.materials.append(bmat)  # Assign the material to the sphere
+        bpositions.append(np.array(bposition))
+                # For Blender Camera
+        draw_arrow(bposition, brotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.01, bmat)
+        
+        # Add Camera Position
+        baposition, barotation_quat = blender_location_rotation_from_opencv(barvec, batvec)        
+        # Convert quaternion rotation to Euler rotation
+        rotation_mat = barotation_quat.to_matrix().to_4x4()
+        rotation_euler = rotation_mat.to_euler()        
+        # Create a small sphere at the camera position
+        bpy.ops.mesh.primitive_uv_sphere_add(location=baposition, radius=0.001)
+        bsphere = bpy.context.object
+        bsphere.data.materials.append(bamat)  # Assign the material to the sphere
+        bapositions.append(np.array(baposition))
+                # For Blender Camera
+        draw_arrow(baposition, barotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.01, bamat)
+            # Add key as text
+        bpy.ops.object.text_add(location=(baposition[0], baposition[1], baposition[2] + 0.005))  # adjust z-coordinate to place the text above the sphere
+        txt_obj = bpy.context.object
+        txt_obj.data.body = str(key)
+        txt_obj.rotation_euler = rotation_euler  # Optional, if you want to align text with the sphere's orientation
+        txt_obj.scale = (0.005, 0.005, 0.005)  # adjust the values to get the desired size
+    for fitting_data in FITTING_CIRCLE:
+        bpy.ops.mesh.primitive_uv_sphere_add(location=fitting_data, radius=0.001)
+        sphere = bpy.context.object
+        sphere.data.materials.append(rgid_mat)
+
+#    data = OrderedDict()
+#    data['opositions'] = opositions
+#    data['bpositions'] = bpositions
+#    pickle_data(WRITE, 'D:/OpenCV_APP/BLENDER.pickle', data)
+#    pickle_data(WRITE, '/home/rangkast.jeong/Project/OpenCV_APP/BLENDER.pickle', data)
+            

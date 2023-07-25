@@ -33,59 +33,61 @@ TEST START
 print('\n\n\n')
 print('TEST START')
 
-# delte objects
-exclude_object_names = [
-#                        "CAMERA_0",
-#                        "CAMERA_1",
-#                        "CAMERA_0_DEFAULT",
-                        "Oculus_L_05.002",
-#                        "EMPTY_CAMERA_0",
-#                        "EMPTY_CAMERA_1",
-                        "sine_wave",
-                        "circle_curve",
-                        "quad_circle_curve_2_45",
-                        "quad_circle_curve_3_45",
-                        "axis_circle",
-                        "robot_circle",
-                        "custom_circle",
-                        "RELATIVE_PATH"
-                        ]
 delete_all_objects_except(exclude_object_names)
 
 
 make_models('real')
-make_cameras_model()
+
+
+real_camera_data = pickle_data(READ, camera_pickle_file, None)            
+
+# LEGACY
+LRVEC = np.array([-1.25370798,  1.12521308,  1.9190501 ] )
+LTVEC = np.array([0.02065667, 0.00127346, 0.33140927])
+
+#LRVEC = np.array([-1.30386976,  1.12048586,  1.869319  ]  )
+#LTVEC = np.array([ 0.01769808, -0.04910544,  0.33371041])
+
+
+make_cameras("CAMERA_0", LRVEC, LTVEC, cam_0_matrix)
+
+# Make Default Camera
+default_rvec_left = np.array([0.0, 0.0, 0.0])
+default_tvec_left = np.array([0.0, 0.0, 0.0])
+make_cameras("CAMERA_0_DEFAULT", default_rvec_left, default_tvec_left, cam_0_matrix)
 
 
 '''
     Make Camera Path
 '''
 #draw_camera_recording('CAMERA_0_DEFAULT')
+
+
 #custom_camera_tracker('CAMERA_0', 'CAMERA_0_DEFAULT')
+#make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP'), start_frame=90, end_frame=450)
+#make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP_CENTER_TARGET'))
+#set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(0), math.radians(-90)) # adjust roll 90 degrees to the left
 
+fit_circle_tracker('CAMERA_0', 'CAMERA_0_DEFAULT')
+make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get(f"CAMERA_0_FIT_CIRCLE_LOOP"), start_frame=0, end_frame=120)
+make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get(f"CAMERA_0_FIT_CIRCLE_LOOP_CENTER_TARGET"))
+set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(180), math.radians(90)) # adjust roll 90 degrees to the left
 
-'''
-    Attach Camera to Path
-'''
-#make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('robot_circle'))
-#make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('Controller'))
-#set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(0), math.radians(-90))
-make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP'), start_frame=90, end_frame=450)
-make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get('CAMERA_0_CIRCLE_LOOP_CENTER_TARGET'))
-set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(0), math.radians(-90)) # adjust roll 90 degrees to the left
 
 
 '''
     Rendering Images
 '''
 #save_png_files()
-#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=90, end_frame=450)
+#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=0, end_frame=120, save_pose = 1, do_render=1)
 #render_image_inverse('CAMERA_0')
-
 
 '''
     Show Results
 '''
-print('Show Test Results')
+
+
+
+#draw_camera_pos_and_dir_final()
 
 print('################    DONE   ##################')
