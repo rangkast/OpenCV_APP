@@ -307,6 +307,8 @@ f = zoom_factory(ax, base_scale=scale)
 
 data = OrderedDict()
 data['P_fitcircle'] = P_fitcircle
+data['CENTER'] = C
+data['R'] = r
 data['Fitting_plane'] = Fitting_plane
 pickle_data(WRITE, 'FITTING_CIRCLE.pickle', data)
 

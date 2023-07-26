@@ -315,6 +315,7 @@ def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes):
                 input_number = input('Please enter ID for this bbox: ')
                 bboxes.append({'idx': input_number, 'bbox': bbox})
                 draw_blobs_and_ids(frame, blob_area_0, bboxes)
+
 def read_camera_log(file_path):
     with open(file_path, 'r') as file:
         lines = file.readlines()

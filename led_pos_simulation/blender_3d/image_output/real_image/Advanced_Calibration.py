@@ -2015,7 +2015,7 @@ if __name__ == "__main__":
     CV_MIN_THRESHOLD = 150
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'ARCTURAS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2041,7 +2041,7 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final.txt"
+        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final_ARCTURAS.txt"
         camera_img_path = f"./render_img/{controller_name}/test_2/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
