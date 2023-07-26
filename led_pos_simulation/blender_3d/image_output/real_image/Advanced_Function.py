@@ -102,7 +102,10 @@ BLOB_INFO_STRUCTURE = {
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
 }
-
+UP = 0
+DOWN = 1
+MOVE = 2
+POS = {'status': NOT_SET, 'start': [], 'move': [], 'circle': NOT_SET}
 
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 class POSE_ESTIMATION_METHOD(Enum):
@@ -307,14 +310,31 @@ def pickle_data(rw_mode, path, data):
     except:
         print('file r/w error')
         return ERROR
+    
 
 def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes):
     if event == cv2.EVENT_LBUTTONDOWN:
+        down_in_box = NOT_SET
+        print(f"EVENT_LBUTTONDOWN {x} {y}")
         for i, bbox in enumerate(blob_area_0):
             if point_in_bbox(x, y, bbox):
                 input_number = input('Please enter ID for this bbox: ')
                 bboxes.append({'idx': input_number, 'bbox': bbox})
                 draw_blobs_and_ids(frame, blob_area_0, bboxes)
+                down_in_box = DONE
+        if down_in_box == NOT_SET:
+            if POS['status'] == UP or POS['status'] == NOT_SET:
+                POS['start'] = [x, y]
+                POS['status'] = DOWN
+    elif event == cv2.EVENT_MOUSEMOVE:
+        if POS['status'] == DOWN or POS['status'] == MOVE:
+            POS['move'] = [x, y]
+            POS['status'] = MOVE            
+
+    elif event == cv2.EVENT_LBUTTONUP:
+        print(f"EVENT_LBUTTONUP {x} {y}")
+        POS['status'] = UP
+            
 
 def read_camera_log(file_path):
     with open(file_path, 'r') as file:
@@ -1173,3 +1193,4 @@ def world_location_rotation_from_opencv(rvec, tvec, isCamera=True):
     # Convert rotation matrix to quaternion
     rotation = R_BlenderView_inv.to_quaternion()
     return location, rotation
+

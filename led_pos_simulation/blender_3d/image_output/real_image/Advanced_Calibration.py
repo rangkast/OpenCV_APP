@@ -207,8 +207,8 @@ def blob_setting(script_dir, SERVER, blob_file):
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 0, 0), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 0, 0), 1)
-
-        # brvec, btvec = camera_params[frame_cnt + 1]
+        
+         # brvec, btvec = camera_params[frame_cnt + 1]
         
         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)
@@ -219,6 +219,22 @@ def blob_setting(script_dir, SERVER, blob_file):
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
         cv2.setMouseCallback('image', partial_click_event)
+        
+        if POS['status'] == MOVE:
+            dx = np.abs(POS['start'][0] - POS['move'][0])
+            dy = np.abs(POS['start'][1] - POS['move'][1])
+            radius = math.sqrt(dx ** 2 + dy ** 2) / 2
+            cx = int((POS['start'][0] + POS['move'][0]) / 2)
+            cy = int((POS['start'][1] + POS['move'][1]) / 2)
+            print(f"{dx} {dy} radius {radius}")
+            POS['circle'] = [cx, cy, radius]
+            # cv2.circle(draw_frame, (cx, cy), int(radius), (255,255,255), 1)        
+        elif POS['status'] == UP:
+            print(POS)
+            POS['status'] = NOT_SET        
+        if POS['circle'] != NOT_SET:
+            cv2.circle(draw_frame, (POS['circle'][0], POS['circle'][1]), int(POS['circle'][2]), (255,255,255), 1)
+        
         key = cv2.waitKey(1)
 
         if key == ord('c'):
@@ -2007,10 +2023,10 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 1
+    AUTO_LOOP = 0
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 1
+    SOLUTION = 2
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
 
@@ -2041,8 +2057,10 @@ if __name__ == "__main__":
         BLOB_SIZE = 100
         TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final_ARCTURAS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_2/"
+        # camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final_ARCTURAS.txt"
+        # camera_img_path = f"./render_img/{controller_name}/test_2/"
+        camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
+        camera_img_path = f"./tmp/render/ARCTURAS/rotation/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
