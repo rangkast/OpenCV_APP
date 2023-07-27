@@ -5,7 +5,6 @@ from connection.socket.socket_def import *
 CAM_ID = 0
 
 undistort = 1
-TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 max_level = 3
 SHOW_PLOT = 1
 FULL_COMBINATION_SEARCH = 0
@@ -26,7 +25,7 @@ def init_trackers(trackers, frame):
         (x, y, w, h) = data['bbox']        
         ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
         data['tracker'] = tracker
-def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
+def mapping_id_blob(areas, blob_centers, Tracking_ANCHOR, TRACKER):
     tcx = TRACKER[Tracking_ANCHOR][0]
     tcy = TRACKER[Tracking_ANCHOR][1]
     Tracking_ANCHOR = int(Tracking_ANCHOR)
@@ -114,14 +113,14 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
             continue
         # TOP Searching and clockwise
         if ANCHOR_POS == TOP:
-            if left_data[2] <= TOP_BOTTOM_LINE_Y:
+            if area_filter(left_data[1], left_data[2], areas) == True:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[TOP] == -1 else LEFT_BLOB_INFO[TOP]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
                 LEFT_BLOB_INFO[TOP] = NEW_BLOB_ID
         else:
             # BOTTOM Searching and clockwise
-            if left_data[2] > TOP_BOTTOM_LINE_Y:
+            if area_filter(left_data[1], left_data[2], areas) == False:
                 CURR_ID = Tracking_ANCHOR if LEFT_BLOB_INFO[BOTTOM] == -1 else LEFT_BLOB_INFO[BOTTOM]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, clockwise if LEFT_RIGHT_DIRECTION == PLUS else counterclockwise)
                 left_data[4] = NEW_BLOB_ID
@@ -137,13 +136,13 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
             continue
 
         if ANCHOR_POS == TOP:
-            if right_data[2] <= TOP_BOTTOM_LINE_Y:
+            if area_filter(right_data[1], right_data[2], areas) == True:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[TOP] == -1 else RIGHT_BLOB_INFO[TOP]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(TOP, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
                 RIGHT_BLOB_INFO[TOP] = copy.deepcopy(NEW_BLOB_ID)
         else:
-            if right_data[2] > TOP_BOTTOM_LINE_Y:
+            if area_filter(right_data[1], right_data[2], areas) == False:
                 CURR_ID = Tracking_ANCHOR if RIGHT_BLOB_INFO[BOTTOM] == -1 else RIGHT_BLOB_INFO[BOTTOM]
                 NEW_BLOB_ID = BLOB_ID_SEARCH(BOTTOM, CURR_ID, counterclockwise if LEFT_RIGHT_DIRECTION == PLUS else clockwise)
                 right_data[4] = NEW_BLOB_ID
@@ -164,14 +163,22 @@ def mapping_id_blob(blob_centers, Tracking_ANCHOR, TRACKER):
     return led_candidates_left, led_candidates_right
 def blob_setting(script_dir, SERVER, blob_file):
     print('blob_setting START')
-
-    bboxes = []
+    TEMP_POS = {'status': NOT_SET, 'mode': RECTANGLE, 'start': [], 'move': [], 'circle': NOT_SET, 'rectangle': NOT_SET}
+    POS = {}
+    bboxes = []    
     json_file = os.path.join(script_dir, blob_file)
     json_data = rw_json_data(READ, json_file, None)
     if json_data != ERROR:
         bboxes = json_data['bboxes']
+        if 'mode' in json_data:
+            TEMP_POS['mode'] = json_data['mode']
+            if TEMP_POS['mode'] == RECTANGLE:
+                TEMP_POS['rectangle'] = json_data['roi']
+            else:
+                TEMP_POS['circle'] = json_data['roi']        
+            POS = TEMP_POS
     if SERVER == 1:
-        return bboxes
+        return bboxes, NOT_SET
     
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     # camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
@@ -216,43 +223,61 @@ def blob_setting(script_dir, SERVER, blob_file):
         # cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+
+        filtered_blob_area = []    
+        for _, bbox in enumerate(blob_area):
+            (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+            _,_, gsize = find_center(frame, (x, y, w, h))
+            if gsize < BLOB_SIZE:
+                continue
+            filtered_blob_area.append((x, y, w, h))
+
         cv2.namedWindow('image')
-        partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
+        partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes, POS=TEMP_POS)
         cv2.setMouseCallback('image', partial_click_event)
         
-        if POS['status'] == MOVE:
-            dx = np.abs(POS['start'][0] - POS['move'][0])
-            dy = np.abs(POS['start'][1] - POS['move'][1])
-            radius = math.sqrt(dx ** 2 + dy ** 2) / 2
-            cx = int((POS['start'][0] + POS['move'][0]) / 2)
-            cy = int((POS['start'][1] + POS['move'][1]) / 2)
-            print(f"{dx} {dy} radius {radius}")
-            POS['circle'] = [cx, cy, radius]
-            # cv2.circle(draw_frame, (cx, cy), int(radius), (255,255,255), 1)        
-        elif POS['status'] == UP:
-            print(POS)
-            POS['status'] = NOT_SET        
-        if POS['circle'] != NOT_SET:
-            cv2.circle(draw_frame, (POS['circle'][0], POS['circle'][1]), int(POS['circle'][2]), (255,255,255), 1)
-        
+        if TEMP_POS['status'] == MOVE:
+            dx = np.abs(TEMP_POS['start'][0] - TEMP_POS['move'][0])
+            dy = np.abs(TEMP_POS['start'][1] - TEMP_POS['move'][1])
+            if TEMP_POS['mode'] == CIRCLE:
+                radius = math.sqrt(dx ** 2 + dy ** 2) / 2
+                cx = int((TEMP_POS['start'][0] + TEMP_POS['move'][0]) / 2)
+                cy = int((TEMP_POS['start'][1] + TEMP_POS['move'][1]) / 2)
+                # print(f"{dx} {dy} radius {radius}")
+                TEMP_POS['circle'] = [cx, cy, radius]
+            else:                
+                TEMP_POS['rectangle'] = [TEMP_POS['start'][0],TEMP_POS['start'][1],TEMP_POS['move'][0],TEMP_POS['move'][1]]
+    
+        elif TEMP_POS['status'] == UP:
+            print(TEMP_POS)
+            TEMP_POS['status'] = NOT_SET        
+        if TEMP_POS['circle'] != NOT_SET and TEMP_POS['mode'] == CIRCLE:
+            cv2.circle(draw_frame, (TEMP_POS['circle'][0], TEMP_POS['circle'][1]), int(TEMP_POS['circle'][2]), (255,255,255), 1)
+        elif TEMP_POS['rectangle'] != NOT_SET and TEMP_POS['mode'] == RECTANGLE:
+            cv2.rectangle(draw_frame,(TEMP_POS['rectangle'][0],TEMP_POS['rectangle'][1]),(TEMP_POS['rectangle'][2],TEMP_POS['rectangle'][3]),(255,255,255),1)
+
         key = cv2.waitKey(1)
 
         if key == ord('c'):
             print('clear area')
             bboxes.clear()
+            if TEMP_POS['mode'] == RECTANGLE:
+                TEMP_POS['rectangle'] = NOT_SET
+            else:
+                TEMP_POS['circle'] = NOT_SET
         elif key == ord('s'):
             print('save blob area')
             json_data = OrderedDict()
             json_data['bboxes'] = bboxes
+            json_data['mode'] = TEMP_POS['mode']
+            json_data['roi'] = TEMP_POS['circle'] if TEMP_POS['mode'] == CIRCLE else TEMP_POS['rectangle']
+            POS = TEMP_POS
             # Write json data
             rw_json_data(WRITE, json_file, json_data)
-
         elif key & 0xFF == 27:
             print('ESC pressed')
             cv2.destroyAllWindows()
             sys.exit()
-            return
-
         elif key == ord('q'):
             print('go next step')
             break
@@ -264,16 +289,22 @@ def blob_setting(script_dir, SERVER, blob_file):
             frame_cnt -= 1
             bboxes.clear()
             print('go back IMAGE')
+        elif key == ord('m'):            
+            if TEMP_POS['mode'] == RECTANGLE:
+                TEMP_POS['mode'] = CIRCLE
+            else:
+                TEMP_POS['mode'] = RECTANGLE
+            print('MODE changed ', TEMP_POS['mode'])
 
-        draw_blobs_and_ids(draw_frame, blob_area, bboxes)
+        draw_blobs_and_ids(draw_frame, filtered_blob_area, bboxes)
         if SERVER == 0:
             cv2.imshow('image', draw_frame)
 
     print('done')
     cv2.destroyAllWindows()
 
-    return bboxes
-def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
+    return bboxes, POS
+def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER, areas):
     # prev_frame = cv2.imread(frame)
     if prev_frame is None or prev_frame.size == 0:
         print(f"Failed to load prev frame")
@@ -295,7 +326,7 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
         # cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
         # cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         blob_centers.append((gcx, gcy, bbox))
-    prev_pos_candidates, _ = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER)
+    prev_pos_candidates, _ = mapping_id_blob(areas, blob_centers, Tracking_ANCHOR, PREV_TRACKER)
     print('prev_pos_candidates:', prev_pos_candidates[0])
     # for bid, data in enumerate(blob_centers):
     #     print(bid, ':', data)
@@ -326,7 +357,7 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER):
         return SUCCESS, CURR_TRACKER
     else:
         return ERROR, None
-def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TEST = 0, DO_BA = 0):
+def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRATION_TEST = 0, DO_BA = 0):
     print('gathering_data_single START')
     BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
     RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
@@ -413,7 +444,11 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)   
-        cv2.line(draw_frame, (0, TOP_BOTTOM_LINE_Y), (width, TOP_BOTTOM_LINE_Y), (0, 255, 0), 1)     
+        if areas['circle'] != NOT_SET and areas['mode'] == CIRCLE:
+            cv2.circle(draw_frame, (areas['circle'][0], areas['circle'][1]), int(areas['circle'][2]), (0,255,0), 1)
+        elif areas['rectangle'] != NOT_SET and areas['mode'] == RECTANGLE:
+            cv2.rectangle(draw_frame,(areas['rectangle'][0],areas['rectangle'][1]),(areas['rectangle'][2],areas['rectangle'][3]),(0,255,0),1)
+  
 
         # find Blob area by findContours
         blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
@@ -456,7 +491,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                         def check_distance(blob_centers, tcx, tcy):
                             for center in blob_centers:
                                 gcx, gcy, _ = center
-                                distance = ((gcx - tcx)**2 + (gcy - tcy)**2)**0.5
+                                distance = math.sqrt((gcx - tcx)**2 + (gcy - tcy)**2)
                                 if distance < TRACKING_ANCHOR_RECOGNIZE_SIZE:
                                     return False
                             return True
@@ -481,7 +516,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                                 search_frame =  image_files[frame_cnt - 1]
                                 search_frame = cv2.imread(search_frame)      
                 
-                            ret, CURR_TRACKER = init_new_tracker(search_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER)
+                            ret, CURR_TRACKER = init_new_tracker(search_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER, areas)
 
                             if ret == SUCCESS:
                                 del CURR_TRACKER[Tracking_ANCHOR]
@@ -502,7 +537,7 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                                 break
 
                     PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
-                    led_candidates_left, led_candidates_right = mapping_id_blob(blob_centers, Tracking_ANCHOR, PREV_TRACKER) 
+                    led_candidates_left, led_candidates_right = mapping_id_blob(areas, blob_centers, Tracking_ANCHOR, PREV_TRACKER) 
 
                     for i in range(len(led_candidates_left)):
                         NEW_BLOB_ID = led_candidates_left[i][4]
@@ -592,6 +627,67 @@ def gathering_data_single(ax1, script_dir, bboxes, start, end, DO_CALIBRATION_TE
                 # print('points2D_U\n', points2D_U)
                 # print('points3D\n', points3D)
 
+                # TEST CODE
+                # Convert rotation vector to rotation matrix
+                # R_B, _ = cv2.Rodrigues(np.array(brvec))
+                # # Create a rotation matrix for a 30 degree rotation about x-axis
+                # rotation_angle = np.deg2rad(CONTROLLER_JOINT_ANGLE)  # convert degree to radian
+                # R_x = np.array([[1, 0, 0],
+                #                 [0, np.cos(rotation_angle), -np.sin(rotation_angle)],
+                #                 [0, np.sin(rotation_angle), np.cos(rotation_angle)]])
+                # # Apply the rotation to the existing rotation matrix
+                # R_B_tilted = R_x @ R_B
+                # # Convert the updated rotation matrix back to a rotation vector
+                # brvec_B_tilted, _ = cv2.Rodrigues(R_B_tilted)
+
+                # brvec_B_tilted_reshape = np.array(brvec_B_tilted).reshape(-1, 1)
+                
+                # MIN_RER = 10000
+                # MIN_MODEL_DATA = None
+                # LENGTH = len(LED_NUMBER)
+     
+                # for perm in permutations(range(BLOB_CNT), LENGTH):
+                #     MODEL_DATA_PERMS = []
+                #     for idx in perm:
+                #         MODEL_DATA_PERMS.append(MODEL_DATA[int(idx)])
+                #     # print(MODEL_DATA_PERMS)
+                #     image_points, _ = cv2.projectPoints(np.array(MODEL_DATA_PERMS),
+                #                                         np.array(brvec_B_tilted_reshape),
+                #                                         np.array(btvec_reshape),
+                #                                         camera_matrix[CAM_ID][0],
+                #                                         camera_matrix[CAM_ID][1])
+                #     image_points = image_points.reshape(-1, 2)
+
+                #     print('image_points\n', image_points)
+                #     print('points2D\n', points2D)
+
+                #     # # 2D 변환 계산
+                #     # after_pts = []
+                #     # R, t = rigid_transform_2D(np.array(image_points), np.array(points2D))
+                #     # for point in image_points:
+                #     #     new_point = R @ point + t
+                #     #     after_pts.append(new_point)
+                #     RER = np.average(np.linalg.norm(points2D - image_points, axis=1))
+                #     print('RER ', RER)
+                #     if RER < MIN_RER:
+                #         MIN_RER = RER
+                #         MIN_MODEL_DATA = MODEL_DATA_PERMS
+
+                # print(MIN_RER, ' ', MIN_MODEL_DATA)
+
+
+                # Draw Blender projection
+                # image_points, _ = cv2.projectPoints(points3D,
+                #                                     np.array(brvec_B_tilted_reshape),
+                #                                     np.array(btvec_reshape),
+                #                                     camera_matrix[CAM_ID][0],
+                #                                     camera_matrix[CAM_ID][1])
+                # image_points = image_points.reshape(-1, 2)
+                # ###################################
+
+                # for point in image_points:
+                #     pt = (int(point[0]), int(point[1]))
+                #     cv2.circle(draw_frame, pt, 5, (255, 255, 0), -1)   
                                     
                 # Make CAMERA_INFO data for check rt STD
                 CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
@@ -2031,16 +2127,15 @@ if __name__ == "__main__":
     CV_MIN_THRESHOLD = 150
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'ARCTURAS'
+    TARGET_DEVICE = 'RIFTS'
 
-    if TARGET_DEVICE == 'RIFTS':
+    if TARGET_DEVICE == 'TESTbbbbbbbbbb':
         # Test_7 보고
         # 0, 2
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 100
-        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        BLOB_SIZE = 50
         controller_name = 'rifts_right_9'
         camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_7/"
@@ -2050,23 +2145,24 @@ if __name__ == "__main__":
         STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
+        CONTROLLER_JOINT_ANGLE = 0
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
     elif TARGET_DEVICE == 'ARCTURAS':
         ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 100
-        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
+        BLOB_SIZE = 50
         controller_name = 'arcturas'
-        # camera_log_path = f"./render_img/{controller_name}/test_2/camera_log_final_ARCTURAS.txt"
-        # camera_img_path = f"./render_img/{controller_name}/test_2/"
-        camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/rotation/"
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final_ARCTURAS.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
         STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
+        CONTROLLER_JOINT_ANGLE = 0
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
     elif TARGET_DEVICE == 'SEMI_SLAM_CURVE':
         # Test_6 보고
         # 6, 7
@@ -2074,7 +2170,6 @@ if __name__ == "__main__":
         LEDS_POSITION = SEMI_SLAM_CURVE
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 150
-        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_curve'
         camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_6/"
@@ -2084,13 +2179,14 @@ if __name__ == "__main__":
         STOP_FRAME = 72
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
+        CONTROLLER_JOINT_ANGLE = 0
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
     elif TARGET_DEVICE == 'SEMI_SLAM_PLANE':
         # 6,5
         SEMI_SLAM_PLANE = [0,1,0,1,0,1,0]
         LEDS_POSITION = SEMI_SLAM_PLANE
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 300
-        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_plane'
         camera_log_path = f"./render_img/{controller_name}/test_41/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_41/"
@@ -2099,14 +2195,15 @@ if __name__ == "__main__":
         START_FRAME = 30
         STOP_FRAME = 50
         THRESHOLD_DISTANCE = 10
-        TRACKER_PADDING = 5 
+        TRACKER_PADDING = 5
+        CONTROLLER_JOINT_ANGLE = 0
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
     elif TARGET_DEVICE == 'SEMI_SLAM_POLYHEDRON':
         # 5,6 
         SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
         LEDS_POSITION = SEMI_SLAM_POLYHEDRON
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 300
-        TOP_BOTTOM_LINE_Y = int(CAP_PROP_FRAME_HEIGHT / 2)
         controller_name = 'semi_slam_polyhedron'
         camera_log_path = f"./render_img/{controller_name}/test_21/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_21/"
@@ -2116,23 +2213,28 @@ if __name__ == "__main__":
         STOP_FRAME = 48
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
+        CONTROLLER_JOINT_ANGLE = 0
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
     else:
         # 피라미드 하면 이상해짐....
-        print(f"DEVICE TEST {TARGET_DEVICE}")
-        RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
-        LEDS_POSITION = RIFTS_PATTERN_RIGHT
+        DO_PYRAMID = 0
+        ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
+        LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 250
-        TOP_BOTTOM_LINE_Y = 494
-        controller_name = 'rifts_right_9'
-        camera_log_path = f"./tmp/render/RIFTS/{controller_name}/camera_log_final.txt"
-        camera_img_path = f"./tmp/render/RIFTS/{controller_name}/"
+        BLOB_SIZE = 30
+        controller_name = 'arcturas'
+        # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        # camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
+        camera_img_path = f"./tmp/render/ARCTURAS/rotation/"
         combination_cnt = [4,5]
-        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
         STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
+        CONTROLLER_JOINT_ANGLE = 30
+        TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
 
     
     BLOB_CNT = len(MODEL_DATA)
@@ -2146,7 +2248,7 @@ if __name__ == "__main__":
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot(MODEL_DATA)
-    bboxes = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area.json")
+    bboxes, areas = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area_{CONTROLLER_JOINT_ANGLE}.json")
 
     if SOLUTION == 1:
         ######################################## SOLUTION 1 ########################################
@@ -2164,11 +2266,11 @@ if __name__ == "__main__":
             -noise가 많이 섞인 경우는 pnp solver를 통한 RT의 신뢰도가 낮음
             -설계값을 모르는 경우에도 방안 생간
         '''
-        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
         BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
         
         # 2차 보정
-        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 1)
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 1)
         remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=DONE)
         # BA_3D_POINT(RT='BLENDER')  // 사용 안함
 
@@ -2188,7 +2290,7 @@ if __name__ == "__main__":
         # save_camera_position(TARGET_DEVICE)
 
     elif SOLUTION == 2:
-        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 0, 0)
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
         remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
         # BA_3D_POINT(RT='BLENDER')
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
@@ -2201,3 +2303,5 @@ if __name__ == "__main__":
 
     print('\n\n')
     print('########## DONE ##########')
+
+ 

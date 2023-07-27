@@ -105,7 +105,8 @@ BLOB_INFO_STRUCTURE = {
 UP = 0
 DOWN = 1
 MOVE = 2
-POS = {'status': NOT_SET, 'start': [], 'move': [], 'circle': NOT_SET}
+RECTANGLE = 0
+CIRCLE = 1
 
 trackerTypes = ['BOOSTING', 'MIL', 'KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'MOSSE', 'CSRT']
 class POSE_ESTIMATION_METHOD(Enum):
@@ -235,7 +236,8 @@ def find_center(frame, SPEC_AREA):
                 continue
             x_sum += x * frame[y][x]
             t_sum += frame[y][x]
-            m_count += 1
+            if frame[y][x] > 0:
+                m_count += 1
 
     for x in range(X, X + W):
         for y in range(Y, Y + H):
@@ -312,7 +314,7 @@ def pickle_data(rw_mode, path, data):
         return ERROR
     
 
-def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes):
+def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
     if event == cv2.EVENT_LBUTTONDOWN:
         down_in_box = NOT_SET
         print(f"EVENT_LBUTTONDOWN {x} {y}")
@@ -1194,3 +1196,26 @@ def world_location_rotation_from_opencv(rvec, tvec, isCamera=True):
     rotation = R_BlenderView_inv.to_quaternion()
     return location, rotation
 
+
+def area_filter(x, y, POS):
+    # print(f"{x} {y} {POS}")
+    MODE = POS['mode']
+    if MODE == CIRCLE:
+        dx = np.abs(x - POS['circle'][0])
+        dy = np.abs(y - POS['circle'][1])
+        distance = math.sqrt(dx ** 2 + dy ** 2)
+
+        if distance <= POS['circle'][2]:
+            return True
+        else:
+            return False
+    else:
+        sx = min(POS['rectangle'][0], POS['rectangle'][2])
+        sy = min(POS['rectangle'][1], POS['rectangle'][3])
+        w = np.abs(POS['rectangle'][0] - POS['rectangle'][2])
+        h = np.abs(POS['rectangle'][1] - POS['rectangle'][3])
+        # print(f"{sx} {sy} {w} {h}")
+        if x >= sx and x <= sx + w and y >= sy and y <= sy + h:
+            return True
+        else:
+            return False

@@ -2,7 +2,7 @@ from Advanced_Function import *
 from data_class import *
 
 RER_SPEC = 3.0
-BLOB_SIZE = 150
+BLOB_SIZE = 50
 TRACKER_PADDING = 3
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 150
@@ -10,8 +10,8 @@ MAX_LEVEL = 3
 CAM_ID = 0
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-UVC_MODE = 0
-AUTO_LOOP = 0
+UVC_MODE = 1
+AUTO_LOOP = 1
 undistort = 1
 
 
@@ -22,7 +22,7 @@ Solutions
 2 : sliding window x purmutations
 3 : translation Matrix x projectPoints
 '''
-SOLUTION = 3
+SOLUTION = 1
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -34,23 +34,6 @@ def circular_sliding_window(data, window_size):
         yield data[i:i + window_size]
 
 
-def click_event(event, x, y, flags, param, frame):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        print(f"EVENT_LBUTTONDOWN {x} {y}")
-        if POS['status'] == UP or POS['status'] == NOT_SET:
-            POS['start'] = [x, y]
-            POS['status'] = DOWN            
-            
-    elif event == cv2.EVENT_MOUSEMOVE:
-        if POS['status'] == DOWN or POS['status'] == MOVE:
-            POS['move'] = [x, y]
-            POS['status'] = MOVE
-            
-
-    elif event == cv2.EVENT_LBUTTONUP:
-        print(f"EVENT_LBUTTONUP {x} {y}")
-        POS['status'] = UP
-        
 if SOLUTION == 1:
     def auto_labeling():
         frame_cnt = 0
@@ -102,24 +85,10 @@ if SOLUTION == 1:
             cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
             cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
 
-            cv2.namedWindow('Frame')
-            partial_click_event = functools.partial(click_event, frame=frame_0)
-            cv2.setMouseCallback('Frame', partial_click_event)
+            # cv2.namedWindow('Frame')
+            # partial_click_event = functools.partial(click_event, frame=frame_0)
+            # cv2.setMouseCallback('Frame', partial_click_event)
 
-            
-            if POS['status'] == MOVE:
-                dx = np.abs(POS['start'][0] - POS['move'][0])
-                dy = np.abs(POS['start'][1] - POS['move'][1])
-                radius = math.sqrt(dx ** 2 + dy ** 2) / 2
-                cx = int((POS['start'][0] + POS['move'][0]) / 2)
-                cy = int((POS['start'][1] + POS['move'][1]) / 2)
-                print(f"{dx} {dy} radius {radius}")
-                POS['circle'] = [cx, cy, radius]
-                cv2.circle(draw_frame, (cx, cy), int(radius), (255,255,255), 1)
-            
-            elif POS['status'] == UP:
-                print(POS)
-                POS['status'] = NOT_SET
 
             # find Blob area by findContours
             blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
