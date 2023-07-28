@@ -10,8 +10,8 @@ MAX_LEVEL = 3
 CAM_ID = 0
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-UVC_MODE = 1
-AUTO_LOOP = 1
+UVC_MODE = 0
+AUTO_LOOP = 0
 undistort = 1
 
 
@@ -22,7 +22,7 @@ Solutions
 2 : sliding window x purmutations
 3 : translation Matrix x projectPoints
 '''
-SOLUTION = 1
+SOLUTION = 3
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -99,12 +99,11 @@ if SOLUTION == 1:
                 gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
                 if gsize < BLOB_SIZE:
                     continue 
-
-                overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, MAX_LEVEL)
-                if overlapping == True:
-                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
-                    cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                    continue
+                # overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, MAX_LEVEL)
+                # if overlapping == True:
+                #     cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
+                #     cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                #     continue
                 
                 cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
                 blobs.append((gcx, gcy, bbox))
@@ -506,7 +505,44 @@ elif SOLUTION == 2:
         if UVC_MODE == 1:
             video.release()
         cv2.destroyAllWindows()
+elif SOLUTION == 3:
+    def check_pnp(points3D, points2D):
+        STATUS = SUCCESS
+        METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+        INPUT_ARRAY = [
+            CAM_ID,
+            points3D,
+            points2D,
+            camera_matrix[CAM_ID][0],
+            camera_matrix[CAM_ID][1]
+        ]
+        _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
 
+        # print('PnP_Solver rvec:', rvec, ' tvec:',  tvec)
+        # rvec이나 tvec가 None인 경우 continue
+        if rvec is None or tvec is None or rvec is NOT_SET or tvec is NOT_SET:
+            STATUS = ERROR
+        
+        # rvec이나 tvec에 nan이 포함된 경우 continue
+        if np.isnan(rvec).any() or np.isnan(tvec).any():
+            STATUS = ERROR
+
+        # rvec과 tvec의 모든 요소가 0인 경우 continue
+        if np.all(rvec == 0) and np.all(tvec == 0):
+            STATUS = ERROR
+        # print('rvec:', rvec)
+        # print('tvec:', tvec)                        
+
+        if STATUS == SUCCESS:
+            RER = reprojection_error(points3D,
+                                    points2D,
+                                    rvec, tvec,
+                                    camera_matrix[CAM_ID][0],
+                                    camera_matrix[CAM_ID][1])
+            # print('RER', RER)
+            return RER
+        else:
+            return NOT_SET
     def auto_labeling():
         frame_cnt = 0
         # Select the first camera device
@@ -521,9 +557,10 @@ elif SOLUTION == 2:
             video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
             video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
         else:
-            image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
+            # image_files = sorted(glob.glob(os.path.join(script_dir,f"./render_img/rifts_right_9/test_1/" + '*.png'))) 
+            # image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/rotation/" + '*.png'))) 
+            image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/arcturas/test_1/" + '*.png')))        
             print('lenght of images: ', len(image_files))
-
 
         # Initialize each blob ID with a copy of the structure
         for blob_id in range(BLOB_CNT):
@@ -560,8 +597,6 @@ elif SOLUTION == 2:
             cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
             cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
 
-
-            # find Blob area by findContours
             blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
             blobs = []
 
@@ -570,18 +605,100 @@ elif SOLUTION == 2:
                 gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
                 if gsize < BLOB_SIZE:
                     continue 
-
-                overlapping = check_blobs_with_pyramid(frame_0, draw_frame, x, y, w, h, MAX_LEVEL)
-                if overlapping == True:
-                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
-                    cv2.putText(draw_frame, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                    continue
                 
                 cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-                blobs.append((gcx, gcy, bbox))
+                blobs.append((gcx, gcy))
 
-            blobs = sorted(blobs, key=lambda x:x[0]) ## 또는 l.sort(key=lambda x:x[1])
-            print('blobs ', blobs)
+            blobs_sorted = np.array(sorted(blobs, key=lambda x:x[0]))
+            # blobs_minus = np.array(sorted(blobs, key=lambda x:-x[0]))
+            # points2D_D = []
+            # for sorted_data in blobs_sorted:
+            #     points2D_D.append([sorted_data[0], sorted_data[1]])            
+            # points2D_D = np.array(points2D_D, dtype=np.float64)
+
+            points2D_D = np.array(np.array(blobs_sorted).reshape(len(blobs_sorted), -1), dtype=np.float64)
+            points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
+            # points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
+            # points2D_D_R = np.flip(points2D_D, axis=0)
+            # Alogirithm
+            SEARCHING_WINDOW_SIZE = 8
+            PNP_SOLVER_LENGTH = 4
+            BLOBS_LENGTH = len(blobs_sorted)
+            # print('BLOBS_LENGTH ', BLOBS_LENGTH)
+            # print('points2D_D ', points2D_D)
+            if BLOBS_LENGTH >= PNP_SOLVER_LENGTH:
+                MIN_SOCRE = float('inf')
+                MIN_INFO = {}
+                MIN_POSE = []
+                MIN_GROUP_ID = []
+                points3D = []
+
+                camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
+                for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE):
+                        # points3D_grp = MODEL_DATA[list(grps), :]
+                        # print('grps ', grps)   
+                        for points3D_grp_comb in combinations(grps, PNP_SOLVER_LENGTH):
+                            points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                            # print('points3D_grp_comb ', points3D_grp_comb)
+                            # RER_1 = check_pnp(np.array(points3D_grp), points2D_D)
+                            # RER_2 = check_pnp(np.array(points3D_grp), points2D_D_R)
+                            for points2d_u in sliding_window(points2D_U, PNP_SOLVER_LENGTH):                                                        
+                                # pose, info = poselib.estimate_absolute_pose(points2d_u, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
+                                # if info['model_score'] < MIN_SOCRE:
+                                #     MIN_SOCRE = info['model_score']
+                                #     MIN_POSE = pose
+                                #     MIN_INFO = info
+                                #     MIN_GROUP_ID = points3D_grp_comb
+                                #     points3D = points3D_grp
+
+
+                                X = np.array(points3D_grp)  
+                                x = np.hstack((points2d_u, np.ones((points2d_u.shape[0], 1))))
+                                # print('X ', X)
+                                # print('x ', x)
+                                poselib_result = poselib.p4pf(x, X, True)
+                                # print('poselib_result ', poselib_result, ' len ', len(poselib_result[0]))
+                                if len(poselib_result[0]) != 0:
+                                    rvec, _ = cv2.Rodrigues(quat_to_rotm(poselib_result[0][0].q))
+                                    # image_points, _ = cv2.projectPoints(np.array(points3D_grp),
+                                    #     np.array(rvec),
+                                    #     np.array(poselib_result[0][0].t),
+                                    #     camera_matrix[CAM_ID][0],
+                                    #     camera_matrix[CAM_ID][1])
+                                    # image_points = image_points.reshape(-1, 2)                                    
+                                    # for idx, point in enumerate(image_points):
+                                    #     pt = (int(point[0]), int(point[1]))
+                                    #     cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                                    RER = reprojection_error(np.array(points3D_grp),
+                                                            points2d_u,
+                                                            rvec,
+                                                            poselib_result[0][0].t,
+                                                            default_cameraK,
+                                                            default_dist_coeffs)
+                                    if RER < MIN_SOCRE:
+                                        MIN_POSE = poselib_result[0][0]
+                                        MIN_GROUP_ID = points3D_grp_comb
+                                        points3D = points3D_grp
+
+                                
+
+                
+                print('MIN SOCORE INFO')
+                print(MIN_INFO)
+                print(MIN_GROUP_ID)
+                if len(MIN_GROUP_ID) > 0:
+                    rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
+                    image_points, _ = cv2.projectPoints(np.array(points3D),
+                        np.array(rvec),
+                        np.array(MIN_POSE.t),
+                        camera_matrix[CAM_ID][0],
+                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+                    for idx, point in enumerate(image_points):
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                        cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
 
         
             if AUTO_LOOP and UVC_MODE == 0:
@@ -593,18 +710,11 @@ elif SOLUTION == 2:
                 # Use 'e' key to exit the loop
                 break
             elif key & 0xFF == ord('n'):
-                if AUTO_LOOP and UVC_MODE == 0:
+                if AUTO_LOOP == 0 and UVC_MODE == 0:
                     frame_cnt += 1     
             elif key & 0xFF == ord('b'):
-                if AUTO_LOOP and UVC_MODE == 0:
+                if AUTO_LOOP == 0 and UVC_MODE == 0:
                     frame_cnt -= 1    
-
-        data = OrderedDict()
-        data['BLOB_INFO'] = BLOB_INFO
-        pickle_data(WRITE, 'BLOB_INFO.pickle', data)
-        data = OrderedDict()
-        data['CAMERA_INFO'] = CAMERA_INFO
-        pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
 
         # Release everything when done
         if UVC_MODE == 1:
@@ -640,8 +750,6 @@ def insert_ba_rt(**kwargs):
     data = OrderedDict()
     data['CAMERA_INFO'] = CAMERA_INFO
     pickle_data(WRITE, kwargs.get('camera_info_name'), data)
-
-
 def insert_remake_3d():
     RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
     RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
@@ -667,7 +775,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
     BLOB_CNT = len(MODEL_DATA)
 
     # # Set the seed for Python's random module.
@@ -680,11 +788,16 @@ if __name__ == "__main__":
     # # Add noise to the original data.
     # MODEL_DATA += noise
 
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'ARCUTRAS'
     combination_cnt = [4,5]
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
         print(f"{np.array2string(leds, separator=', ')},")
+
+    from Advanced_Plot_3D import regenerate_pts_by_dist
+
+    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(0, MODEL_DATA, DIRECTION)
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
     auto_labeling()
 
