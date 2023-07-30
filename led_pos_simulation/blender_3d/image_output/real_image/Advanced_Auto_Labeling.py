@@ -1,8 +1,9 @@
 from Advanced_Function import *
 from data_class import *
+import Advanced_Cython_Functions
 
 RER_SPEC = 3.0
-BLOB_SIZE = 50
+BLOB_SIZE = 100
 TRACKER_PADDING = 3
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 150
@@ -33,6 +34,16 @@ def circular_sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
         yield data[i:i + window_size]
 
+def TtoA(T):
+    A = []
+    for i, t in enumerate(T):
+        for tt in t:
+            A.append(np.array(tt))
+    return np.array(A)
+
+
+def AtoT(A):
+    return torch.Tensor(np.array(A))
 
 if SOLUTION == 1:
     def auto_labeling():
@@ -513,8 +524,8 @@ elif SOLUTION == 3:
             CAM_ID,
             points3D,
             points2D,
-            camera_matrix[CAM_ID][0],
-            camera_matrix[CAM_ID][1]
+            default_cameraK,
+            default_dist_coeffs
         ]
         _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
 
@@ -537,12 +548,12 @@ elif SOLUTION == 3:
             RER = reprojection_error(points3D,
                                     points2D,
                                     rvec, tvec,
-                                    camera_matrix[CAM_ID][0],
-                                    camera_matrix[CAM_ID][1])
+                                    default_cameraK,
+                                    default_dist_coeffs)
             # print('RER', RER)
-            return RER
+            return RER, rvec, tvec
         else:
-            return NOT_SET
+            return NOT_SET, NOT_SET, NOT_SET
     def auto_labeling():
         frame_cnt = 0
         # Select the first camera device
@@ -558,8 +569,8 @@ elif SOLUTION == 3:
             video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
         else:
             # image_files = sorted(glob.glob(os.path.join(script_dir,f"./render_img/rifts_right_9/test_1/" + '*.png'))) 
-            # image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/rotation/" + '*.png'))) 
-            image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/arcturas/test_1/" + '*.png')))        
+            image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/plane/" + '*.png'))) 
+            # image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/arcturas/test_1/" + '*.png')))        
             print('lenght of images: ', len(image_files))
 
         # Initialize each blob ID with a copy of the structure
@@ -621,9 +632,10 @@ elif SOLUTION == 3:
             # points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
             # points2D_D_R = np.flip(points2D_D, axis=0)
             # Alogirithm
-            SEARCHING_WINDOW_SIZE = 8
+            
             PNP_SOLVER_LENGTH = 4
             BLOBS_LENGTH = len(blobs_sorted)
+            SEARCHING_WINDOW_SIZE = BLOBS_LENGTH * 2
             # print('BLOBS_LENGTH ', BLOBS_LENGTH)
             # print('points2D_D ', points2D_D)
             if BLOBS_LENGTH >= PNP_SOLVER_LENGTH:
@@ -631,76 +643,245 @@ elif SOLUTION == 3:
                 MIN_INFO = {}
                 MIN_POSE = []
                 MIN_GROUP_ID = []
-                points3D = []
-
-                camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
-                for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE):
-                        # points3D_grp = MODEL_DATA[list(grps), :]
-                        # print('grps ', grps)   
-                        for points3D_grp_comb in combinations(grps, PNP_SOLVER_LENGTH):
-                            points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
-                            # print('points3D_grp_comb ', points3D_grp_comb)
-                            # RER_1 = check_pnp(np.array(points3D_grp), points2D_D)
-                            # RER_2 = check_pnp(np.array(points3D_grp), points2D_D_R)
-                            for points2d_u in sliding_window(points2D_U, PNP_SOLVER_LENGTH):                                                        
-                                # pose, info = poselib.estimate_absolute_pose(points2d_u, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
-                                # if info['model_score'] < MIN_SOCRE:
-                                #     MIN_SOCRE = info['model_score']
-                                #     MIN_POSE = pose
-                                #     MIN_INFO = info
-                                #     MIN_GROUP_ID = points3D_grp_comb
-                                #     points3D = points3D_grp
-
-
-                                X = np.array(points3D_grp)  
-                                x = np.hstack((points2d_u, np.ones((points2d_u.shape[0], 1))))
-                                # print('X ', X)
-                                # print('x ', x)
-                                poselib_result = poselib.p4pf(x, X, True)
-                                # print('poselib_result ', poselib_result, ' len ', len(poselib_result[0]))
-                                if len(poselib_result[0]) != 0:
-                                    rvec, _ = cv2.Rodrigues(quat_to_rotm(poselib_result[0][0].q))
-                                    # image_points, _ = cv2.projectPoints(np.array(points3D_grp),
-                                    #     np.array(rvec),
-                                    #     np.array(poselib_result[0][0].t),
-                                    #     camera_matrix[CAM_ID][0],
-                                    #     camera_matrix[CAM_ID][1])
-                                    # image_points = image_points.reshape(-1, 2)                                    
-                                    # for idx, point in enumerate(image_points):
-                                    #     pt = (int(point[0]), int(point[1]))
-                                    #     cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
-                                    RER = reprojection_error(np.array(points3D_grp),
-                                                            points2d_u,
-                                                            rvec,
-                                                            poselib_result[0][0].t,
-                                                            default_cameraK,
-                                                            default_dist_coeffs)
-                                    if RER < MIN_SOCRE:
-                                        MIN_POSE = poselib_result[0][0]
-                                        MIN_GROUP_ID = points3D_grp_comb
-                                        points3D = points3D_grp
-
-                                
-
+                MIN_POINTS3D = []
                 
-                print('MIN SOCORE INFO')
-                print(MIN_INFO)
-                print(MIN_GROUP_ID)
-                if len(MIN_GROUP_ID) > 0:
-                    rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
-                    image_points, _ = cv2.projectPoints(np.array(points3D),
-                        np.array(rvec),
-                        np.array(MIN_POSE.t),
-                        camera_matrix[CAM_ID][0],
-                        camera_matrix[CAM_ID][1])
-                    image_points = image_points.reshape(-1, 2)
-                    for idx, point in enumerate(image_points):
-                        pt = (int(point[0]), int(point[1]))
-                        cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
-                        cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                start_time = time.time() 
+                
+                # SOLUTION 1
+                # seen_combinations = set()
+                # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
+                #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
+                #         if points3D_grp_comb not in seen_combinations:
+                #             seen_combinations.add(points3D_grp_comb)
+                #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                #             for points2d_u in sliding_window(points2D_U, BLOBS_LENGTH):
+                #                 RER, RVEC, TVEC = check_pnp(points3D=points3D_grp, points2D=points2d_u)
+                #                 if RER < MIN_SOCRE:
+                #                     MIN_GROUP_ID = points3D_grp_comb
+                #                     MIN_POINTS3D = points3D_grp
+                #                     MIN_POSE = [RVEC, TVEC]
+                
+                #                 # Draw Blender projection
+                # image_points, _ = cv2.projectPoints(MIN_POINTS3D,
+                #                                     np.array(MIN_POSE[0]),
+                #                                     np.array(MIN_POSE[1]),
+                #                                     camera_matrix[CAM_ID][0],
+                #                                     camera_matrix[CAM_ID][1])
+                # # print('image_points', image_points)
+                # image_points = image_points.reshape(-1, 2)
+                # for idx, point in enumerate(image_points):
+                #     # 튜플 형태로 좌표 변환
+                #     pt = (int(point[0]), int(point[1]))
+                #     cv2.circle(draw_frame, pt, 1, (255, 0, 0), -1)
+                #     cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+                                    
+                
+                # SOLUTION 2
+                # Advanced_Cython_Functions.cython_func(MODEL_DATA, points2D_U, BLOB_CNT, SEARCHING_WINDOW_SIZE, BLOBS_LENGTH)
+                
+                # SOLUTION 3
+                # seen_combinations = set()
+                # camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
+                # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
+                #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):                        
+                #         if points3D_grp_comb not in seen_combinations:
+                #             seen_combinations.add(points3D_grp_comb)
+                #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                #             for points2d_d in sliding_window(points2D_D, BLOBS_LENGTH):                                                        
+                #                 pose, info = poselib.estimate_absolute_pose(points2d_d, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
+                #                 # print('pose ', pose)
+                #                 # print('info ', info)
+                #                 if info['model_score'] < MIN_SOCRE:
+                #                     MIN_SOCRE = info['model_score']
+                #                     MIN_POSE = pose
+                #                     MIN_INFO = info
+                #                     MIN_GROUP_ID = points3D_grp_comb
+                #                     MIN_POINTS3D = points3D_grp
+                
+                # print('MIN SOCORE INFO')
+                # print(MIN_INFO)
+                # print(MIN_GROUP_ID)
+                # if len(MIN_GROUP_ID) > 0:
+                #     rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
+                #     image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
+                #         np.array(rvec),
+                #         np.array(MIN_POSE.t),
+                #         camera_matrix[CAM_ID][0],
+                #         camera_matrix[CAM_ID][1])
+                #     image_points = image_points.reshape(-1, 2)
+                #     for idx, point in enumerate(image_points):
+                #         pt = (int(point[0]), int(point[1]))
+                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                #         cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
 
         
+                
+                # SOLUTION 4
+                # seen_combinations = set()
+                # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
+                #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
+                #         if points3D_grp_comb not in seen_combinations:
+                #             seen_combinations.add(points3D_grp_comb)
+                #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                #             for points2d_u in sliding_window(points2D_U, BLOBS_LENGTH): 
+                #                 X = np.array(points3D_grp)  
+                #                 x = np.hstack((points2d_u, np.ones((points2d_u.shape[0], 1))))
+                #                 # print('X ', X)
+                #                 # print('x ', x)
+                #                 poselib_result = poselib.p4pf(x, X, True)
+                #                 # print('poselib_result ', poselib_result, ' len ', len(poselib_result[0]))
+                #                 if len(poselib_result[0]) != 0:
+                #                     rvec, _ = cv2.Rodrigues(quat_to_rotm(poselib_result[0][0].q))
+                #                     # image_points, _ = cv2.projectPoints(np.array(points3D_grp),
+                #                     #     np.array(rvec),
+                #                     #     np.array(poselib_result[0][0].t),
+                #                     #     camera_matrix[CAM_ID][0],
+                #                     #     camera_matrix[CAM_ID][1])
+                #                     # image_points = image_points.reshape(-1, 2)                                    
+                #                     # for idx, point in enumerate(image_points):
+                #                     #     pt = (int(point[0]), int(point[1]))
+                #                     #     cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                #                     RER = reprojection_error(np.array(points3D_grp),
+                #                                             points2d_u,
+                #                                             rvec,
+                #                                             poselib_result[0][0].t,
+                #                                             default_cameraK,
+                #                                             default_dist_coeffs)
+                #                     if RER < MIN_SOCRE:
+                #                         MIN_POSE = poselib_result[0][0]
+                #                         MIN_GROUP_ID = points3D_grp_comb
+                #                         MIN_POINTS3D = points3D_grp
+                    
+                # print('MIN SOCORE INFO')
+                # print(MIN_INFO)
+                # print(MIN_GROUP_ID)
+                # if len(MIN_GROUP_ID) > 0:
+                #     rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
+                #     image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
+                #         np.array(rvec),
+                #         np.array(MIN_POSE.t),
+                #         camera_matrix[CAM_ID][0],
+                #         camera_matrix[CAM_ID][1])
+                #     image_points = image_points.reshape(-1, 2)
+                #     for idx, point in enumerate(image_points):
+                #         pt = (int(point[0]), int(point[1]))
+                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                #         cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+        
+                
+                
+                # SOLUTION 5                
+                # if BLOBS_LENGTH >= 6:
+                #     # Define default distortion coefficients and camera matrix
+                #     default_dist_coeffs = np.zeros((4, 1))
+                #     default_cameraK = np.eye(3).astype(np.float64)
+
+                #     # Use the default camera matrix as the intrinsic parameters
+                #     intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
+
+                #     # intrinsics_single = torch.tensor([[[715.159, 0.0, 650.741],
+                #     #             [0.0, 715.159, 489.184],
+                #     #             [0.0, 0.0, 1.0]]], dtype=torch.float64)
+                #     # Convert to tensors
+                #     # MODEL_DATA_T = torch.tensor(MODEL_DATA, dtype=torch.float64)
+                #     # points2D_U_T = torch.tensor(points2D_U, dtype=torch.float64)
+                #     seen_combinations = set()
+
+                #     # Prepare lists for batch processing
+                #     batch_2d_points = []
+                #     batch_3d_points = []
+                #     batch_combinations = [] # <- New list for storing combinations
+                #     for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE):
+                #         for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
+                #             # Make the combination hashable by converting it to a tuple
+                #             points3D_grp_comb = tuple(sorted(points3D_grp_comb))
+                #             if points3D_grp_comb not in seen_combinations:
+                #                 seen_combinations.add(points3D_grp_comb)
+                #                 points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                #                 for points2d_u in combinations(points2D_U, BLOBS_LENGTH):
+                #                     # Add to batch lists
+                #                     batch_2d_points.append(points2d_u)
+                #                     batch_3d_points.append(points3D_grp)
+                #                     batch_combinations.append(points3D_grp_comb) # <- Store the combination
+
+
+                #     # Convert lists of numpy arrays to single numpy arrays
+                #     batch_2d_points_np = np.array(batch_2d_points)
+                #     batch_3d_points_np = np.array(batch_3d_points)
+
+                #     # Convert numpy arrays to PyTorch tensors
+                #     batch_2d_points = torch.from_numpy(batch_2d_points_np)
+                #     batch_3d_points = torch.from_numpy(batch_3d_points_np)
+
+                #     # Duplicate intrinsics for each item in the batch
+                #     intrinsics = intrinsics_single.repeat(batch_2d_points.shape[0], 1, 1)
+
+                #     # Use tensors in kornia function
+                #     pred_world_to_cam = K.geometry.solve_pnp_dlt(batch_3d_points, batch_2d_points, intrinsics)
+                #     # Use the estimated world_to_cam matrices to project the 3d points back onto the image plane
+                    
+                #     # Initialize the minimum reprojection error to a large value
+                #     min_reprojection_error = np.inf
+
+                #     # Initialize the best pose and 3D points to None
+                #     best_pose = None
+                #     best_3d_points = None
+                #     best_combination = None # <- New variable for the best combination
+                #     # For each predicted world_to_cam matrix...
+                #     for i in range(pred_world_to_cam.shape[0]):
+                #         # Unpack the rotation and translation vectors from the world_to_cam matrix
+                #         # print(pred_world_to_cam[i, :3, :3])
+                #         rvec = cv2.Rodrigues(pred_world_to_cam[i, :3, :3].cpu().numpy())[0]
+                #         tvec = pred_world_to_cam[i, :3, 3].cpu().numpy()
+
+                #         # Project the 3D points to the image plane using cv2.projectPoints
+                #         projected_2d_points, _ = cv2.projectPoints(batch_3d_points[i].cpu().numpy(), rvec, tvec, default_cameraK, default_dist_coeffs)
+                #         # Compute the reprojection error
+                #         reprojection_error = np.sum((projected_2d_points.squeeze() - batch_2d_points[i].cpu().numpy())**2)
+
+                #         # If this reprojection error is smaller than the current minimum...
+                #         if reprojection_error < min_reprojection_error:
+                #             # Update the minimum reprojection error
+                #             min_reprojection_error = reprojection_error
+
+                #             # Update the best pose and 3D points
+                #             best_pose = pred_world_to_cam[i]
+                #             best_3d_points = batch_3d_points[i]
+                #             best_combination = batch_combinations[i] # <- Update the best combination
+ 
+
+
+                #     print(f"Minimum reprojection error: {min_reprojection_error}")
+                #     print(f"Best pose: {best_pose}")
+                #     print(f"Best 3D points: {best_3d_points}")       
+                #     # After finding best pose and 3D points
+                #     rvec = cv2.Rodrigues(best_pose[:3, :3].cpu().numpy())[0]
+                #     tvec = best_pose[:3, 3].cpu().numpy()
+
+                #     # Project the 3D points to the image plane using cv2.projectPoints
+                #     image_points, _ = cv2.projectPoints(best_3d_points.cpu().numpy(), rvec, tvec, camera_matrix[0][0], camera_matrix[0][1])
+
+                #     # Reshape image_points for easier handling
+                #     image_points = image_points.reshape(-1, 2)
+
+                #     # Draw each point on the image
+                #     for idx, point in enumerate(image_points):
+                #         pt = (int(point[0]), int(point[1]))
+                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                #         cv2.putText(draw_frame, str(best_combination[idx]), (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+
+                end_time = time.time()  # Store the current time again
+                elapsed_time = end_time - start_time  # Calculate the difference
+                print(f"The function took {elapsed_time} seconds to complete.")                                
+                
+                
+
             if AUTO_LOOP and UVC_MODE == 0:
                 frame_cnt += 1
             # Display the resulting frame
@@ -796,7 +977,7 @@ if __name__ == "__main__":
 
     from Advanced_Plot_3D import regenerate_pts_by_dist
 
-    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(0, MODEL_DATA, DIRECTION)
+    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(12, MODEL_DATA, DIRECTION)
     show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
     auto_labeling()

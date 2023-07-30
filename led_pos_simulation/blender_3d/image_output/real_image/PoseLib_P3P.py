@@ -147,4 +147,8 @@ for data in points2D:
     print(f"{(data[0] - camera_matrix[0][2]) / camera_matrix[0][0]},{(data[1] - camera_matrix[1][2]) / camera_matrix[1][1]}")
 
 
-help(poselib)
+# help(poselib)
+
+import math
+total_cases = 25 * math.comb(25, 4) * math.perm(25, 4)
+print(total_cases)

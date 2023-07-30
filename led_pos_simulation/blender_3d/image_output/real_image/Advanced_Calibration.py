@@ -231,6 +231,10 @@ def blob_setting(script_dir, SERVER, blob_file):
             if gsize < BLOB_SIZE:
                 continue
             filtered_blob_area.append((x, y, w, h))
+            
+        print('filtered_blob_area')
+        for blobs in filtered_blob_area:
+            print(f"[{blobs[0]} {blobs[1]}]")
 
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes, POS=TEMP_POS)
@@ -359,9 +363,11 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER, ar
         return ERROR, None
 def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRATION_TEST = 0, DO_BA = 0):
     print('gathering_data_single START')
-    BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
-    RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
-    RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+    if DO_BA == 1:
+        BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
+    if DO_CALIBRATION_TEST == 1:
+        RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
+        RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
 
     camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
@@ -622,10 +628,10 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                 if DO_CALIBRATION_TEST == 1:
                     points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
                     points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-                # print('LED_NUMBER: ', LED_NUMBER)
-                # print('points2D\n', points2D)
-                # print('points2D_U\n', points2D_U)
-                # print('points3D\n', points3D)
+                print('LED_NUMBER: ', LED_NUMBER)
+                print('points2D\n', points2D)
+                print('points2D_U\n', points2D_U)
+                print('points3D\n', points3D)
 
                 # TEST CODE
                 # Convert rotation vector to rotation matrix
@@ -2127,18 +2133,18 @@ if __name__ == "__main__":
     CV_MIN_THRESHOLD = 150
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'TEST'
 
-    if TARGET_DEVICE == 'TESTbbbbbbbbbb':
+    if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
         # 0, 2
         RIFTS_PATTERN_RIGHT = [0,0,1,0,1,0,1,0,1,0,1,0,1,0,0]
         LEDS_POSITION = RIFTS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 50
+        BLOB_SIZE = 25
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/{controller_name}/test_7/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_7/"
+        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
         START_FRAME = 0
@@ -2244,7 +2250,11 @@ if __name__ == "__main__":
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
-    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+        
+    # from Advanced_Plot_3D import regenerate_pts_by_dist
+    # MODEL_DATA, DIRECTION = regenerate_pts_by_dist(12, MODEL_DATA, DIRECTION)
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))        
+
     # start, end = init_camera_path(script_dir, 'output_rifts_right_9.mkv', 'start_capture_rifts_right_9.jpg')
 
     ax1, ax2 = init_plot(MODEL_DATA)

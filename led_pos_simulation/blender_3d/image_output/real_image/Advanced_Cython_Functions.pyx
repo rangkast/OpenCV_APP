@@ -1,7 +1,11 @@
+# distutils: language=c++
+
 from typing import List, Tuple
 import numpy as np
+# from itertools import combinations
 cimport numpy as cnp
-import cv2
+# Get the directory of the current script
+import poselib
 
 cdef void swap(cnp.int64_t[:] arr, int i, int j):
     cdef int temp = arr[i]
@@ -17,50 +21,73 @@ cdef void permute(cnp.int64_t[:] data, int start, int end, list result):
             permute(data, start+1, end, result)
             swap(data, i, start)  # backtrack
 
+cdef void combinations_util(cnp.int64_t[:] arr, cnp.int64_t[:] data, int start, int end, int index, int r, list res):
+    cdef int i
+    # Current combination is ready to be printed, print it
+    if index == r:
+        res.append(np.copy(data[0:r]))
+        return
+    # replace index with all possible elements. The condition
+    # "end-i+1 >= r-index" makes sure that including one element
+    # at index will make a combination with remaining elements
+    # at remaining positions
+    i = start 
+    while(i <= end and end - i + 1 >= r - index):
+        data[index] = arr[i]
+        combinations_util(arr, data, i+1, end, index+1, r, res)
+        i += 1
+
+cpdef list combinations(cnp.int64_t[:] arr, int r):
+    #print("combinations: input: ", arr, " r: ", r)
+    cdef:
+        cnp.int64_t[:] data = np.empty(r, dtype=np.int64)
+        list res = []
+    combinations_util(arr, data, 0, len(arr)-1, 0, r, res)
+    #print("combinations: result: ", res)  # print the result
+    return res
+
+
 cdef list sliding_window(int data_len, int window_size):
     return [range(i, i + window_size) for i in range(data_len - window_size + 1)]
 
-cpdef process_blobs(List[Tuple[float, float, Tuple[int, int, int, int]]] blobs, 
-                    int window_size, 
-                    int undistort, 
-                    cnp.float64_t[:, :, :] camera_matrix,
-                    cnp.float64_t[:, :] default_cameraK,
-                    cnp.float64_t[:, :] default_dist_coeffs,
-                    list SOLVE_PNP_FUNCTION,
-                    int METHOD, 
-                    cnp.float64_t[:, :] MODEL_DATA,
-                    int CAM_ID):
-    cdef int CNT = len(blobs)
-    cdef int blob_idx, i, idx, BLOB_CNT = len(MODEL_DATA)
-    cdef cnp.float64_t[:, :] points2D_D
-    cdef cnp.float64_t[:, :] points2D_U
-    cdef list candidates = []
-    cdef list points3D_perm = []
-    cdef cnp.float64_t[:, :] points3D
-    cdef list INPUT_ARRAY = []
-    cdef tuple output_tuple
-    cdef str _, rvec, tvec
-    cdef list perm_result = []
+cpdef list circular_sliding_window(list data, int window_size):
+    data = data + data[:window_size-1]
+    return [data[i:i + window_size] for i in range(len(data) - window_size + 1)]
 
-    blobs = sorted(blobs, key=lambda x:x[0]) 
-
-    for blob_idx in sliding_window(CNT, window_size):
-        candidates = [(blobs[i][0], blobs[i][1]) for i in blob_idx]
-        points2D_D = np.array(candidates, dtype=np.float64)
-        points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID], default_dist_coeffs)).reshape(-1, 2)
-
-        perm_result.clear()
-        permute(np.arange(BLOB_CNT), 0, BLOB_CNT - 1, perm_result)
-
-        for perm in perm_result:
-            points3D_perm = [MODEL_DATA[idx] for idx in perm[:window_size]]
-            points3D = np.array(points3D_perm, dtype=np.float64)
-
-            INPUT_ARRAY = [
-                CAM_ID,
-                points3D,
-                points2D_D if undistort == 0 else points2D_U,
-                camera_matrix[CAM_ID] if undistort == 0 else default_cameraK,
-                default_dist_coeffs
-            ]
-            _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+cpdef list cython_func(cnp.ndarray[cnp.float64_t, ndim=2] MODEL_DATA, cnp.ndarray[cnp.float64_t, ndim=2] points2D_U, int BLOB_CNT, int SEARCHING_WINDOW_SIZE, int BLOBS_LENGTH):
+    cdef:
+        cnp.ndarray[cnp.float64_t, ndim=2] points2d_u
+        cnp.ndarray[cnp.float64_t, ndim=1] MIN_GROUP_ID = np.empty((0,), dtype=np.float64)
+        cnp.ndarray[cnp.float64_t, ndim=2] points3D = np.empty((0,0), dtype=np.float64), points3D_grp
+    cdef:
+        dict camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
+        float MIN_SOCRE = float('inf')
+        object MIN_POSE = None
+        dict MIN_INFO = {}
+        object pose
+        dict info
+        list grps
+    #print("BLOB_CNT: ", BLOB_CNT, "points2D_U: ", points2D_U, "BLOBS_LENGTH: ", BLOBS_LENGTH)
+    for grps in circular_sliding_window(list(range(BLOB_CNT)), SEARCHING_WINDOW_SIZE):
+        #print("grps: ", grps)
+        for points3D_grp_comb in combinations(np.array(grps, dtype=np.int64), BLOBS_LENGTH):
+            #print("points3D_grp_comb: ", points3D_grp_comb) # combination 출력
+            points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+            #print("points3D_grp: ", points3D_grp)
+            for i in range(0, points2D_U.shape[0] - BLOBS_LENGTH + 1):
+                points2d_u = points2D_U[i:i+BLOBS_LENGTH]                                             
+                pose, info = poselib.estimate_absolute_pose(points2d_u, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
+                if info['model_score'] < MIN_SOCRE:
+                    MIN_SOCRE = info['model_score']
+                    MIN_POSE = pose
+                    MIN_INFO = info
+                    MIN_GROUP_ID = np.array(points3D_grp_comb, dtype=np.float64)
+                    points3D = points3D_grp
+                    '''
+                    print("New minimum score found: ", MIN_SOCRE)
+                    print("Associated pose: ", MIN_POSE)
+                    print("Associated info: ", MIN_INFO)
+                    print("Associated group ID: ", MIN_GROUP_ID)
+                    print("Associated 3D points: ", points3D)
+                    '''
+    return [MIN_POSE, MIN_INFO, MIN_GROUP_ID, points3D]
