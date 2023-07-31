@@ -3,7 +3,7 @@ from data_class import *
 import Advanced_Cython_Functions
 
 RER_SPEC = 3.0
-BLOB_SIZE = 100
+BLOB_SIZE = 30
 TRACKER_PADDING = 3
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 150
@@ -23,7 +23,7 @@ Solutions
 2 : sliding window x purmutations
 3 : translation Matrix x projectPoints
 '''
-SOLUTION = 3
+SOLUTION = 1
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -60,7 +60,9 @@ if SOLUTION == 1:
             video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
             video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
         else:
-            image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
+            image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/rotation_60/" + '*.png'))) 
+
+            # image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
             print('lenght of images: ', len(image_files))
 
         # Initialize each blob ID with a copy of the structure
@@ -356,10 +358,10 @@ if SOLUTION == 1:
                 # Use 'e' key to exit the loop
                 break
             elif key & 0xFF == ord('n'):
-                if AUTO_LOOP and UVC_MODE == 0:
+                if AUTO_LOOP == 0 and UVC_MODE == 0:
                     frame_cnt += 1     
             elif key & 0xFF == ord('b'):
-                if AUTO_LOOP and UVC_MODE == 0:
+                if AUTO_LOOP== 0 and UVC_MODE == 0:
                     frame_cnt -= 1    
 
         data = OrderedDict()
@@ -568,8 +570,8 @@ elif SOLUTION == 3:
             video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
             video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
         else:
-            # image_files = sorted(glob.glob(os.path.join(script_dir,f"./render_img/rifts_right_9/test_1/" + '*.png'))) 
-            image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/plane/" + '*.png'))) 
+            image_files = sorted(glob.glob(os.path.join(script_dir,f"./render_img/rifts_right_9/test_1/" + '*.png'))) 
+            # image_files = sorted(glob.glob(os.path.join(script_dir, f"./tmp/render/ARCTURAS/plane/" + '*.png'))) 
             # image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/arcturas/test_1/" + '*.png')))        
             print('lenght of images: ', len(image_files))
 
@@ -681,40 +683,39 @@ elif SOLUTION == 3:
                 # Advanced_Cython_Functions.cython_func(MODEL_DATA, points2D_U, BLOB_CNT, SEARCHING_WINDOW_SIZE, BLOBS_LENGTH)
                 
                 # SOLUTION 3
-                # seen_combinations = set()
-                # camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
-                # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
-                #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):                        
-                #         if points3D_grp_comb not in seen_combinations:
-                #             seen_combinations.add(points3D_grp_comb)
-                #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
-                #             for points2d_d in sliding_window(points2D_D, BLOBS_LENGTH):                                                        
-                #                 pose, info = poselib.estimate_absolute_pose(points2d_d, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
-                #                 # print('pose ', pose)
-                #                 # print('info ', info)
-                #                 if info['model_score'] < MIN_SOCRE:
-                #                     MIN_SOCRE = info['model_score']
-                #                     MIN_POSE = pose
-                #                     MIN_INFO = info
-                #                     MIN_GROUP_ID = points3D_grp_comb
-                #                     MIN_POINTS3D = points3D_grp
+                seen_combinations = set()
+                camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
+                for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
+                    for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):                        
+                        if points3D_grp_comb not in seen_combinations:
+                            seen_combinations.add(points3D_grp_comb)
+                            points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                            for points2d_d in sliding_window(points2D_D, BLOBS_LENGTH):                                                        
+                                pose, info = poselib.estimate_absolute_pose(points2d_d, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
+                                # print('pose ', pose)
+                                # print('info ', info)
+                                if info['model_score'] < MIN_SOCRE:
+                                    MIN_SOCRE = info['model_score']
+                                    MIN_POSE = pose
+                                    MIN_INFO = info
+                                    MIN_GROUP_ID = points3D_grp_comb
+                                    MIN_POINTS3D = points3D_grp
                 
-                # print('MIN SOCORE INFO')
-                # print(MIN_INFO)
-                # print(MIN_GROUP_ID)
-                # if len(MIN_GROUP_ID) > 0:
-                #     rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
-                #     image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
-                #         np.array(rvec),
-                #         np.array(MIN_POSE.t),
-                #         camera_matrix[CAM_ID][0],
-                #         camera_matrix[CAM_ID][1])
-                #     image_points = image_points.reshape(-1, 2)
-                #     for idx, point in enumerate(image_points):
-                #         pt = (int(point[0]), int(point[1]))
-                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
-                #         cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-
+                print('MIN SOCORE INFO')
+                print(MIN_INFO)
+                print(MIN_GROUP_ID)
+                if len(MIN_GROUP_ID) > 0:
+                    rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
+                    image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
+                        np.array(rvec),
+                        np.array(MIN_POSE.t),
+                        camera_matrix[CAM_ID][0],
+                        camera_matrix[CAM_ID][1])
+                    image_points = image_points.reshape(-1, 2)
+                    for idx, point in enumerate(image_points):
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                        cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
         
                 
@@ -956,7 +957,8 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right.json"))
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
     BLOB_CNT = len(MODEL_DATA)
 
     # # Set the seed for Python's random module.
@@ -978,6 +980,7 @@ if __name__ == "__main__":
     from Advanced_Plot_3D import regenerate_pts_by_dist
 
     MODEL_DATA, DIRECTION = regenerate_pts_by_dist(12, MODEL_DATA, DIRECTION)
+    # MODEL_DATA = np.array(MODEL_DATA)
     show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
     auto_labeling()

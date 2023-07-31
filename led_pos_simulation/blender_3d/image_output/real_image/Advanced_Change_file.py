@@ -10,11 +10,6 @@ from Advanced_Function import *
 
 
 
-
-
-
-
-
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
 print(script_dir)

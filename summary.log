@@ -1,14 +1,14 @@
  LEDCount:  AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
-         4               0.017641                   0.014439               0.002433                   0.001841                 0.289975                     0.233803
-         5               0.005242                   0.005475               0.001173                   0.001148                 0.279634                     0.245712
+         4                    NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+         5                    NaN                        NaN                    NaN                        NaN                      NaN                          NaN
 
 Descriptive Statistics:
        AvgRvecStd(points3D):  AvgRvecStd(points3D_IQR):  AvgTvecStd(points3D):  AvgTvecStd(points3D_IQR):  AvgReprojErr(points3D):  AvgReprojErr(points3D_IQR):
-count               2.000000                   2.000000               2.000000                   2.000000                 2.000000                     2.000000
-mean                0.011441                   0.009957               0.001803                   0.001495                 0.284805                     0.239758
-std                 0.008767                   0.006338               0.000891                   0.000490                 0.007312                     0.008421
-min                 0.005242                   0.005475               0.001173                   0.001148                 0.279634                     0.233803
-25%                 0.008342                   0.007716               0.001488                   0.001321                 0.282219                     0.236780
-50%                 0.011441                   0.009957               0.001803                   0.001495                 0.284805                     0.239758
-75%                 0.014541                   0.012198               0.002118                   0.001668                 0.287390                     0.242735
-max                 0.017641                   0.014439               0.002433                   0.001841                 0.289975                     0.245712
+count                    0.0                        0.0                    0.0                        0.0                      0.0                          0.0
+mean                     NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+std                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+min                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+25%                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+50%                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+75%                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN
+max                      NaN                        NaN                    NaN                        NaN                      NaN                          NaN

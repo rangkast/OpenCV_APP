@@ -219,6 +219,10 @@ ax[0].scatter(P_xy[:,0], P_xy[:,1], alpha=alpha_pts, label='Projected points')
 #-------------------------------------------------------------------------------
 # (3) Fit circle in new 2D coords
 #-------------------------------------------------------------------------------
+
+print('P_xy\n', P_xy)
+# print(f"P_xy[:,0] {P_xy[:,0]}   P_xy[:,1] {P_xy[:,1]}")
+
 xc, yc, r = fit_circle_2d(P_xy[:,0], P_xy[:,1])
 print('xc ', xc, 'yc ', yc, 'r ', r)
 #--- Generate circle points in 2D

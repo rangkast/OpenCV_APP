@@ -46,6 +46,7 @@ import torch
 import torchvision
 import kornia as K
 import time
+from sklearn.cluster import AgglomerativeClustering
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
@@ -279,8 +280,9 @@ def point_in_bbox(x, y, bbox):
     return bbox[0] <= x <= bbox[0] + bbox[2] and bbox[1] <= y <= bbox[1] + bbox[3]
 def draw_blobs_and_ids(frame, blobs, bboxes):
     for bbox in blobs:
-        p1 = (int(bbox[0]), int(bbox[1]))
-        p2 = (int(bbox[0] + bbox[2]), int(bbox[1] + bbox[3]))
+        (x, y, w, h) = bbox[2]
+        p1 = (int(x), int(y))
+        p2 = (int(x + w), int(y + h))
         cv2.rectangle(frame, p1, p2, (255, 0, 0), 1, 1)
     for box in bboxes:
         cv2.putText(frame, f"{box['idx']}", (int(box['bbox'][0]), int(box['bbox'][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX,
@@ -320,11 +322,11 @@ def pickle_data(rw_mode, path, data):
 def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
     if event == cv2.EVENT_LBUTTONDOWN:
         down_in_box = NOT_SET
-        print(f"EVENT_LBUTTONDOWN {x} {y}")
+        # print(f"EVENT_LBUTTONDOWN {x} {y}")
         for i, bbox in enumerate(blob_area_0):
-            if point_in_bbox(x, y, bbox):
+            if point_in_bbox(x, y, bbox[2]):
                 input_number = input('Please enter ID for this bbox: ')
-                bboxes.append({'idx': input_number, 'bbox': bbox})
+                bboxes.append({'idx': input_number, 'bbox': bbox[2]})
                 draw_blobs_and_ids(frame, blob_area_0, bboxes)
                 down_in_box = DONE
         if down_in_box == NOT_SET:
@@ -337,7 +339,7 @@ def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
             POS['status'] = MOVE            
 
     elif event == cv2.EVENT_LBUTTONUP:
-        print(f"EVENT_LBUTTONUP {x} {y}")
+        # print(f"EVENT_LBUTTONUP {x} {y}")
         POS['status'] = UP
             
 
@@ -1222,3 +1224,23 @@ def area_filter(x, y, POS):
             return True
         else:
             return False
+
+def fit_circle_2d(x, y, w=[]):
+    
+    A = np.array([x, y, np.ones(len(x))]).T
+    b = x**2 + y**2
+    
+    # Modify A,b for weighted least squares
+    if len(w) == len(x):
+        W = np.diag(w)
+        A = np.dot(W,A)
+        b = np.dot(W,b)
+    
+    # Solve by method of least squares
+    c = np.linalg.lstsq(A,b,rcond=None)[0]
+    
+    # Get circle parameters from solution c
+    xc = c[0]/2
+    yc = c[1]/2
+    r = np.sqrt(c[2] + xc**2 + yc**2)
+    return xc, yc, r

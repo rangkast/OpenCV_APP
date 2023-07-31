@@ -206,11 +206,11 @@ def blob_setting(script_dir, SERVER, blob_file):
             frame = cv2.resize(frame, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
         
 
-        _, frame = cv2.threshold(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+        _, frame = cv2.threshold(frame, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                    cv2.THRESH_TOZERO)
-    
         draw_frame = frame.copy()
-        height, width = draw_frame.shape
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)        
+        height, width = frame.shape
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 0, 0), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 0, 0), 1)
@@ -227,14 +227,79 @@ def blob_setting(script_dir, SERVER, blob_file):
         filtered_blob_area = []    
         for _, bbox in enumerate(blob_area):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-            _,_, gsize = find_center(frame, (x, y, w, h))
+            gcx,gcy, gsize = find_center(frame, (x, y, w, h))
             if gsize < BLOB_SIZE:
                 continue
-            filtered_blob_area.append((x, y, w, h))
-            
-        print('filtered_blob_area')
-        for blobs in filtered_blob_area:
-            print(f"[{blobs[0]} {blobs[1]}]")
+            filtered_blob_area.append((gcx, gcy, (x, y, w, h)))            
+        
+        if DO_CIRCULAR_FIT_ALGORITHM[0] == DONE:
+            # print('filtered_blob_area')
+            P = []
+            for blobs in filtered_blob_area:
+                # print(f"[{blobs[0]} {blobs[1]}]")
+                P.append([blobs[0], blobs[1]])
+
+            P = np.array(P)
+            P_CUT_LENGTH = round(len(P) * 0.5)
+            # P_CUT_LENGTH = 4
+            if P_CUT_LENGTH > 2:
+                t = np.linspace(0, 2*np.pi, 100)
+                # ax[0].scatter(P[:,0], P[:,1], alpha=0.5, label='Projected points', color='gray')
+                # MAKE Base CIRCLE to find General Center Point
+                bxc, byc, br = fit_circle_2d(P[:,0], P[:,1])
+                # print('bxc ', bxc, 'byc ', byc, 'br ', br)
+                base_pos = -100 if DO_CIRCULAR_FIT_ALGORITHM[1] == TOP else 100
+                Base_center = np.array([bxc, byc + base_pos])
+
+
+                # bxx = bxc + br*np.cos(t)
+                # byy = byc + br*np.sin(t)
+                # ax[0].plot(bxx, byy, 'k--', lw=2, label='Fitting circle', color='gray')
+                # ax[0].plot(bxc, byc, 'k+', ms=10, color='gray')
+                # ax[0].legend()
+
+                POINTS = []
+                for points in P:
+                    POINTS.append([points[0], points[1], np.linalg.norm(points - Base_center, axis=0)])
+
+                POINTS_SORTED = np.array(sorted(POINTS, key=lambda x:x[2])) ## 또는 l.sort(key=lambda x:x[1])
+                # print('POINTS_SORTED\n', POINTS_SORTED, ' ', P_CUT_LENGTH)
+
+                # MAKE Inner Circle made by 3 closest Points
+                POINTS_SORTED = POINTS_SORTED[:P_CUT_LENGTH]
+                # print('POINTS_SORTED\n', POINTS_SORTED)
+
+                xc, yc, r = fit_circle_2d(POINTS_SORTED[:,0], POINTS_SORTED[:,1])
+                # print('xc ', xc, 'yc ', yc, 'r ', r)
+                
+
+                if np.abs(br - r) > 3:
+                    Inner_center = np.array([xc, yc])
+                    # for pts in POINTS_SORTED:
+                    #     print(pts)
+                    #     cv2.circle(draw_frame, (int(pts[0]), int(pts[1])), 5, (0,255,0), -1)                
+                    cv2.circle(draw_frame, (int(bxc), int(byc)), int(br), (255,255,255), 1)
+                    cv2.circle(draw_frame, (int(xc), int(yc)), int(r) + 5 , (0,255,0), 1)
+                else:
+                    Inner_center = np.array([bxc, byc])
+                    # for pts in POINTS_SORTED:
+                    #     print(pts)
+                    #     cv2.circle(draw_frame, (int(pts[0]), int(pts[1])), 5, (0,0,255), -1)      
+                    cv2.circle(draw_frame, (int(bxc), int(byc)), int(br), (255,255,255), 1)
+                    cv2.circle(draw_frame, (int(xc), int(yc)), int(r), (0,0,255), 1)
+
+                distances = np.linalg.norm(P - Inner_center, axis=1)    
+                distances = distances.reshape(-1, 1)
+                # print('distance ', distances)
+                n_clusters = 2  # Change this value according to your requirement
+                clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='complete')
+                labels = clustering.fit_predict(distances)
+
+                for i, label in enumerate(labels):
+                    if label == 0:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,255,0), -1)
+                    else:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)
 
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes, POS=TEMP_POS)
@@ -362,7 +427,7 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER, ar
     else:
         return ERROR, None
 def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRATION_TEST = 0, DO_BA = 0):
-    print('gathering_data_single START')
+    print('gathering_data_single START ' , start, ' ', end)
     if DO_BA == 1:
         BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
     if DO_CALIBRATION_TEST == 1:
@@ -396,7 +461,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
 
     while video.isOpened() if VIDEO_MODE else True:
         print('\n')
-        print(f"########## FraSme {frame_cnt} ##########")
+        print(f"########## Frame {frame_cnt} ##########")
         if VIDEO_MODE == 1:
             video.set(cv2.CAP_PROP_POS_FRAMES, frame_cnt)
             ret, frame_0 = video.read()
@@ -425,7 +490,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         if frame_cnt < start:
-            print(f"skip frame_cnt{frame_cnt}")
+            print(f"skip frame_cnt: {frame_cnt}")
             frame_cnt += 1
             if SERVER == 0:
                 cv2.imshow("Tracking", draw_frame)
@@ -2125,12 +2190,13 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 0
+    AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
     SOLUTION = 2
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
+    DO_CIRCULAR_FIT_ALGORITHM = 1
 
     # Camera RT 마지막 버전 test_7
     TARGET_DEVICE = 'TEST'
@@ -2215,7 +2281,7 @@ if __name__ == "__main__":
         camera_img_path = f"./render_img/{controller_name}/test_21/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_polyhedron.json"))
-        START_FRAME = 25
+        START_FRAME = 20
         STOP_FRAME = 48
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
@@ -2227,12 +2293,12 @@ if __name__ == "__main__":
         ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 30
+        BLOB_SIZE = 50
         controller_name = 'arcturas'
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
         camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/rotation/"
+        camera_img_path = f"./tmp/render/ARCTURAS/plane/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2241,7 +2307,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 30
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
-
+        DO_CIRCULAR_FIT_ALGORITHM = (1, 0)
     
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
@@ -2274,7 +2340,7 @@ if __name__ == "__main__":
             해당 부분은 BA와 소수의 블롭으로 BA를 완성시켜서 R|T를 생성
             -BA를 통해 다른 frame과의 RER 비교를 통해 global 데이터를 보정함
             -noise가 많이 섞인 경우는 pnp solver를 통한 RT의 신뢰도가 낮음
-            -설계값을 모르는 경우에도 방안 생간
+            -설계값을 모르는 경우에도 방안 생각
         '''
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
         BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
@@ -2289,7 +2355,7 @@ if __name__ == "__main__":
         부분 LSM 안됨
         '''
         LSM(TARGET_DEVICE, MODEL_DATA)
-        gathering_data_single(ax1, script_dir, bboxes, START_FRAME, STOP_FRAME, 1, 1)
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 1)
     
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
         Check_Calibration_data_combination(combination_cnt)
