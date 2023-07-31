@@ -56,11 +56,28 @@ def fit_circle_2d(x, y, w=[]):
     r = np.sqrt(c[2] + xc**2 + yc**2)
     return xc, yc, r
 
+import numpy as np
+from scipy.spatial.distance import pdist
+
+def fit_circle_2d_fixed_center(x, y, center, w=[]):
+    # Use the provided center
+    xc, yc = center
+
+    # Calculate radius based on the provided center
+    r = np.mean(np.sqrt((x - xc)**2 + (y - yc)**2))
+
+    # If provided weights, adjust the radius accordingly
+    if len(w) == len(x):
+        r = np.sum(w * np.sqrt((x - xc)**2 + (y - yc)**2)) / np.sum(w)
+
+    return xc, yc, r
+
+
 from sklearn.cluster import AgglomerativeClustering
 import numpy as np
 import matplotlib.pyplot as plt
 
-SOLUTION = 2
+SOLUTION = 3
 
 #-------------------------------------------------------------------------------
 # Init figures
@@ -68,14 +85,14 @@ SOLUTION = 2
 #--------
 
 # TEST 1
-# P = np.array([[641, 612],
-#                    [693, 605],
-#                    [600, 602],
-#                    [635, 587],
-#                    [688, 584],
-#                    [598, 579],
-#                    [719, 573],
-#                    [572, 561]])
+P = np.array([[641, 612],
+                   [693, 605],
+                   [600, 602],
+                   [635, 587],
+                   [688, 584],
+                   [598, 579],
+                   [719, 573],
+                   [572, 561]])
 
 #TEST 2
 # P = np.array([
@@ -86,14 +103,14 @@ SOLUTION = 2
 # [710, 565],
 # [550, 552]])
 
-P = np.array([
-[639, 615],
-[665, 591],
-[628, 590],
-[707, 581],
-[584, 575],
-[733, 566],
-[565, 557]])
+# P = np.array([
+# [639, 615],
+# [665, 591],
+# [628, 590],
+# [707, 581],
+# [584, 575],
+# [733, 566],
+# [565, 557]])
 
 
 # P = np.array([
@@ -132,6 +149,50 @@ P = np.array([
 # [585, 587],
 # [701, 581],
 # [557, 566]
+# ])
+
+# P = np.array([
+# [680, 609],
+# [583, 602],
+# [704, 599],
+# [565, 589],
+# [705, 577],
+# [564, 567],
+# [729, 558]
+# ])
+
+P = np.array([
+[671, 614],
+[628, 612],
+[717, 599],
+[591, 598],
+[667, 593],
+[627, 591],
+[715, 581],
+[590, 577],
+[738,566],
+[572,557]
+])
+# P = np.array([
+# [637, 619],
+# [668, 617],
+# [574, 604],
+# [634, 597],
+# [597, 593],
+# [565, 578]
+# ])
+
+# P = np.array([
+# [675, 612],
+# [632, 611],
+# [712, 599],
+# [592, 597],
+# [677, 590],
+# [632, 590],
+# [573, 584],
+# [712, 580],
+# [595, 578],
+# [740, 556]
 # ])
 fig = plt.figure(figsize=(15,11))
 alpha_pts = 0.5
@@ -176,7 +237,7 @@ elif SOLUTION == 2:
     # MAKE Base CIRCLE to find General Center Point
     bxc, byc, br = fit_circle_2d(P[:,0], P[:,1])
     print('bxc ', bxc, 'byc ', byc, 'br ', br)
-    Base_center = np.array([bxc, byc - 100])
+    Base_center = np.array([bxc, byc])
 
     bxx = bxc + br*np.cos(t)
     byy = byc + br*np.sin(t)
@@ -209,7 +270,7 @@ elif SOLUTION == 2:
 
 
 
-    distances = np.linalg.norm(P - Base_center, axis=1)    
+    distances = np.linalg.norm(P - Inner_center, axis=1)    
     distances = distances.reshape(-1, 1)
     print('distance ', distances)
 
@@ -225,4 +286,78 @@ elif SOLUTION == 2:
     plt.scatter(Inner_center[0], Inner_center[1], c='red')
     plt.show()
 
+elif SOLUTION == 3:
+    t = np.linspace(0, 2*np.pi, 100)
+    ax[0].scatter(P[:,0], P[:,1], alpha=0.5, label='Projected points', color='gray')
+    # MAKE Base CIRCLE to find General Center Point
+    if len(P) > 5:
+        bxc, byc, br = fit_circle_2d(P[:,0], P[:,1])
+    else:
+        bxc, byc, br = fit_circle_2d_fixed_center(P[:,0], P[:,1], center=(640,480))
+    print('bxc ', bxc, 'byc ', byc, 'br ', br)
+    DELTA = 0
+    if len(P) > 5:
+        DELTA = -br*1.5
+    Base_center = np.array([bxc, byc + DELTA])
+
+    bxx = bxc + br*np.cos(t)
+    byy = byc + br*np.sin(t)
+    ax[0].plot(bxx, byy, 'k--', lw=2, label='Fitting circle', color='gray')
+    ax[0].plot(bxc, byc, 'k+', ms=10, color='gray')
+    ax[0].legend()
+    
+    distances = np.linalg.norm(P - Base_center, axis=1)    
+    distances = distances.reshape(-1, 1)
+    print('distance ', distances)
+    n_clusters = 2  # Change this value according to your requirement
+    clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='average')
+    labels = clustering.fit_predict(distances)
+    print('labels ', labels)
+    for i in range(n_clusters):
+        plt.scatter(P[labels == i, 0], P[labels == i, 1])
+    inside_points = [] # List to hold the points that are inside the circle for each label
+
+    # For each cluster
+    for i in range(n_clusters):
+        # Get the points in this cluster
+        cluster_points = P[labels == i]
+        # Calculate the distance from the center of the circle to each point in this cluster
+        distances_to_center = np.sqrt((cluster_points[:, 0] - bxc)**2 + (cluster_points[:, 1] - byc)**2)
+        # Find the points where the distance is less than or equal to the radius
+        inside = cluster_points[distances_to_center <= br]        
+        # Add these points to the list
+        inside_points.append(inside)        
+        # Plot the points
+        plt.scatter(cluster_points[:, 0], cluster_points[:, 1])
+    # Print the points that are inside the circle for each label
+    for i in range(n_clusters):
+        print(f"Points inside the circle for label {i}: {inside_points[i]}")    
+    # Convert the list of arrays into a single numpy array
+    inside_points_arr = np.concatenate(inside_points, axis=0)
+    
+    xc, yc, r = fit_circle_2d(inside_points_arr[:,0], inside_points_arr[:,1])
+    print('xc ', xc, 'yc ', yc, 'r ', r)
+    Inner_center = np.array([xc, yc])
+
+    xx = xc + r*np.cos(t)
+    yy = yc + r*np.sin(t)
+    ax[0].scatter(inside_points_arr[:,0], inside_points_arr[:,1], alpha=0.5, label='Projected points', color='red')
+    ax[0].plot(xx, yy, 'k--', lw=2, label='Fitting circle', color='red')
+    ax[0].plot(xc, yc, 'k+', ms=10, color='red')
+    ax[0].legend()
+    
+    
+    distances = np.linalg.norm(P - Inner_center, axis=1)    
+    distances = distances.reshape(-1, 1)
+    print('distance ', distances)
+
+    n_clusters = 2  # Change this value according to your requirement
+
+    clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='average')
+    labels = clustering.fit_predict(distances)
+    print('labels ', labels)
+    if len(P) <= 5:
+        for i in range(n_clusters):
+            plt.scatter(P[labels == i, 0], P[labels == i, 1])
+    plt.show()
 

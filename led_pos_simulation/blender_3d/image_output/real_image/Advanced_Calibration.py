@@ -232,11 +232,11 @@ def blob_setting(script_dir, SERVER, blob_file):
                 continue
             filtered_blob_area.append((gcx, gcy, (x, y, w, h)))            
         
-        if DO_CIRCULAR_FIT_ALGORITHM[0] == DONE:
-            # print('filtered_blob_area')
+        if DO_CIRCULAR_FIT_ALGORITHM[0] == 1:
+            print('filtered_blob_area')
             P = []
             for blobs in filtered_blob_area:
-                # print(f"[{blobs[0]} {blobs[1]}]")
+                print(f"[{int(blobs[0])} {int(blobs[1])}]")
                 P.append([blobs[0], blobs[1]])
 
             P = np.array(P)
@@ -300,7 +300,94 @@ def blob_setting(script_dir, SERVER, blob_file):
                         cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,255,0), -1)
                     else:
                         cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)
+                        
+        elif DO_CIRCULAR_FIT_ALGORITHM[0] == 2:
+            print('filtered_blob_area')
+            P = []
+            for blobs in filtered_blob_area:
+                print(f"[{int(blobs[0])} {int(blobs[1])}]")
+                P.append([blobs[0], blobs[1]])
 
+            P = np.array(P)
+            if len(P) > 5:
+                bxc, byc, br = fit_circle_2d(P[:,0], P[:,1])
+            else:
+                bxc, byc, br = fit_circle_2d_fixed_center(P[:,0], P[:,1], center=(CAP_PROP_FRAME_WIDTH / 2, CAP_PROP_FRAME_HEIGHT / 2))
+            print('bxc ', bxc, 'byc ', byc, 'br ', br)
+            DELTA = 0
+            # r이 50 에서 100 사이
+            if len(P) > 5:                
+                if br <= 50:
+                    coeffs = 1.5
+                elif br <= 100:
+                    coeffs = 0.8
+                else:
+                    coeffs = 0.6
+                    
+                if DO_CIRCULAR_FIT_ALGORITHM[1] == 1:
+                    inverse = -1
+                else:
+                    inverse = 1
+                DELTA = inverse * br * coeffs
+            Base_center = np.array([bxc, byc + DELTA])
+
+            distances = np.linalg.norm(P - Base_center, axis=1)    
+            distances = distances.reshape(-1, 1)
+            print('distance ', distances)
+            n_clusters = 2  # Change this value according to your requirement
+            clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='average')
+            base_labels = clustering.fit_predict(distances)
+            print('base_labels ', base_labels)           
+            
+            inside_points = [] # List to hold the points that are inside the circle for each label
+            # For each cluster
+            for i in range(n_clusters):
+                # Get the points in this cluster
+                cluster_points = P[base_labels == i]
+                # Calculate the distance from the center of the circle to each point in this cluster
+                distances_to_center = np.sqrt((cluster_points[:, 0] - bxc)**2 + (cluster_points[:, 1] - byc)**2)
+                # Find the points where the distance is less than or equal to the radius
+                inside = cluster_points[distances_to_center <= br]        
+                # Add these points to the list
+                inside_points.append(inside)        
+            cv2.circle(draw_frame, (int(bxc), int(byc)), int(br), (255,255,255), 1)
+            # Print the points that are inside the circle for each label
+            if len(P) <= 5:
+                for i in range(n_clusters):
+                    print(f"Points inside the circle for label {i}: {inside_points[i]}")    
+                # Convert the list of arrays into a single numpy array
+                inside_points_arr = np.concatenate(inside_points, axis=0)
+                
+                xc, yc, r = fit_circle_2d(inside_points_arr[:,0], inside_points_arr[:,1])
+                print('xc ', xc, 'yc ', yc, 'r ', r)
+                Inner_center = np.array([xc, yc])
+
+                Inner_center = np.array([xc, yc])       
+                
+                cv2.circle(draw_frame, (int(xc), int(yc)), int(r) + 5 , (0,255,0), 1)
+                
+                distances = np.linalg.norm(P - Inner_center, axis=1)    
+                distances = distances.reshape(-1, 1)
+                print('distance ', distances)
+
+                n_clusters = 2  # Change this value according to your requirement
+
+                clustering = AgglomerativeClustering(n_clusters=n_clusters, linkage='average')
+                labels = clustering.fit_predict(distances)
+                print('labels ', labels)
+                for i, label in enumerate(labels):
+                    if label == 0:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,255,0), -1)
+                    else:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)
+            else:
+                for i, label in enumerate(base_labels):
+                    if label == 0:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,255,0), -1)
+                    else:
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)
+                        
+                    
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes, POS=TEMP_POS)
         cv2.setMouseCallback('image', partial_click_event)
@@ -2190,7 +2277,7 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 1
+    AUTO_LOOP = 0
     DO_P3P = 0
     DO_PYRAMID = 1
     SOLUTION = 2
@@ -2293,12 +2380,12 @@ if __name__ == "__main__":
         ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 50
+        BLOB_SIZE = 20
         controller_name = 'arcturas'
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
         camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/plane/"
+        camera_img_path = f"./tmp/render/ARCTURAS/rotation_120/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2307,7 +2394,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 30
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
-        DO_CIRCULAR_FIT_ALGORITHM = (1, 0)
+        DO_CIRCULAR_FIT_ALGORITHM = (2, 2)
     
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')

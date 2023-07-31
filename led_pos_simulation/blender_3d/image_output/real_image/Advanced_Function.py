@@ -1225,22 +1225,43 @@ def area_filter(x, y, POS):
         else:
             return False
 
-def fit_circle_2d(x, y, w=[]):
-    
+import numpy as np
+from scipy.spatial.distance import pdist
+
+def fit_circle_2d(x, y, w=[], min_radius=0):
+    # Existing code
     A = np.array([x, y, np.ones(len(x))]).T
     b = x**2 + y**2
     
-    # Modify A,b for weighted least squares
     if len(w) == len(x):
         W = np.diag(w)
-        A = np.dot(W,A)
-        b = np.dot(W,b)
+        A = np.dot(W, A)
+        b = np.dot(W, b)
     
-    # Solve by method of least squares
-    c = np.linalg.lstsq(A,b,rcond=None)[0]
-    
-    # Get circle parameters from solution c
+    c = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    # Existing code end
+
     xc = c[0]/2
     yc = c[1]/2
     r = np.sqrt(c[2] + xc**2 + yc**2)
+    
+    # If radius is less than the minimum radius, adjust it to the minimum radius
+    if r < min_radius:
+        r = min_radius
+
+    return xc, yc, r
+
+from scipy.spatial.distance import pdist
+def fit_circle_2d_fixed_center(x, y, center, w=[]):
+    # Use the provided center
+    xc, yc = center
+
+    # Calculate radius based on the provided center
+    r = np.mean(np.sqrt((x - xc)**2 + (y - yc)**2))
+
+    # If provided weights, adjust the radius accordingly
+    if len(w) == len(x):
+        r = np.sum(w * np.sqrt((x - xc)**2 + (y - yc)**2)) / np.sum(w)
+
     return xc, yc, r
