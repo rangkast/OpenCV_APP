@@ -309,26 +309,32 @@ def blob_setting(script_dir, SERVER, blob_file):
                 P.append([blobs[0], blobs[1]])
 
             P = np.array(P)
+
             if len(P) > 5:
                 bxc, byc, br = fit_circle_2d(P[:,0], P[:,1])
             else:
                 bxc, byc, br = fit_circle_2d_fixed_center(P[:,0], P[:,1], center=(CAP_PROP_FRAME_WIDTH / 2, CAP_PROP_FRAME_HEIGHT / 2))
             print('bxc ', bxc, 'byc ', byc, 'br ', br)
+
+
+            P_MEAN_X = np.mean(P[:, 0])
+            P_MEAN_Y = np.mean(P[:, 1])
+            CENTER_DIST_MEAN = np.linalg.norm(np.array([CAP_PROP_FRAME_WIDTH / 2, CAP_PROP_FRAME_HEIGHT / 2]) - np.array([P_MEAN_X, P_MEAN_Y]))
+            print('CENTER_DIST(MEAN) ', CENTER_DIST_MEAN)
+
+            CENTER_DIST_FIT_CIRCLE = np.linalg.norm(np.array([P_MEAN_X, P_MEAN_Y]) - np.array([bxc, byc]))
+            print('CENTER_DIST_FIT_CIRCLE ', CENTER_DIST_FIT_CIRCLE)
             DELTA = 0
             # r이 50 에서 100 사이
             if len(P) > 5:                
-                if br <= 50:
-                    coeffs = 1.5
-                elif br <= 100:
-                    coeffs = 0.8
-                else:
-                    coeffs = 0.6
-                    
                 if DO_CIRCULAR_FIT_ALGORITHM[1] == 1:
                     inverse = -1
                 else:
                     inverse = 1
-                DELTA = inverse * br * coeffs
+
+                BR_ADDER = CENTER_DIST_MEAN - CENTER_DIST_FIT_CIRCLE
+
+                DELTA = inverse * BR_ADDER
             Base_center = np.array([bxc, byc + DELTA])
 
             distances = np.linalg.norm(P - Base_center, axis=1)    
@@ -633,9 +639,11 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
 
         CURR_TRACKER_CPY = CURR_TRACKER.copy()
         # print('CURR_TRACKER_CPY', CURR_TRACKER_CPY)
-
+        
         if len(CURR_TRACKER_CPY) > 0:
             TEMP_BLOBS = {}
+            TEMP_BOXES = {}
+            CENTER_BOXES = []
             TRACKER_BROKEN_STATUS = NOT_SET
             for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
                 if Tracking_DATA['tracker'] is not None:
@@ -697,6 +705,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                     PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
                     led_candidates_left, led_candidates_right = mapping_id_blob(areas, blob_centers, Tracking_ANCHOR, PREV_TRACKER) 
 
+                    
                     for i in range(len(led_candidates_left)):
                         NEW_BLOB_ID = led_candidates_left[i][4]
                         (cx, cy, cw, ch) = blob_centers[led_candidates_left[i][0]][2]                        
@@ -707,7 +716,8 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                         points2D_D = np.array([blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]], dtype=np.float64)
                         points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
                         TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_left[i][0]][0], blob_centers[led_candidates_left[i][0]][1]],
-                        'U': points2D_U} 
+                        'U': points2D_U}
+                        TEMP_BOXES[NEW_BLOB_ID] = (cx, cy, cw, ch)
 
                     for i in range(len(led_candidates_right)):
                         NEW_BLOB_ID = led_candidates_right[i][4]
@@ -720,6 +730,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                         points2D_U = np.array(cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])).reshape(-1, 2)
                         TEMP_BLOBS[NEW_BLOB_ID] = {'D': [blob_centers[led_candidates_right[i][0]][0], blob_centers[led_candidates_right[i][0]][1]],
                         'U': points2D_U}
+                        TEMP_BOXES[NEW_BLOB_ID] = (cx, cy, cw, ch)
                 else:
                     print(f"No tracker initialized for id: {Tracking_ANCHOR}")
                     break
@@ -728,7 +739,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
             if TRACKER_BROKEN_STATUS == DONE:
                 print(f"{frame_cnt} rollback")
                 continue
-
+            
 
             '''            
             Algorithm Added            
@@ -858,6 +869,14 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                 CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
+
+
+                for blob_id, bbox in TEMP_BOXES.items():
+                    CENTER_BOXES.append({'idx': blob_id, 'bbox': bbox}) 
+                print('CENTER_BOXES')
+                print(CENTER_BOXES)
+                CAMERA_INFO[f"{frame_cnt}"]['bboxes'] = CENTER_BOXES
+
 
                 if DO_BA == 1:
                     ########################### BUNDLE ADJUSTMENT RT #######################
@@ -1054,7 +1073,8 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
     pickle_data(WRITE, 'BLOB_INFO.pickle', data)
     data = OrderedDict()
     data['CAMERA_INFO'] = CAMERA_INFO
-    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)   
+    pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
+
 def remake_3d_for_blob_info(**kwargs):
     BLOB_CNT = kwargs.get('blob_cnt')
     info_name = kwargs.get('info_name')
@@ -2277,10 +2297,10 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 0
+    AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 2
+
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
     DO_CIRCULAR_FIT_ALGORITHM = 1
@@ -2306,6 +2326,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 0
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
+        DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
     elif TARGET_DEVICE == 'ARCTURAS':
         ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
@@ -2322,7 +2343,8 @@ if __name__ == "__main__":
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 0
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
-    elif TARGET_DEVICE == 'SEMI_SLAM_CURVE':
+        DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
+    elif TARGET_DEVICE == 'SEMI_SLAM_CURVE':        
         # Test_6 보고
         # 6, 7
         SEMI_SLAM_CURVE = [0,1,0,1,0,1,0,1]
@@ -2340,6 +2362,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 5
         CONTROLLER_JOINT_ANGLE = 0
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
+        DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
     elif TARGET_DEVICE == 'SEMI_SLAM_PLANE':
         # 6,5
         SEMI_SLAM_PLANE = [0,1,0,1,0,1,0]
@@ -2357,6 +2380,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 5
         CONTROLLER_JOINT_ANGLE = 0
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
+        DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
     elif TARGET_DEVICE == 'SEMI_SLAM_POLYHEDRON':
         # 5,6 
         SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
@@ -2374,6 +2398,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 5
         CONTROLLER_JOINT_ANGLE = 0
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
+        DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
     else:
         # 피라미드 하면 이상해짐....
         DO_PYRAMID = 0
@@ -2385,7 +2410,7 @@ if __name__ == "__main__":
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
         camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/rotation_120/"
+        camera_img_path = f"./tmp/render/ARCTURAS/rotation_60/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2394,7 +2419,7 @@ if __name__ == "__main__":
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 30
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
-        DO_CIRCULAR_FIT_ALGORITHM = (2, 2)
+        DO_CIRCULAR_FIT_ALGORITHM = (2, 1)
     
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
@@ -2412,6 +2437,9 @@ if __name__ == "__main__":
 
     ax1, ax2 = init_plot(MODEL_DATA)
     bboxes, areas = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area_{CONTROLLER_JOINT_ANGLE}.json")
+
+
+    SOLUTION = 3
 
     if SOLUTION == 1:
         ######################################## SOLUTION 1 ########################################
@@ -2457,6 +2485,9 @@ if __name__ == "__main__":
         remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
         # BA_3D_POINT(RT='BLENDER')
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
+    elif SOLUTION == 3:
+        print('LABELING')
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
     else:
         print('Do Nothing')
         

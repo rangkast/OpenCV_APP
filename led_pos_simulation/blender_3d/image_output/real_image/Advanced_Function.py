@@ -96,6 +96,7 @@ CAMERA_INFO_STRUCTURE = {
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
     'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'bboxes':[]
 }
 
 BLOB_INFO = {}

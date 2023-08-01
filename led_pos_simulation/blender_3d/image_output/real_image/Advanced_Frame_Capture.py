@@ -55,14 +55,29 @@ CAP_PROP_FRAME_HEIGHT = 960
 CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 ANGLE = 3
-# MAX_FRAME_CNT = 360 / ANGLE
-MAX_FRAME_CNT = 70
+MAX_FRAME_CNT = 360 / ANGLE
+# MAX_FRAME_CNT = 70
+BLOB_SIZE = 100
+TRACKER_PADDING = 2
+DO_SOCKET_COMM = 0
+
+UP = 1
+DOWN = -1
+MOVE_DIRECTION = UP
+DIRECTION_CNT = 10
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
 print(script_dir)
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
 from connection.socket.socket_def import *
 
+def init_trackers(trackers, frame):
+    for id, data in trackers.items():
+        tracker = cv2.TrackerCSRT_create()
+        (x, y, w, h) = data['bbox']        
+        ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
+        data['tracker'] = tracker
 
 def terminal_cmd(cmd_m, cmd_s):
     print('start ', terminal_cmd.__name__)
@@ -123,7 +138,8 @@ class WebcamStream:
         self.stream = cv2.VideoCapture(src)
         self.status_queue = status_queue
         self.frame = None
-        self.frame_cnt = 0
+        self.frame_cnt = -1
+        self.vertical_cnt = -1
         self.stopped = False
         self.stop_event = stop_event  # Save the stop_event
         self.file_name = 'NONE'
@@ -141,21 +157,26 @@ class WebcamStream:
                 if self.status_queue is not None:
                     if not self.status_queue.empty():
                         status = self.status_queue.get()
-                        if status == "DONE":
-                            self.file_name = f"{script_dir}/render_img/frame_{self.frame_cnt:04}.png"  # Use :04 to pad zeros up to 4 digits
-                            cv2.imwrite(self.file_name, self.frame)
-                            print('SAVE_IMG: ', self.file_name)
-                            self.frame_cnt += 1
+                        if status[0] == "DONE":
+                            # self.frame_cnt += 1
+                            self.frame_cnt = status[1]
+                            self.vertical_cnt = status[2]                            
+                            if self.vertical_cnt >= DIRECTION_CNT - 1:                            
+                                self.file_name = f"{script_dir}/render_img/capture/frame_{self.frame_cnt:04}_{MOVE_DIRECTION}_{self.vertical_cnt}.png"  # Use :04 to pad zeros up to 4 digits
+                                cv2.imwrite(self.file_name, self.frame)
+                                print('SAVE_IMG: ', self.file_name)
+                            else:
+                                print(f"tracking move {self.vertical_cnt}")
+
                             if self.frame_cnt >= MAX_FRAME_CNT:  # If the frame count is over the limit
                                 print('STOP capture frame')
                                 self.stream.release()
-                                self.stop_event.set()  # Set the stop event to stop all threads
-                                                        
+                                self.stop_event.set()  # Set the stop event to stop all threads                                                        
                                 return  # Stop the update loop
-                        self.status_queue.put("NOT_SET")
+                        self.status_queue.put(["NOT_SET", self.frame_cnt, self.vertical_cnt])
                         
     def get_info(self):
-        return self.file_name, self.frame_cnt
+        return self.file_name, self.frame_cnt, self.vertical_cnt
 
     def start(self):
         threading.Thread(target=self.update, args=()).start()
@@ -165,27 +186,60 @@ class WebcamStream:
 
     def stop(self):
         self.stopped = True
-        self.status_queue.put("STOP")  # Add this line to signal the command_task to stop
+        self.status_queue.put(["STOP", -1])  # Add this line to signal the command_task to stop
 
 
 def command_task(status_queue, stop_event):
+    vertical_cnt = 0
+    frame_cnt = 0
     while True:
         if stop_event.is_set():
             break
         status = status_queue.get()
-        if status == "NOT_SET":
-            print('SEND_CMD')
-            socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': ANGLE})
-            status_queue.put("DONE")
+        print(f"frame_cnt: {status[1]}")
+        if status[0] == "NOT_SET":
+            print('SEND_CMD')            
+            # 상대적 위치      
+            if status[1] != -1:
+                if MOVE_DIRECTION == UP:
+                    if DO_SOCKET_COMM == DONE:
+                        socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': ANGLE, '4': 0, '5': 0, '6': 0})
+                elif MOVE_DIRECTION == DOWN:
+                    if DO_SOCKET_COMM == DONE:
+                        socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': ANGLE * DOWN, '4': 0, '5': 0, '6': 0})     
+                vertical_cnt += 1
+
+            if vertical_cnt >= DIRECTION_CNT:
+                if MOVE_DIRECTION == UP:
+                    if DO_SOCKET_COMM == DONE:
+                        socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': ANGLE * DOWN * vertical_cnt, '4': 0, '5': 0, '6': 0})
+                elif MOVE_DIRECTION == DOWN:
+                    if DO_SOCKET_COMM == DONE:
+                        socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': ANGLE * UP * vertical_cnt, '4': 0, '5': 0, '6': 0})
+                if DO_SOCKET_COMM == DONE:
+                    socket_cmd_to_robot('joint', 'rc', {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': ANGLE})
+                vertical_cnt = 0
+                frame_cnt += 1
+
+            status_queue.put(["DONE", frame_cnt, vertical_cnt])
             time.sleep(0.5)  # Wait for a while after putting "DONE" to the queue
 
 def init_camera_path(script_dir, video_path):
     bboxes = []
     centers1 = []
+    TEMP_POS = {'status': NOT_SET, 'mode': RECTANGLE, 'start': [], 'move': [], 'circle': NOT_SET, 'rectangle': NOT_SET}
+    POS = {}
     json_file = os.path.join(script_dir, './init_blob_area.json')
     json_data = rw_json_data(READ, json_file, None)
     if json_data != ERROR:
         bboxes = json_data['bboxes']
+        if 'mode' in json_data:
+            TEMP_POS['mode'] = json_data['mode']
+            if TEMP_POS['mode'] == RECTANGLE:
+                TEMP_POS['rectangle'] = json_data['roi']
+            else:
+                TEMP_POS['circle'] = json_data['roi']        
+            POS = TEMP_POS
     CAPTURE_DONE = NOT_SET
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -206,18 +260,55 @@ def init_camera_path(script_dir, video_path):
                     cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)       
                 
                     blob_area = detect_led_lights(frame, 5, 5, 500)
+                    filtered_blob_area = []    
+                    for _, bbox in enumerate(blob_area):
+                        (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                        gcx,gcy, gsize = find_center(frame, (x, y, w, h))
+                        if gsize < BLOB_SIZE:
+                            continue
+                        filtered_blob_area.append((gcx, gcy, (x, y, w, h)))            
                     cv2.namedWindow('image')
-                    partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
+                    partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes, POS=TEMP_POS)
                     cv2.setMouseCallback('image', partial_click_event)
+
+                            
+                    if TEMP_POS['status'] == MOVE:
+                        dx = np.abs(TEMP_POS['start'][0] - TEMP_POS['move'][0])
+                        dy = np.abs(TEMP_POS['start'][1] - TEMP_POS['move'][1])
+                        if TEMP_POS['mode'] == CIRCLE:
+                            radius = math.sqrt(dx ** 2 + dy ** 2) / 2
+                            cx = int((TEMP_POS['start'][0] + TEMP_POS['move'][0]) / 2)
+                            cy = int((TEMP_POS['start'][1] + TEMP_POS['move'][1]) / 2)
+                            # print(f"{dx} {dy} radius {radius}")
+                            TEMP_POS['circle'] = [cx, cy, radius]
+                        else:                
+                            TEMP_POS['rectangle'] = [TEMP_POS['start'][0],TEMP_POS['start'][1],TEMP_POS['move'][0],TEMP_POS['move'][1]]
+                
+                    elif TEMP_POS['status'] == UP:
+                        print(TEMP_POS)
+                        TEMP_POS['status'] = NOT_SET        
+                    if TEMP_POS['circle'] != NOT_SET and TEMP_POS['mode'] == CIRCLE:
+                        cv2.circle(draw_frame, (TEMP_POS['circle'][0], TEMP_POS['circle'][1]), int(TEMP_POS['circle'][2]), (255,255,255), 1)
+                    elif TEMP_POS['rectangle'] != NOT_SET and TEMP_POS['mode'] == RECTANGLE:
+                        cv2.rectangle(draw_frame,(TEMP_POS['rectangle'][0],TEMP_POS['rectangle'][1]),(TEMP_POS['rectangle'][2],TEMP_POS['rectangle'][3]),(255,255,255),1)
+
+
                     key = cv2.waitKey(1)
 
                     if key == ord('c'):
                         print('clear area')
                         bboxes.clear()
+                        if TEMP_POS['mode'] == RECTANGLE:
+                            TEMP_POS['rectangle'] = NOT_SET
+                        else:
+                            TEMP_POS['circle'] = NOT_SET
                     elif key == ord('s'):
                         print('save blob area')
                         json_data = OrderedDict()
                         json_data['bboxes'] = bboxes
+                        json_data['mode'] = TEMP_POS['mode']
+                        json_data['roi'] = TEMP_POS['circle'] if TEMP_POS['mode'] == CIRCLE else TEMP_POS['rectangle']
+                        POS = TEMP_POS
                         # Write json data
                         rw_json_data(WRITE, json_file, json_data)
                     elif key & 0xFF == 27:
@@ -296,12 +387,12 @@ def init_camera_path(script_dir, video_path):
                         INIT_IMAGE['LED_NUMBER'] =LED_NUMBERS
                         INIT_IMAGE['points3D'] =points3D
 
-                    draw_blobs_and_ids(draw_frame, blob_area, bboxes)
+                    draw_blobs_and_ids(draw_frame, filtered_blob_area, bboxes)
                     cv2.imshow('image', draw_frame)
 
     cv2.destroyAllWindows()
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
     camera_devices = init_model_json(cam_dev_list)
     print(camera_devices)
@@ -310,47 +401,140 @@ if __name__ == "__main__":
     # Add the directory containing poselib to the module search path
     print(script_dir)
     MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-       
+    # READ CAMERA_INFO STRUCTURE for Labeling IDS
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']           
 
     ############################## TOP BAR ##############################
     #
     # 430 200
     #
-
-    test_set = Setting_CMD()
-    test_set.mv_sp = 200
-    test_set.ar_coord = 'rc'
-    test_set.trans_setting()
-    send_cmd_to_server(sys_set)
-    socket_cmd_to_robot('joint', 'ac', {'1': 1.64, '2': 71.18, '3': 19.07, '4': 0.30, '5': -89.85, '6': -197.28})
+    if DO_SOCKET_COMM == DONE:
+        test_set = Setting_CMD()
+        test_set.mv_sp = 200
+        test_set.ar_coord = 'rc'
+        test_set.trans_setting()
+        send_cmd_to_server(sys_set)
+        socket_cmd_to_robot('joint', 'ac', {'1': 1.64, '2': 71.18, '3': 19.07, '4': 0.30, '5': -89.85, '6': -197.28})
    
     init_camera_path(script_dir, camera_port)
 
     status_queue = Queue()
-    status_queue.put("NOT_SET")
+    status_queue.put(["NOT_SET", -1])
     stop_event = threading.Event()  # Create a stop event
     webcam_stream = WebcamStream(src=camera_port, status_queue=status_queue, stop_event=stop_event)  # Pass the stop event to the WebcamStream
     webcam_stream.start()
     threading.Thread(target=command_task, args=(status_queue, stop_event)).start()
     
+    TRACKING_START = NOT_SET
+    CURR_TRACKER = {}
+    PREV_TRACKER = {}
+    bboxes = []
+    prev_frame_cnt = -1
     while True:
         frame = webcam_stream.read()
-        file_name, frame_cnt = webcam_stream.get_info()
+        file_name, frame_cnt, vertical_cnt = webcam_stream.get_info()
+
         if frame is not None:
             draw_frame = frame.copy()
+            _, frame = cv2.threshold(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY),
+                                  CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                  cv2.THRESH_TOZERO)
             center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
             cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
             cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1)
             cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{file_name}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)  
             
+            # INIT Tracker
+            # 다음 프레임에 갈 때마다 초기화
+            if prev_frame_cnt != frame_cnt:
+                print(f"############### {frame_cnt} ####################")
+                # print('CAMERA_INFO')
+                # print(CAMERA_INFO[f"{frame_cnt}"])
+                
+                # ToDo 
+                TRACKING_START = NOT_SET
+                if TRACKING_START == NOT_SET:
+                    bboxes = []
+                    CURR_TRACKER.clear()     
+                    PREV_TRACKER.clear()       
+                    bboxes = CAMERA_INFO[f"{frame_cnt}"]['bboxes']
+                    print('bboxes:', bboxes)
+                    if bboxes is None:
+                        break            
+                    for i in range(len(bboxes)):
+                        CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
+                    init_trackers(CURR_TRACKER, frame)          
+                    TRACKING_START = DONE
+
+            # Tracker Operation
+            if TRACKING_START == DONE:
+                # find Blob area by findContours
+                blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+                blobs = []
+                
+                for blob_id, bbox in enumerate(blob_area):
+                    (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                    gcx, gcy, gsize = find_center(frame, (x, y, w, h))
+                    if gsize < BLOB_SIZE:
+                        continue
+                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+                    cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    blobs.append((gcx, gcy, bbox))
+
+                CURR_TRACKER_CPY = CURR_TRACKER.copy()
+                for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
+                    if Tracking_DATA['tracker'] is not None:
+                        ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame)
+                        cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
+                        cv2.putText(draw_frame, f"{Tracking_ANCHOR}", (tx, ty + th + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        tcx, tcy, tsize = find_center(frame, (tx, ty, tw, th))
+                        if Tracking_ANCHOR in PREV_TRACKER:
+                            def check_distance(blob_centers, tcx, tcy):
+                                for center in blob_centers:
+                                    gcx, gcy, _ = center
+                                    distance = math.sqrt((gcx - tcx)**2 + (gcy - tcy)**2)
+                                    if distance < 1:
+                                        return False
+                                return True
+                            dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
+                            dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
+                            euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
+                            # 트랙커가 갑자기 이동
+                            # 사이즈가 작은 경우
+                            # 실패한 경우
+                            # 중심점위치에 Blob_center 데이터가 없는 경우
+                            exist_status = check_distance(blobs, tcx, tcy)
+                            if exist_status or euclidean_distance > 10 or tsize < BLOB_SIZE or not ret:
+                                # print('Tracker Broken')
+                                # print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret, 'exist_status:', exist_status)
+                                # print('CUR_txy:', tcx, tcy)
+                                # print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
+                                if ret == SUCCESS:
+                                    del CURR_TRACKER[Tracking_ANCHOR]
+                                    del PREV_TRACKER[Tracking_ANCHOR]
+                                    # 여기서 PREV에 만들어진 위치를 집어넣어야 바로 안튕김
+                                    print(f"tracker[{Tracking_ANCHOR}] deleted")
+                                    continue
+                                else:
+                                    break
+
+                    PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
+
+            prev_frame_cnt = frame_cnt
             # Display the resulting frame
             cv2.imshow('Frame', draw_frame)
 
             key = cv2.waitKey(1)
-            if key & 0xFF == ord('q') or stop_event.is_set():
+            if key & 0xFF == ord('q') or stop_event.is_set():                
                 break
-
+            elif key & 0xFF == ord('t'):
+                print('tracker start')        
+                TRACKING_START = NOT_SET
+                frame_cnt += 1
+            elif key & 0xFF == ord('n'):
+                status_queue.put(["NOT_SET", frame_cnt, vertical_cnt])
+                
     webcam_stream.stop()
     stop_event.set()
     cv2.destroyAllWindows()

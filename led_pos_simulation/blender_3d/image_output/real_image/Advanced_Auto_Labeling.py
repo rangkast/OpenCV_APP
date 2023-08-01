@@ -11,7 +11,7 @@ MAX_LEVEL = 3
 CAM_ID = 0
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
-UVC_MODE = 0
+UVC_MODE = 1
 AUTO_LOOP = 0
 undistort = 1
 
@@ -22,8 +22,9 @@ Solutions
 1 : sliding window 순서대로 할당
 2 : sliding window x purmutations
 3 : translation Matrix x projectPoints
+4 : object tracking
 '''
-SOLUTION = 1
+SOLUTION = 3
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -547,13 +548,13 @@ elif SOLUTION == 3:
         # print('tvec:', tvec)                        
 
         if STATUS == SUCCESS:
-            RER = reprojection_error(points3D,
-                                    points2D,
-                                    rvec, tvec,
-                                    default_cameraK,
-                                    default_dist_coeffs)
-            # print('RER', RER)
-            return RER, rvec, tvec
+            # RER = reprojection_error(points3D,
+            #                         points2D,
+            #                         rvec, tvec,
+            #                         default_cameraK,
+            #                         default_dist_coeffs)
+            # # print('RER', RER)
+            return 0, rvec, tvec
         else:
             return NOT_SET, NOT_SET, NOT_SET
     def auto_labeling():
@@ -579,6 +580,7 @@ elif SOLUTION == 3:
         for blob_id in range(BLOB_CNT):
             BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
+        detect_time = []
         while video.isOpened() if UVC_MODE else True:
             print('\n')        
             if UVC_MODE:
@@ -653,8 +655,8 @@ elif SOLUTION == 3:
                 # seen_combinations = set()
                 # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
                 #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
-                #         if points3D_grp_comb not in seen_combinations:
-                #             seen_combinations.add(points3D_grp_comb)
+                #         # if points3D_grp_comb not in seen_combinations:
+                #         #     seen_combinations.add(points3D_grp_comb)
                 #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
                 #             for points2d_u in sliding_window(points2D_U, BLOBS_LENGTH):
                 #                 RER, RVEC, TVEC = check_pnp(points3D=points3D_grp, points2D=points2d_u)
@@ -683,39 +685,39 @@ elif SOLUTION == 3:
                 # Advanced_Cython_Functions.cython_func(MODEL_DATA, points2D_U, BLOB_CNT, SEARCHING_WINDOW_SIZE, BLOBS_LENGTH)
                 
                 # SOLUTION 3
-                seen_combinations = set()
-                camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
-                for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
-                    for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):                        
-                        if points3D_grp_comb not in seen_combinations:
-                            seen_combinations.add(points3D_grp_comb)
-                            points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
-                            for points2d_d in sliding_window(points2D_D, BLOBS_LENGTH):                                                        
-                                pose, info = poselib.estimate_absolute_pose(points2d_d, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
-                                # print('pose ', pose)
-                                # print('info ', info)
-                                if info['model_score'] < MIN_SOCRE:
-                                    MIN_SOCRE = info['model_score']
-                                    MIN_POSE = pose
-                                    MIN_INFO = info
-                                    MIN_GROUP_ID = points3D_grp_comb
-                                    MIN_POINTS3D = points3D_grp
+                # seen_combinations = set()
+                # camera = {'model': 'SIMPLE_PINHOLE', 'width': 1280, 'height': 960, 'params': [715.159, 650.741, 489.184]}
+                # for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE): 
+                #     for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):                        
+                #         # if points3D_grp_comb not in seen_combinations:
+                #         #     seen_combinations.add(points3D_grp_comb)
+                #             points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                #             for points2d_d in sliding_window(points2D_D, BLOBS_LENGTH):                                                        
+                #                 pose, info = poselib.estimate_absolute_pose(points2d_d, points3D_grp, camera, {'max_reproj_error': 10.0}, {})
+                #                 # print('pose ', pose)
+                #                 # print('info ', info)
+                #                 if info['model_score'] < MIN_SOCRE:
+                #                     MIN_SOCRE = info['model_score']
+                #                     MIN_POSE = pose
+                #                     MIN_INFO = info
+                #                     MIN_GROUP_ID = points3D_grp_comb
+                #                     MIN_POINTS3D = points3D_grp
                 
-                print('MIN SOCORE INFO')
-                print(MIN_INFO)
-                print(MIN_GROUP_ID)
-                if len(MIN_GROUP_ID) > 0:
-                    rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
-                    image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
-                        np.array(rvec),
-                        np.array(MIN_POSE.t),
-                        camera_matrix[CAM_ID][0],
-                        camera_matrix[CAM_ID][1])
-                    image_points = image_points.reshape(-1, 2)
-                    for idx, point in enumerate(image_points):
-                        pt = (int(point[0]), int(point[1]))
-                        cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
-                        cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                # print('MIN SOCORE INFO')
+                # print(MIN_INFO)
+                # print(MIN_GROUP_ID)
+                # if len(MIN_GROUP_ID) > 0:
+                #     rvec, _ = cv2.Rodrigues(quat_to_rotm(MIN_POSE.q))
+                #     image_points, _ = cv2.projectPoints(np.array(MIN_POINTS3D),
+                #         np.array(rvec),
+                #         np.array(MIN_POSE.t),
+                #         camera_matrix[CAM_ID][0],
+                #         camera_matrix[CAM_ID][1])
+                #     image_points = image_points.reshape(-1, 2)
+                #     for idx, point in enumerate(image_points):
+                #         pt = (int(point[0]), int(point[1]))
+                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                #         cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
         
                 
@@ -770,8 +772,6 @@ elif SOLUTION == 3:
                 #         pt = (int(point[0]), int(point[1]))
                 #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
                 #         cv2.putText(draw_frame, str(MIN_GROUP_ID[idx]), (pt[0],pt[1] -10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
-
-
         
                 
                 
@@ -881,6 +881,11 @@ elif SOLUTION == 3:
                 elapsed_time = end_time - start_time  # Calculate the difference
                 print(f"The function took {elapsed_time} seconds to complete.")                                
                 
+                detect_time.append(elapsed_time)
+
+                if len(detect_time) >= 10:
+                    print(f"Mean detect time {np.mean(detect_time)}")
+                    break
                 
 
             if AUTO_LOOP and UVC_MODE == 0:
@@ -902,7 +907,155 @@ elif SOLUTION == 3:
         if UVC_MODE == 1:
             video.release()
         cv2.destroyAllWindows()
+elif SOLUTION == 4:
+    def init_trackers(trackers, frame):
+        for id, data in trackers.items():
+            tracker = cv2.TrackerCSRT_create()
+            (x, y, w, h) = data['bbox']        
+            ok = tracker.init(frame, (x - TRACKER_PADDING, y - TRACKER_PADDING, w + 2 * TRACKER_PADDING, h + 2 * TRACKER_PADDING))
+            data['tracker'] = tracker
+    def auto_labeling():
+            frame_cnt = 0
+            # Select the first camera device
+            if UVC_MODE:
+                cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
+                camera_devices = init_model_json(cam_dev_list)
+                print(camera_devices)
+                camera_port = camera_devices[0]['port']
+                # Open the video capture
+                video = cv2.VideoCapture(camera_port)
+                # Set the resolution
+                video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+                video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
+            else:
+                image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
+                print('lenght of images: ', len(image_files))
 
+
+            # Initialize each blob ID with a copy of the structure
+            for blob_id in range(BLOB_CNT):
+                BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
+
+            TRACKING_START = NOT_SET
+            CURR_TRACKER = {}
+            PREV_TRACKER = {}
+            while video.isOpened() if UVC_MODE else True:
+                print('\n')        
+                if UVC_MODE:
+                    ret, frame_0 = video.read()
+                    filename = f"VIDEO Mode {camera_port}"
+                    if not ret:
+                        break
+                else:
+                    print(f"########## Frame {frame_cnt} ##########")
+                    # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
+                    if frame_cnt >= len(image_files):
+                        break
+                    frame_0 = cv2.imread(image_files[frame_cnt])
+                    filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
+                    if frame_0 is None or frame_0.size == 0:
+                        print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
+                        continue
+                    frame_0 = cv2.resize(frame_0, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
+
+
+                draw_frame = frame_0.copy()
+                _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                        cv2.THRESH_TOZERO)
+
+                cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+                center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+                cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
+                cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
+
+                # find Blob area by findContours
+                blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+                blobs = []
+                bboxes = []
+                for blob_id, bbox in enumerate(blob_area):
+                    (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                    gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
+                    if gsize < BLOB_SIZE:
+                        continue 
+
+                    cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+                    cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    blobs.append((gcx, gcy, bbox))     
+                    bboxes.append({'idx': blob_id, 'bbox': bbox}) 
+                
+                if TRACKING_START == DONE:
+                    CURR_TRACKER_CPY = CURR_TRACKER.copy()
+                    for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
+                        if Tracking_DATA['tracker'] is not None:
+                            ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame_0)
+                            cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
+                            cv2.putText(draw_frame, f"{Tracking_ANCHOR}", (tx, ty + th + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                            tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
+                            if Tracking_ANCHOR in PREV_TRACKER:
+                                def check_distance(blob_centers, tcx, tcy):
+                                    for center in blob_centers:
+                                        gcx, gcy, _ = center
+                                        distance = math.sqrt((gcx - tcx)**2 + (gcy - tcy)**2)
+                                        if distance < 1:
+                                            return False
+                                    return True
+                                dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
+                                dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
+                                euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
+                                # 트랙커가 갑자기 이동
+                                # 사이즈가 작은 경우
+                                # 실패한 경우
+                                # 중심점위치에 Blob_center 데이터가 없는 경우
+                                exist_status = check_distance(blobs, tcx, tcy)
+                                if exist_status or euclidean_distance > 10 or tsize < BLOB_SIZE or not ret:
+                                    print('Tracker Broken')
+                                    print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret, 'exist_status:', exist_status)
+                                    print('CUR_txy:', tcx, tcy)
+                                    print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
+                                    if ret == SUCCESS:
+                                        del CURR_TRACKER[Tracking_ANCHOR]
+                                        del PREV_TRACKER[Tracking_ANCHOR]
+                                        # 여기서 PREV에 만들어진 위치를 집어넣어야 바로 안튕김
+                                        print(f"tracker[{Tracking_ANCHOR}] deleted")
+                                        continue
+                                    else:
+                                        break
+
+                        PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
+
+                if len(CURR_TRACKER) <= 0:
+                    TRACKING_START = NOT_SET 
+
+                if AUTO_LOOP and UVC_MODE == 0:
+                    frame_cnt += 1
+                # Display the resulting frame
+                cv2.imshow('Frame', draw_frame)
+                key = cv2.waitKey(1)
+                if key & 0xFF == ord('e'): 
+                    # Use 'e' key to exit the loop
+                    break
+                elif key & 0xFF == ord('n'):
+                    if AUTO_LOOP == 0 and UVC_MODE == 0:
+                        frame_cnt += 1     
+                elif key & 0xFF == ord('b'):
+                    if AUTO_LOOP == 0 and UVC_MODE == 0:
+                        frame_cnt -= 1
+                elif key & 0xFF == ord('t'):
+                    if TRACKING_START == NOT_SET:
+                        print('bboxes:', bboxes)
+                        if bboxes is None:
+                            return            
+                        for i in range(len(bboxes)):
+                            CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
+                        init_trackers(CURR_TRACKER, frame_0)          
+                        TRACKING_START = DONE
+
+            # Release everything when done
+            if UVC_MODE == 1:
+                video.release()
+            cv2.destroyAllWindows()
 def insert_ba_rt(**kwargs):
     print('insert_ba_rt START')
     BA_RT = pickle_data(READ, kwargs.get('ba_name'), None)['BA_RT']

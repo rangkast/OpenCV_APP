@@ -150,5 +150,5 @@ for data in points2D:
 # help(poselib)
 
 import math
-total_cases = 25 * math.comb(25, 4) * math.perm(25, 4)
+total_cases = 25 * math.comb(14, 7) * math.comb(7, 7)
 print(total_cases)
