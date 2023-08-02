@@ -441,14 +441,19 @@ def init_coord_json(file):
     finally:
         print('done')
     return pts, dir
-def show_calibrate_data(model_data, direction):    
+def show_calibrate_data(model_data, direction, **kwargs):
+    Candidates_points = kwargs.get('TARGET')
     # 3D plot 생성
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
+    if Candidates_points is not None:
+        ax.scatter(Candidates_points[:, 0], Candidates_points[:, 1], Candidates_points[:, 2], color='red')
+        for i in range(Candidates_points.shape[0]):
+            ax.text(Candidates_points[i, 0], Candidates_points[i, 1], Candidates_points[i, 2], str(i), color='red')
+
     # 점들을 plot에 추가
     ax.scatter(model_data[:, 0], model_data[:, 1], model_data[:, 2])
-
     # 각 점에 대한 인덱스를 추가
     for i in range(model_data.shape[0]):
         ax.text(model_data[i, 0], model_data[i, 1], model_data[i, 2], str(i))

@@ -776,104 +776,104 @@ elif SOLUTION == 3:
                 
                 
                 # SOLUTION 5                
-                # if BLOBS_LENGTH >= 6:
-                #     # Define default distortion coefficients and camera matrix
-                #     default_dist_coeffs = np.zeros((4, 1))
-                #     default_cameraK = np.eye(3).astype(np.float64)
+                if BLOBS_LENGTH >= 6:
+                    # Define default distortion coefficients and camera matrix
+                    default_dist_coeffs = np.zeros((4, 1))
+                    default_cameraK = np.eye(3).astype(np.float64)
 
-                #     # Use the default camera matrix as the intrinsic parameters
-                #     intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
+                    # Use the default camera matrix as the intrinsic parameters
+                    intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
 
-                #     # intrinsics_single = torch.tensor([[[715.159, 0.0, 650.741],
-                #     #             [0.0, 715.159, 489.184],
-                #     #             [0.0, 0.0, 1.0]]], dtype=torch.float64)
-                #     # Convert to tensors
-                #     # MODEL_DATA_T = torch.tensor(MODEL_DATA, dtype=torch.float64)
-                #     # points2D_U_T = torch.tensor(points2D_U, dtype=torch.float64)
-                #     seen_combinations = set()
+                    # intrinsics_single = torch.tensor([[[715.159, 0.0, 650.741],
+                    #             [0.0, 715.159, 489.184],
+                    #             [0.0, 0.0, 1.0]]], dtype=torch.float64)
+                    # Convert to tensors
+                    # MODEL_DATA_T = torch.tensor(MODEL_DATA, dtype=torch.float64)
+                    # points2D_U_T = torch.tensor(points2D_U, dtype=torch.float64)
+                    seen_combinations = set()
 
-                #     # Prepare lists for batch processing
-                #     batch_2d_points = []
-                #     batch_3d_points = []
-                #     batch_combinations = [] # <- New list for storing combinations
-                #     for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE):
-                #         for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
-                #             # Make the combination hashable by converting it to a tuple
-                #             points3D_grp_comb = tuple(sorted(points3D_grp_comb))
-                #             if points3D_grp_comb not in seen_combinations:
-                #                 seen_combinations.add(points3D_grp_comb)
-                #                 points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
-                #                 for points2d_u in combinations(points2D_U, BLOBS_LENGTH):
-                #                     # Add to batch lists
-                #                     batch_2d_points.append(points2d_u)
-                #                     batch_3d_points.append(points3D_grp)
-                #                     batch_combinations.append(points3D_grp_comb) # <- Store the combination
+                    # Prepare lists for batch processing
+                    batch_2d_points = []
+                    batch_3d_points = []
+                    batch_combinations = [] # <- New list for storing combinations
+                    for grps in circular_sliding_window(range(BLOB_CNT), SEARCHING_WINDOW_SIZE):
+                        for points3D_grp_comb in combinations(grps, BLOBS_LENGTH):
+                            # Make the combination hashable by converting it to a tuple
+                            points3D_grp_comb = tuple(sorted(points3D_grp_comb))
+                            if points3D_grp_comb not in seen_combinations:
+                                seen_combinations.add(points3D_grp_comb)
+                                points3D_grp = MODEL_DATA[list(points3D_grp_comb), :]
+                                for points2d_u in combinations(points2D_U, BLOBS_LENGTH):
+                                    # Add to batch lists
+                                    batch_2d_points.append(points2d_u)
+                                    batch_3d_points.append(points3D_grp)
+                                    batch_combinations.append(points3D_grp_comb) # <- Store the combination
 
 
-                #     # Convert lists of numpy arrays to single numpy arrays
-                #     batch_2d_points_np = np.array(batch_2d_points)
-                #     batch_3d_points_np = np.array(batch_3d_points)
+                    # Convert lists of numpy arrays to single numpy arrays
+                    batch_2d_points_np = np.array(batch_2d_points)
+                    batch_3d_points_np = np.array(batch_3d_points)
 
-                #     # Convert numpy arrays to PyTorch tensors
-                #     batch_2d_points = torch.from_numpy(batch_2d_points_np)
-                #     batch_3d_points = torch.from_numpy(batch_3d_points_np)
+                    # Convert numpy arrays to PyTorch tensors
+                    batch_2d_points = torch.from_numpy(batch_2d_points_np)
+                    batch_3d_points = torch.from_numpy(batch_3d_points_np)
 
-                #     # Duplicate intrinsics for each item in the batch
-                #     intrinsics = intrinsics_single.repeat(batch_2d_points.shape[0], 1, 1)
+                    # Duplicate intrinsics for each item in the batch
+                    intrinsics = intrinsics_single.repeat(batch_2d_points.shape[0], 1, 1)
 
-                #     # Use tensors in kornia function
-                #     pred_world_to_cam = K.geometry.solve_pnp_dlt(batch_3d_points, batch_2d_points, intrinsics)
-                #     # Use the estimated world_to_cam matrices to project the 3d points back onto the image plane
+                    # Use tensors in kornia function
+                    pred_world_to_cam = K.geometry.solve_pnp_dlt(batch_3d_points, batch_2d_points, intrinsics)
+                    # Use the estimated world_to_cam matrices to project the 3d points back onto the image plane
                     
-                #     # Initialize the minimum reprojection error to a large value
-                #     min_reprojection_error = np.inf
+                    # Initialize the minimum reprojection error to a large value
+                    min_reprojection_error = np.inf
 
-                #     # Initialize the best pose and 3D points to None
-                #     best_pose = None
-                #     best_3d_points = None
-                #     best_combination = None # <- New variable for the best combination
-                #     # For each predicted world_to_cam matrix...
-                #     for i in range(pred_world_to_cam.shape[0]):
-                #         # Unpack the rotation and translation vectors from the world_to_cam matrix
-                #         # print(pred_world_to_cam[i, :3, :3])
-                #         rvec = cv2.Rodrigues(pred_world_to_cam[i, :3, :3].cpu().numpy())[0]
-                #         tvec = pred_world_to_cam[i, :3, 3].cpu().numpy()
+                    # Initialize the best pose and 3D points to None
+                    best_pose = None
+                    best_3d_points = None
+                    best_combination = None # <- New variable for the best combination
+                    # For each predicted world_to_cam matrix...
+                    for i in range(pred_world_to_cam.shape[0]):
+                        # Unpack the rotation and translation vectors from the world_to_cam matrix
+                        # print(pred_world_to_cam[i, :3, :3])
+                        rvec = cv2.Rodrigues(pred_world_to_cam[i, :3, :3].cpu().numpy())[0]
+                        tvec = pred_world_to_cam[i, :3, 3].cpu().numpy()
 
-                #         # Project the 3D points to the image plane using cv2.projectPoints
-                #         projected_2d_points, _ = cv2.projectPoints(batch_3d_points[i].cpu().numpy(), rvec, tvec, default_cameraK, default_dist_coeffs)
-                #         # Compute the reprojection error
-                #         reprojection_error = np.sum((projected_2d_points.squeeze() - batch_2d_points[i].cpu().numpy())**2)
+                        # Project the 3D points to the image plane using cv2.projectPoints
+                        projected_2d_points, _ = cv2.projectPoints(batch_3d_points[i].cpu().numpy(), rvec, tvec, default_cameraK, default_dist_coeffs)
+                        # Compute the reprojection error
+                        reprojection_error = np.sum((projected_2d_points.squeeze() - batch_2d_points[i].cpu().numpy())**2)
 
-                #         # If this reprojection error is smaller than the current minimum...
-                #         if reprojection_error < min_reprojection_error:
-                #             # Update the minimum reprojection error
-                #             min_reprojection_error = reprojection_error
+                        # If this reprojection error is smaller than the current minimum...
+                        if reprojection_error < min_reprojection_error:
+                            # Update the minimum reprojection error
+                            min_reprojection_error = reprojection_error
 
-                #             # Update the best pose and 3D points
-                #             best_pose = pred_world_to_cam[i]
-                #             best_3d_points = batch_3d_points[i]
-                #             best_combination = batch_combinations[i] # <- Update the best combination
+                            # Update the best pose and 3D points
+                            best_pose = pred_world_to_cam[i]
+                            best_3d_points = batch_3d_points[i]
+                            best_combination = batch_combinations[i] # <- Update the best combination
  
 
 
-                #     print(f"Minimum reprojection error: {min_reprojection_error}")
-                #     print(f"Best pose: {best_pose}")
-                #     print(f"Best 3D points: {best_3d_points}")       
-                #     # After finding best pose and 3D points
-                #     rvec = cv2.Rodrigues(best_pose[:3, :3].cpu().numpy())[0]
-                #     tvec = best_pose[:3, 3].cpu().numpy()
+                    print(f"Minimum reprojection error: {min_reprojection_error}")
+                    print(f"Best pose: {best_pose}")
+                    print(f"Best 3D points: {best_3d_points}")       
+                    # After finding best pose and 3D points
+                    rvec = cv2.Rodrigues(best_pose[:3, :3].cpu().numpy())[0]
+                    tvec = best_pose[:3, 3].cpu().numpy()
 
-                #     # Project the 3D points to the image plane using cv2.projectPoints
-                #     image_points, _ = cv2.projectPoints(best_3d_points.cpu().numpy(), rvec, tvec, camera_matrix[0][0], camera_matrix[0][1])
+                    # Project the 3D points to the image plane using cv2.projectPoints
+                    image_points, _ = cv2.projectPoints(best_3d_points.cpu().numpy(), rvec, tvec, camera_matrix[0][0], camera_matrix[0][1])
 
-                #     # Reshape image_points for easier handling
-                #     image_points = image_points.reshape(-1, 2)
+                    # Reshape image_points for easier handling
+                    image_points = image_points.reshape(-1, 2)
 
-                #     # Draw each point on the image
-                #     for idx, point in enumerate(image_points):
-                #         pt = (int(point[0]), int(point[1]))
-                #         cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
-                #         cv2.putText(draw_frame, str(best_combination[idx]), (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                    # Draw each point on the image
+                    for idx, point in enumerate(image_points):
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, pt, 1, (255, 255, 0), -1)
+                        cv2.putText(draw_frame, str(best_combination[idx]), (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
 
 
@@ -881,11 +881,11 @@ elif SOLUTION == 3:
                 elapsed_time = end_time - start_time  # Calculate the difference
                 print(f"The function took {elapsed_time} seconds to complete.")                                
                 
-                detect_time.append(elapsed_time)
+                # detect_time.append(elapsed_time)
 
-                if len(detect_time) >= 10:
-                    print(f"Mean detect time {np.mean(detect_time)}")
-                    break
+                # if len(detect_time) >= 10:
+                #     print(f"Mean detect time {np.mean(detect_time)}")
+                #     break
                 
 
             if AUTO_LOOP and UVC_MODE == 0:
@@ -1110,8 +1110,8 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     print(os.getcwd())
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right.json"))
-    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right.json"))
+    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_left_2.json"))
     BLOB_CNT = len(MODEL_DATA)
 
     # # Set the seed for Python's random module.
@@ -1132,7 +1132,7 @@ if __name__ == "__main__":
 
     from Advanced_Plot_3D import regenerate_pts_by_dist
 
-    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(12, MODEL_DATA, DIRECTION)
+    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(0, MODEL_DATA, DIRECTION)
     # MODEL_DATA = np.array(MODEL_DATA)
     show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 

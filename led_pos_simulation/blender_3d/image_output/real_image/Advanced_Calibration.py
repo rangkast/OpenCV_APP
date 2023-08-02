@@ -232,6 +232,7 @@ def blob_setting(script_dir, SERVER, blob_file):
                 continue
             filtered_blob_area.append((gcx, gcy, (x, y, w, h)))            
         
+
         if DO_CIRCULAR_FIT_ALGORITHM[0] == 1:
             print('filtered_blob_area')
             P = []
@@ -299,8 +300,7 @@ def blob_setting(script_dir, SERVER, blob_file):
                     if label == 0:
                         cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,255,0), -1)
                     else:
-                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)
-                        
+                        cv2.circle(draw_frame, (int(P[i][0]), int(P[i][1])), 5, (0,0,255), -1)             
         elif DO_CIRCULAR_FIT_ALGORITHM[0] == 2:
             print('filtered_blob_area')
             P = []
@@ -331,9 +331,7 @@ def blob_setting(script_dir, SERVER, blob_file):
                     inverse = -1
                 else:
                     inverse = 1
-
                 BR_ADDER = CENTER_DIST_MEAN - CENTER_DIST_FIT_CIRCLE
-
                 DELTA = inverse * BR_ADDER
             Base_center = np.array([bxc, byc + DELTA])
 
@@ -607,10 +605,14 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
         height, width = frame_0.shape
         center_x, center_y = width // 2, height // 2
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
-        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)   
-        if areas['circle'] != NOT_SET and areas['mode'] == CIRCLE:
+        cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
+
+        print('areas')
+        print(areas)
+
+        if areas['mode'] == CIRCLE:
             cv2.circle(draw_frame, (areas['circle'][0], areas['circle'][1]), int(areas['circle'][2]), (0,255,0), 1)
-        elif areas['rectangle'] != NOT_SET and areas['mode'] == RECTANGLE:
+        elif areas['mode'] == RECTANGLE:
             cv2.rectangle(draw_frame,(areas['rectangle'][0],areas['rectangle'][1]),(areas['rectangle'][2],areas['rectangle'][3]),(0,255,0),1)
   
 
@@ -652,7 +654,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                     # cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)                    
                     cv2.putText(draw_frame, f'{Tracking_ANCHOR}', (tx, ty - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 1)
                     tcx, tcy, tsize = find_center(frame_0, (tx, ty, tw, th))
-                    cv2.circle(draw_frame, (int(tcx), int(tcy)), 2, (0, 255, 0), -1)
+                    cv2.circle(draw_frame, (int(tcx), int(tcy)), 5, (0, 255, 0), -1)
                     if Tracking_ANCHOR in PREV_TRACKER:
                         def check_distance(blob_centers, tcx, tcy):
                             for center in blob_centers:
@@ -791,10 +793,10 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                 if DO_CALIBRATION_TEST == 1:
                     points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
                     points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-                print('LED_NUMBER: ', LED_NUMBER)
-                print('points2D\n', points2D)
-                print('points2D_U\n', points2D_U)
-                print('points3D\n', points3D)
+                # print('LED_NUMBER: ', LED_NUMBER)
+                # print('points2D\n', points2D)
+                # print('points2D_U\n', points2D_U)
+                # print('points3D\n', points3D)
 
                 # TEST CODE
                 # Convert rotation vector to rotation matrix
@@ -870,13 +872,13 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
 
-
                 for blob_id, bbox in TEMP_BOXES.items():
-                    CENTER_BOXES.append({'idx': blob_id, 'bbox': bbox}) 
-                print('CENTER_BOXES')
-                print(CENTER_BOXES)
-                CAMERA_INFO[f"{frame_cnt}"]['bboxes'] = CENTER_BOXES
+                    CENTER_BOXES.append({'idx': blob_id, 'bbox': bbox})
 
+                # 수직방향 데이터 측정을 위한 박스 저장
+                # print('CENTER_BOXES')
+                # print(CENTER_BOXES)
+                CAMERA_INFO[f"{frame_cnt}"]['bboxes'] = CENTER_BOXES
 
                 if DO_BA == 1:
                     ########################### BUNDLE ADJUSTMENT RT #######################
@@ -1294,146 +1296,99 @@ def remake_3d_for_blob_info(**kwargs):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved remake 3d')
-def LSM(TARGET_DEVICE, MODEL_DATA):
+
+
+def LSM(TARGET_DEVICE, MODEL_DATA, **kwargs):
+    def calculation(DATA):        
+        ba_3d_dict = {}
+        for blob_id, data_list in DATA.items():
+            for data in data_list:
+                point_3d = data.reshape(-1)
+                if blob_id not in ba_3d_dict:
+                    ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
+                ba_3d_dict[blob_id].append(point_3d)
+    
+        # 각 blob_id에 대해 PCA를 적용하고, 첫 번째 주성분에 대한 중심을 계산합니다.
+        centers_ba = {}
+        for blob_id, points_3d in ba_3d_dict.items():
+            pca = PCA(n_components=3)  # 3차원 PCA를 계산합니다.
+            pca.fit(points_3d)
+            # PCA의 첫 번째 주성분의 중심을 계산합니다.
+            center = pca.mean_
+            centers_ba[blob_id] = center  # 이후에는 center를 원하는대로 사용하면 됩니다
+
+
+        # centers_ba에는 각 blob_id의 대표값이 저장되어 있습니다.
+        print('\n')
+        print('#################### PCA  ####################')
+        PCA_ARRAY = []
+        for blob_id, center in centers_ba.items():
+            print(f"Center of PCA for blob_id {blob_id}: {center}")
+            PCA_ARRAY.append(center)
+
+        if TARGET_DEVICE == 'SEMI_SLAM_PLANE':
+            PCA_ARRAY_LSM = module_lsm_2D(MODEL_DATA, PCA_ARRAY)
+        else:
+            PCA_ARRAY_LSM = module_lsm_3D(MODEL_DATA, PCA_ARRAY)
+        PCA_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in PCA_ARRAY_LSM]
+        print('PCA_ARRAY_LSM\n')
+        for blob_id, points_3d in enumerate(PCA_ARRAY_LSM):
+            print(f"{points_3d},")   
+            
+        print('\n')
+        print('#################### IQR  ####################')
+        IQR_ARRAY = []
+        for blob_id, points_3d in ba_3d_dict.items():
+            acc_blobs = points_3d.copy()
+            acc_blobs_length = len(acc_blobs)
+            if acc_blobs_length == 0:
+                print('acc_blobs_length is 0 ERROR')
+                continue
+
+            remove_index_array = []
+            med_blobs = [[], [], []]
+            for blobs in acc_blobs:
+                med_blobs[0].append(blobs[0])
+                med_blobs[1].append(blobs[1])
+                med_blobs[2].append(blobs[2])
+                
+            detect_outliers(med_blobs, remove_index_array)
+
+            count = 0
+            for index in remove_index_array:
+                med_blobs[0].pop(index - count)
+                med_blobs[1].pop(index - count)
+                med_blobs[2].pop(index - count)
+                count += 1
+
+            mean_med_x = round(np.mean(med_blobs[0]), 8)
+            mean_med_y = round(np.mean(med_blobs[1]), 8)
+            mean_med_z = round(np.mean(med_blobs[2]), 8)
+            IQR_ARRAY.append([mean_med_x, mean_med_y, mean_med_z])
+            print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")       
+
+
+        if TARGET_DEVICE ==  'SEMI_SLAM_PLANE':
+            IQR_ARRAY_LSM = module_lsm_2D(MODEL_DATA, IQR_ARRAY)
+        else:
+            IQR_ARRAY_LSM = module_lsm_3D(MODEL_DATA, IQR_ARRAY)
+        IQR_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM]
+        print('IQR_ARRAY_LSM\n')
+        for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
+            print(f"{points_3d},")        
+        return PCA_ARRAY_LSM, IQR_ARRAY_LSM
+
     print('draw_result START')
-    REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
-    REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
-    REMADE_3D_INFO_BA = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_BA']
-    BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
-    LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
-    origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
+    # REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
+    # REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
+    # REMADE_3D_INFO_BA = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_BA']
+    # BA_3D = pickle_data(READ, 'BA_3D.pickle', None)['BA_3D']
+    # LED_INDICES = pickle_data(READ, 'BA_3D.pickle', None)['LED_INDICES']
+    # origin_pts = np.array(MODEL_DATA).reshape(-1, 3)
 
-    # # BA 3D 정보와 origin_pts 간의 유클리드 거리를 계산하고, ax2에 그리기
-    # ba_3d = {}
-    # for i, blob_id in enumerate(LED_INDICES):
-    #     point_3d = BA_3D[i].reshape(-1)
-
-    #     if blob_id not in ba_3d:
-    #         ba_3d[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
-    #     ba_3d[blob_id].append(point_3d)
-
-
-    ba_3d_dict = {}
-    for blob_id, data_list in REMADE_3D_INFO_BA.items():
-        for data in data_list:
-            point_3d = data.reshape(-1)
-            if blob_id not in ba_3d_dict:
-                ba_3d_dict[blob_id] = []  # 이 blob_id에 대한 리스트가 아직 없다면 새로 생성합니다.
-            ba_3d_dict[blob_id].append(point_3d)
- 
-    # 각 blob_id에 대해 PCA를 적용하고, 첫 번째 주성분에 대한 중심을 계산합니다.
-    centers_ba = {}
-    for blob_id, points_3d in ba_3d_dict.items():
-        pca = PCA(n_components=3)  # 3차원 PCA를 계산합니다.
-        pca.fit(points_3d)
-        # PCA의 첫 번째 주성분의 중심을 계산합니다.
-        center = pca.mean_
-        centers_ba[blob_id] = center  # 이후에는 center를 원하는대로 사용하면 됩니다
-
-
-    # centers_ba에는 각 blob_id의 대표값이 저장되어 있습니다.
-    print('\n')
-    print('#################### PCA  ####################')
-    PCA_ARRAY = []
-    for blob_id, center in centers_ba.items():
-        print(f"Center of PCA for blob_id {blob_id}: {center}")
-        PCA_ARRAY.append(center)
-
-    if TARGET_DEVICE == 'SEMI_SLAM_PLANE':
-        PCA_ARRAY_LSM = module_lsm_2D(MODEL_DATA, PCA_ARRAY)
-    else:
-        PCA_ARRAY_LSM = module_lsm_3D(MODEL_DATA, PCA_ARRAY)
-    PCA_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in PCA_ARRAY_LSM]
-    print('PCA_ARRAY_LSM\n')
-    for blob_id, points_3d in enumerate(PCA_ARRAY_LSM):
-        print(f"{points_3d},")   
-        
-    print('\n')
-    print('#################### IQR_BA_RT  ####################')
-    IQR_ARRAY = []
-    for blob_id, points_3d in ba_3d_dict.items():
-        acc_blobs = points_3d.copy()
-        acc_blobs_length = len(acc_blobs)
-        if acc_blobs_length == 0:
-            print('acc_blobs_length is 0 ERROR')
-            continue
-
-        remove_index_array = []
-        med_blobs = [[], [], []]
-        for blobs in acc_blobs:
-            med_blobs[0].append(blobs[0])
-            med_blobs[1].append(blobs[1])
-            med_blobs[2].append(blobs[2])
-            
-        detect_outliers(med_blobs, remove_index_array)
-
-        count = 0
-        for index in remove_index_array:
-            med_blobs[0].pop(index - count)
-            med_blobs[1].pop(index - count)
-            med_blobs[2].pop(index - count)
-            count += 1
-
-        mean_med_x = round(np.mean(med_blobs[0]), 8)
-        mean_med_y = round(np.mean(med_blobs[1]), 8)
-        mean_med_z = round(np.mean(med_blobs[2]), 8)
-        IQR_ARRAY.append([mean_med_x, mean_med_y, mean_med_z])
-        print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")       
-
-
-    if TARGET_DEVICE ==  'SEMI_SLAM_PLANE':
-        IQR_ARRAY_LSM = module_lsm_2D(MODEL_DATA, IQR_ARRAY)
-    else:
-        IQR_ARRAY_LSM = module_lsm_3D(MODEL_DATA, IQR_ARRAY)
-    IQR_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM]
-    print('IQR_ARRAY_LSM(BA_RT)\n')
-    for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
-        print(f"{points_3d},")    
-    
-
-    # print('\n')
-    # print('#################### IQR BA_3D  ####################')
-    # IQR_ARRAY = []
-    # for blob_id, points_3d in ba_3d.items():
-    #     acc_blobs = points_3d.copy()
-    #     acc_blobs_length = len(acc_blobs)
-    #     if acc_blobs_length == 0:
-    #         print('acc_blobs_length is 0 ERROR')
-    #         continue
-
-    #     remove_index_array = []
-    #     med_blobs = [[], [], []]
-    #     for blobs in acc_blobs:
-    #         med_blobs[0].append(blobs[0])
-    #         med_blobs[1].append(blobs[1])
-    #         med_blobs[2].append(blobs[2])
-            
-    #     detect_outliers(med_blobs, remove_index_array)
-
-    #     count = 0
-    #     for index in remove_index_array:
-    #         med_blobs[0].pop(index - count)
-    #         med_blobs[1].pop(index - count)
-    #         med_blobs[2].pop(index - count)
-    #         count += 1
-
-    #     mean_med_x = round(np.mean(med_blobs[0]), 8)
-    #     mean_med_y = round(np.mean(med_blobs[1]), 8)
-    #     mean_med_z = round(np.mean(med_blobs[2]), 8)
-    #     IQR_ARRAY.append([mean_med_x, mean_med_y, mean_med_z])
-    #     print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")       
-
-    
-    # if TARGET_DEVICE ==  'SEMI_SLAM_PLANE':
-    #     IQR_ARRAY_LSM_BA_3D = module_lsm_2D(MODEL_DATA, IQR_ARRAY)
-    # else:
-    #     IQR_ARRAY_LSM_BA_3D = module_lsm_3D(MODEL_DATA, IQR_ARRAY)
-    # IQR_ARRAY_LSM_BA_3D = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM_BA_3D]
-    # print('IQR_ARRAY_LSM_BA_3D(BA_3D)\n')
-    # for blob_id, points_3d in enumerate(IQR_ARRAY_LSM_BA_3D):
-    #     print(f"{points_3d},")    
-
-
+    info_name = kwargs.get('info_name')
+    DATA = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)[info_name]
+    PCA_ARRAY_LSM, IQR_ARRAY_LSM = calculation(DATA)
 
     file = 'RIGID_3D_TRANSFORM.pickle'
     data = OrderedDict()
@@ -2300,13 +2255,13 @@ if __name__ == "__main__":
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-
+    SOLUTION = 2
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
     DO_CIRCULAR_FIT_ALGORITHM = 1
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'TEST'
+    TARGET_DEVICE = 'SEMI_SLAM_CURVE'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2316,7 +2271,7 @@ if __name__ == "__main__":
         LEFT_RIGHT_DIRECTION = PLUS
         BLOB_SIZE = 25
         controller_name = 'rifts_right_9'
-        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
+        camera_log_path = f"./render_img/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
@@ -2333,7 +2288,7 @@ if __name__ == "__main__":
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 50
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final_ARCTURAS.txt"
+        camera_log_path = f"./render_img/camera_log_final_ARCTURAS.txt"
         camera_img_path = f"./render_img/{controller_name}/test_1/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
@@ -2350,9 +2305,9 @@ if __name__ == "__main__":
         SEMI_SLAM_CURVE = [0,1,0,1,0,1,0,1]
         LEDS_POSITION = SEMI_SLAM_CURVE
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 150
+        BLOB_SIZE = 30
         controller_name = 'semi_slam_curve'
-        camera_log_path = f"./render_img/{controller_name}/test_6/camera_log_final.txt"
+        camera_log_path = f"./render_img/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_6/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_curve.json"))
@@ -2368,9 +2323,9 @@ if __name__ == "__main__":
         SEMI_SLAM_PLANE = [0,1,0,1,0,1,0]
         LEDS_POSITION = SEMI_SLAM_PLANE
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 300
+        BLOB_SIZE = 50
         controller_name = 'semi_slam_plane'
-        camera_log_path = f"./render_img/{controller_name}/test_41/camera_log_final.txt"
+        camera_log_path = f"./render_img/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_41/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_plane.json"))
@@ -2386,13 +2341,13 @@ if __name__ == "__main__":
         SEMI_SLAM_POLYHEDRON = [0,1,0,1,0,0,1]
         LEDS_POSITION = SEMI_SLAM_POLYHEDRON
         LEFT_RIGHT_DIRECTION = MINUS
-        BLOB_SIZE = 300
+        BLOB_SIZE = 50
         controller_name = 'semi_slam_polyhedron'
-        camera_log_path = f"./render_img/{controller_name}/test_21/camera_log_final.txt"
+        camera_log_path = f"./render_img/camera_log_final.txt"
         camera_img_path = f"./render_img/{controller_name}/test_21/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/semi_slam_polyhedron.json"))
-        START_FRAME = 20
+        START_FRAME = 25
         STOP_FRAME = 48
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 5
@@ -2439,9 +2394,8 @@ if __name__ == "__main__":
     bboxes, areas = blob_setting(script_dir, SERVER, f"{script_dir}/render_img/{controller_name}/blob_area_{CONTROLLER_JOINT_ANGLE}.json")
 
 
-    SOLUTION = 3
-
     if SOLUTION == 1:
+        # Advanced, BA
         ######################################## SOLUTION 1 ########################################
         # 설계 좌표가 있는 경우 BA_RT : 설계 값에  BLENDER RT를 BA 처리 할 수 있음
         # Remake 3D 값을 BA_RT 처리한 RT에 BA_3D_POINT 할 수 있음
@@ -2469,9 +2423,10 @@ if __name__ == "__main__":
         ToDO
         부분 LSM 안됨
         '''
-        LSM(TARGET_DEVICE, MODEL_DATA)
-        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 1)
-    
+        LSM(TARGET_DEVICE, MODEL_DATA, info_name='REMADE_3D_INFO_BA')
+
+        # TEST
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 1)    
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
         Check_Calibration_data_combination(combination_cnt)
         
@@ -2481,10 +2436,15 @@ if __name__ == "__main__":
         # save_camera_position(TARGET_DEVICE)
 
     elif SOLUTION == 2:
+        # LEGACY
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
         remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=undistort, opencv=DONE, blender=DONE, ba_rt=NOT_SET)
-        # BA_3D_POINT(RT='BLENDER')
+        LSM(TARGET_DEVICE, MODEL_DATA, info_name='REMADE_3D_INFO_B')
+
+        # TEST
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 0)    
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
+        Check_Calibration_data_combination(combination_cnt)        
     elif SOLUTION == 3:
         print('LABELING')
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
