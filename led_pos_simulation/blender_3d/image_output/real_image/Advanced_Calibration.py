@@ -1084,9 +1084,9 @@ def remake_3d_for_blob_info(**kwargs):
     opencv = kwargs.get('opencv')
     blender = kwargs.get('blender')
     ba_rt = kwargs.get('ba_rt')
-    print('remake_3d_for_blob_info START')
-    BLOB_INFO = pickle_data(READ, info_name, None)['BLOB_INFO']
 
+    BLOB_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]
+    print('remake_3d_for_blob_info START', ' ', info_name.split('.')[0])
     REMADE_3D_INFO_B = {}
     REMADE_3D_INFO_O = {}
     REMADE_3D_INFO_BA = {} # For BA_RT
@@ -1097,7 +1097,7 @@ def remake_3d_for_blob_info(**kwargs):
         print('#################### DYNAMIC RT (PNP SOLVER)  ####################')
         for blob_id in range(BLOB_CNT):   
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
-            print(f"BLOB_ID: {blob_id}, CNT {CNT}")
+            # print(f"BLOB_ID: {blob_id}, CNT {CNT}")
             REMADE_3D_INFO_O[blob_id] = []
 
             # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
@@ -1206,7 +1206,7 @@ def remake_3d_for_blob_info(**kwargs):
         # 0 번 부터 순서대로 복원
         for blob_id in range(BLOB_CNT):
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
-            print(f"BLOB_ID: {blob_id}, CNT {CNT}")
+            # print(f"BLOB_ID: {blob_id}, CNT {CNT}")
             REMADE_3D_INFO_B[blob_id] = []
 
             # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
@@ -1247,16 +1247,19 @@ def remake_3d_for_blob_info(**kwargs):
     if ba_rt == DONE:
         # Iterate over the blob_ids in BLOB_INFO
         print('#################### DYNAMIC RT (BA RT)  ####################')
+        # print(BLOB_INFO[0]['BA_RT']['status'])
         for blob_id in range(BLOB_CNT):
             CNT = len(BLOB_INFO[blob_id]['points2D_D']['greysum'])
-            print(f"BLOB_ID: {blob_id}, CNT {CNT}")
+            # print(f"BLOB_ID: {blob_id}, CNT {CNT} LEN {len(BLOB_INFO[blob_id]['BA_RT'])}")
             REMADE_3D_INFO_BA[blob_id] = []
 
             # PnP solver는 최소 3개 (P3P 사용할 경우) 4개 이상 필요함
             rt_first_BA = NOT_SET
             points2D_D_first = NOT_SET
             points2D_U_first = NOT_SET
+
             for i in range(0, CNT):
+                # print(f"blob_id {blob_id} {i}")
                 if BLOB_INFO[blob_id]['BA_RT']['status'][i] != DONE:
                     continue
                 
@@ -1400,11 +1403,11 @@ def LSM(TARGET_DEVICE, MODEL_DATA, **kwargs):
         print('data saved')
  
 def BA_RT(**kwargs):
-    info_name = kwargs.get('info_name')
+    info_name = kwargs.get('info_name')    
     save_to = kwargs.get('save_to')
     target = kwargs.get('target')
     print('BA_RT START')
-    CAMERA_INFO = pickle_data(READ, info_name, None)['CAMERA_INFO']   
+    CAMERA_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]   
     camera_indices = []
     point_indices = []
     estimated_RTs = []
@@ -1418,6 +1421,8 @@ def BA_RT(**kwargs):
 
     for frame_cnt, cam_info in CAMERA_INFO.items():
         # print(cam_info['LED_NUMBER'])
+        if len(cam_info['LED_NUMBER']) <= 0:
+            continue
 
         points3D = cam_info['points3D']
         # 여기 다시 확인 해야 함
@@ -1600,9 +1605,10 @@ def BA_3D_POINT(**kwargs):
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
-def Check_Calibration_data_combination(combination_cnt):
+def Check_Calibration_data_combination(combination_cnt, **kwargs):
     print('Check_Calibration_data_combination START')
-    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']       
+    info_name = kwargs.get('info_name')    
+    CAMERA_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]
     RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
 
     print('Calibration cadidates')
@@ -2255,13 +2261,13 @@ if __name__ == "__main__":
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 2
+    SOLUTION = 3
     CV_MAX_THRESHOLD = 255
-    CV_MIN_THRESHOLD = 150
+    CV_MIN_THRESHOLD = 100
     DO_CIRCULAR_FIT_ALGORITHM = 1
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'SEMI_SLAM_CURVE'
+    TARGET_DEVICE = 'ARCTURAS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2289,7 +2295,7 @@ if __name__ == "__main__":
         BLOB_SIZE = 50
         controller_name = 'arcturas'
         camera_log_path = f"./render_img/camera_log_final_ARCTURAS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_1/"
+        camera_img_path = f"./render_img/{controller_name}/test_3/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2428,7 +2434,7 @@ if __name__ == "__main__":
         # TEST
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 1)    
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE)
-        Check_Calibration_data_combination(combination_cnt)
+        Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
         
         '''
         SEED PATH 저장
@@ -2444,7 +2450,7 @@ if __name__ == "__main__":
         # TEST
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 0)    
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
-        Check_Calibration_data_combination(combination_cnt)        
+        Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')        
     elif SOLUTION == 3:
         print('LABELING')
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)

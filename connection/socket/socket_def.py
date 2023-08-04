@@ -434,4 +434,4 @@ def socket_cmd_to_robot(target, ar_coord, cmd):
         trans_sbpos(cmd)
 
     send_cmd_to_server(sys_set)
-    rb_info.show_all_data()
+    # rb_info.show_all_data()

@@ -56,6 +56,8 @@ CV_MIN_THRESHOLD = 150
 CV_MAX_THRESHOLD = 255
 ANGLE = 3
 MAX_FRAME_CNT = 360 / ANGLE
+TRACKER_PADDING = 3
+BLOB_SIZE = 20
 # MAX_FRAME_CNT = 70
 script_dir = os.path.dirname(os.path.realpath(__file__))
 print(script_dir)
@@ -205,9 +207,16 @@ def init_camera_path(script_dir, video_path):
                     cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
                     cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)       
                 
-                    blob_area = detect_led_lights(frame, 5, 5, 500)
+                    filtered_blob_area = []
+                    blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+                    for _, bbox in enumerate(blob_area):
+                        (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                        gcx,gcy, gsize = find_center(frame, (x, y, w, h))
+                        if gsize < BLOB_SIZE:
+                            continue
+                        filtered_blob_area.append((gcx, gcy, (x, y, w, h)))   
                     cv2.namedWindow('image')
-                    partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=blob_area, bboxes=bboxes)
+                    partial_click_event = functools.partial(click_event, frame=frame, blob_area_0=filtered_blob_area, bboxes=bboxes)
                     cv2.setMouseCallback('image', partial_click_event)
                     key = cv2.waitKey(1)
 
@@ -296,7 +305,7 @@ def init_camera_path(script_dir, video_path):
                         INIT_IMAGE['LED_NUMBER'] =LED_NUMBERS
                         INIT_IMAGE['points3D'] =points3D
 
-                    draw_blobs_and_ids(draw_frame, blob_area, bboxes)
+                    draw_blobs_and_ids(draw_frame, filtered_blob_area, bboxes)
                     cv2.imshow('image', draw_frame)
 
     cv2.destroyAllWindows()
@@ -314,7 +323,7 @@ if __name__ == "__main__":
 
     ############################## TOP BAR ##############################
     #
-    # 430 200
+    # 430 200 30
     #
 
     test_set = Setting_CMD()
@@ -324,33 +333,33 @@ if __name__ == "__main__":
     send_cmd_to_server(sys_set)
     socket_cmd_to_robot('joint', 'ac', {'1': 1.64, '2': 71.18, '3': 19.07, '4': 0.30, '5': -89.85, '6': -197.28})
    
-    init_camera_path(script_dir, camera_port)
+    # init_camera_path(script_dir, camera_port)
 
-    status_queue = Queue()
-    status_queue.put("NOT_SET")
-    stop_event = threading.Event()  # Create a stop event
-    webcam_stream = WebcamStream(src=camera_port, status_queue=status_queue, stop_event=stop_event)  # Pass the stop event to the WebcamStream
-    webcam_stream.start()
-    threading.Thread(target=command_task, args=(status_queue, stop_event)).start()
+    # status_queue = Queue()
+    # status_queue.put("NOT_SET")
+    # stop_event = threading.Event()  # Create a stop event
+    # webcam_stream = WebcamStream(src=camera_port, status_queue=status_queue, stop_event=stop_event)  # Pass the stop event to the WebcamStream
+    # webcam_stream.start()
+    # threading.Thread(target=command_task, args=(status_queue, stop_event)).start()
     
-    while True:
-        frame = webcam_stream.read()
-        file_name, frame_cnt = webcam_stream.get_info()
-        if frame is not None:
-            draw_frame = frame.copy()
-            center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
-            cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
-            cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1)
-            cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{file_name}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-                    (255, 255, 255), 1)  
+    # while True:
+    #     frame = webcam_stream.read()
+    #     file_name, frame_cnt = webcam_stream.get_info()
+    #     if frame is not None:
+    #         draw_frame = frame.copy()
+    #         center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+    #         cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
+    #         cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1)
+    #         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{file_name}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+    #                 (255, 255, 255), 1)  
             
-            # Display the resulting frame
-            cv2.imshow('Frame', draw_frame)
+    #         # Display the resulting frame
+    #         cv2.imshow('Frame', draw_frame)
 
-            key = cv2.waitKey(1)
-            if key & 0xFF == ord('q') or stop_event.is_set():
-                break
+    #         key = cv2.waitKey(1)
+    #         if key & 0xFF == ord('q') or stop_event.is_set():
+    #             break
 
-    webcam_stream.stop()
-    stop_event.set()
-    cv2.destroyAllWindows()
+    # webcam_stream.stop()
+    # stop_event.set()
+    # cv2.destroyAllWindows()

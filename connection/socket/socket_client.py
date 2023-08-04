@@ -31,4 +31,4 @@ send_cmd_to_server(sys_set) # robot의 setting 값 확인
 
 
 
-rb_info.show_all_data()
+# rb_info.show_all_data()
