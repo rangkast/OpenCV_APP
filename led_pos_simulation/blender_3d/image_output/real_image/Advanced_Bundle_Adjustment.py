@@ -33,7 +33,7 @@ CALIBRATION_DATA = np.array([
 
 TARGET_DEVICE = 'ARCTURAS'
 MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right_1_self.json")
-CAMERA_INFO = pickle_data(READ, "CAMERA_INFO.pickle", None)['CAMERA_INFO']
+CAMERA_INFO_BACKUP = pickle_data(READ, "CAMERA_INFO_BACKUP.pickle", None)['CAMERA_INFO']
 NEW_CAMERA_INFO_UP = pickle_data(READ, "NEW_CAMERA_INFO_1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_UP_KEYS = list(NEW_CAMERA_INFO_UP.keys())
 NEW_CAMERA_INFO_DOWN = pickle_data(READ, "NEW_CAMERA_INFO_-1.pickle", None)['NEW_CAMERA_INFO']
@@ -43,10 +43,8 @@ BLOB_CNT = len(MODEL_DATA)
 IMAGE_CNT = 120
 DEGREE_CNT = 4
 CAM_ID = 0
-FINAL_CAMERA_INFO = {}
-FINAL_BLOB_INFO = {}
-
-
+CAMERA_INFO = {}
+BLOB_INFO = {}
 
 if __name__ == "__main__":
     print('PTS')
@@ -69,6 +67,7 @@ if __name__ == "__main__":
         return LED_NUMBER, points2D
     def pnp_solver(points2D_D, points3D):
         # print(points2D_D)
+        ret_status = SUCCESS
         points2D_U = cv2.undistortPoints(points2D_D, camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1])
         points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
         length = len(points2D_D)
@@ -77,37 +76,42 @@ if __name__ == "__main__":
         elif length == 4:
             METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
         else:
-            return ERROR, ERROR
+            ret_status = ERROR
 
-        INPUT_ARRAY = [
-            CAM_ID,
-            points3D,
-            points2D_U,
-            default_cameraK,
-            default_dist_coeffs
-        ]
-        _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
-        # rvec이나 tvec가 None인 경우 continue
-        if rvec is None or tvec is None:
-            return ERROR, ERROR
+        if ret_status == SUCCESS:
+            INPUT_ARRAY = [
+                CAM_ID,
+                points3D,
+                points2D_U,
+                default_cameraK,
+                default_dist_coeffs
+            ]
+            _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+            # rvec이나 tvec가 None인 경우 continue
+            if rvec is None or tvec is None:
+                ret_status = ERROR
+            
+            # rvec이나 tvec에 nan이 포함된 경우 continue
+            if np.isnan(rvec).any() or np.isnan(tvec).any():
+                ret_status = ERROR
+
+            # rvec과 tvec의 모든 요소가 0인 경우 continue
+            if np.all(rvec == 0) and np.all(tvec == 0):
+                ret_status = ERROR
+            # print('rvec:', rvec)
+            # print('tvec:', tvec)
         
-        # rvec이나 tvec에 nan이 포함된 경우 continue
-        if np.isnan(rvec).any() or np.isnan(tvec).any():
-            return ERROR, ERROR
-
-        # rvec과 tvec의 모든 요소가 0인 경우 continue
-        if np.all(rvec == 0) and np.all(tvec == 0):
-            return ERROR, ERROR
-        # print('rvec:', rvec)
-        # print('tvec:', tvec)
+        if ret_status == ERROR:
+            return ERROR, points2D_U
+        
         rvec_reshape = np.array(rvec).reshape(-1, 1)
         tvec_reshape = np.array(tvec).reshape(-1, 1)
 
         return (rvec_reshape, tvec_reshape), points2D_U
 
-    def add_data(LED_NUMBER, points2D_D, points2D_U, points3D, RTVEC, frame_cnt, DO_BA, DO_CALIBRATION_TEST):
-        if DO_BA == DONE:
-            BA_RT = pickle_data(READ, 'FINAL_BA_RT.pickle', None)['BA_RT']
+    def add_data(index, LED_NUMBER, DEGREE, points2D_D, points2D_U, points3D, RTVEC, frame_cnt, DO_BA, DO_CALIBRATION_TEST):
+        if DO_BA == DONE:         
+            BA_RT = pickle_data(READ, 'BA_RT.pickle', None)['BA_RT']
             ba_rvec = BA_RT[frame_cnt][:3]
             ba_tvec = BA_RT[frame_cnt][3:]
             ba_rvec_reshape = np.array(ba_rvec).reshape(-1, 1)
@@ -116,11 +120,12 @@ if __name__ == "__main__":
             # print('ba_tvec : ', ba_tvec)
             # print('LED_NUMBER : ', LED_NUMBER)
             for blob_id in LED_NUMBER:
-                FINAL_BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
-                FINAL_BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
-                FINAL_BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape
+                BLOB_INFO[blob_id]['BA_RT']['rt']['rvec'].append(ba_rvec_reshape)
+                BLOB_INFO[blob_id]['BA_RT']['rt']['tvec'].append(ba_tvec_reshape)
+                BLOB_INFO[blob_id]['BA_RT']['status'].append(DONE)               
+            CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['rvec'] = ba_rvec_reshape
+            CAMERA_INFO[f"{frame_cnt}"]['BA_RT']['rt']['tvec'] = ba_tvec_reshape          
+
         elif DO_CALIBRATION_TEST == DONE:
             RIGID_3D_TRANSFORM_PCA = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['PCA_ARRAY_LSM']
             RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
@@ -131,86 +136,123 @@ if __name__ == "__main__":
                 points3D_IQR.append(RIGID_3D_TRANSFORM_IQR[int(blob_id)])
             points3D_PCA = np.array(points3D_PCA, dtype=np.float64)
             points3D_IQR = np.array(points3D_IQR, dtype=np.float64)
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_PCA'] = points3D_PCA
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_IQR'] = points3D_IQR
         else:
             for idx, blob_id in enumerate(LED_NUMBER):
-                FINAL_BLOB_INFO[blob_id]['points2D_D']['greysum'].append(points2D_D[idx])
-                FINAL_BLOB_INFO[blob_id]['points2D_U']['greysum'].append(points2D_U[idx])
-                FINAL_BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(RTVEC[0])
-                FINAL_BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(RTVEC[1])
-                FINAL_BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
+                BLOB_INFO[blob_id]['points2D_D']['greysum'].append(points2D_D[idx])
+                BLOB_INFO[blob_id]['points2D_U']['greysum'].append(points2D_U[idx])
+                if RTVEC != ERROR:
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(RTVEC[0])
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(RTVEC[1])
+                    BLOB_INFO[blob_id]['OPENCV']['status'].append(DONE)
+                else:
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['rvec'].append(NOT_SET)
+                    BLOB_INFO[blob_id]['OPENCV']['rt']['tvec'].append(NOT_SET)
+                    BLOB_INFO[blob_id]['OPENCV']['status'].append(NOT_SET)                    
             
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points3D_origin'] = MODEL_DATA[list(LED_NUMBER), :]
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D_D
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = RTVEC[0]
-            FINAL_CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = RTVEC[1]
-
+            CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_origin'] = MODEL_DATA[list(LED_NUMBER), :]
+            CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D_D
+            CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
+            CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
+            CAMERA_INFO[f"{frame_cnt}"]['ANGLE'] =DEGREE
+            if RTVEC != ERROR:
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['rvec'] = RTVEC[0]
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['rt']['tvec'] = RTVEC[1]
+                CAMERA_INFO[f"{frame_cnt}"]['OPENCV']['status'] = DONE
+            # Set RT made by BLENDER
+            if DEGREE == 0:
+                camera_params = read_camera_log(os.path.join(script_dir,  f"./tmp/render/ARCTURAS/camera_log_0.txt"))
+            elif DEGREE == 15:
+                camera_params = read_camera_log(os.path.join(script_dir,  f"./tmp/render/ARCTURAS/camera_log_15.txt"))
+            elif DEGREE == -15:
+                camera_params = read_camera_log(os.path.join(script_dir,  f"./tmp/render/ARCTURAS/camera_log_-15.txt"))
+            elif DEGREE == -30:
+                camera_params = read_camera_log(os.path.join(script_dir,  f"./tmp/render/ARCTURAS/camera_log_-30.txt"))
+            if camera_params != ERROR:
+                brvec, btvec = camera_params[index + 1]
+                brvec_reshape = np.array(brvec).reshape(-1, 1)
+                btvec_reshape = np.array(btvec).reshape(-1, 1)
+                # print('Blender rvec:', brvec_reshape.flatten(), ' tvec:', btvec_reshape.flatten())            
+                for blob_id in LED_NUMBER:
+                    BLOB_INFO[blob_id]['BLENDER']['rt']['rvec'].append(brvec_reshape)
+                    BLOB_INFO[blob_id]['BLENDER']['rt']['tvec'].append(btvec_reshape)
+                    BLOB_INFO[blob_id]['BLENDER']['status'].append(DONE)  
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
+                CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape   
 
     def gathering_data(DO_BA=NOT_SET, DO_CALIBRATION_TEST=NOT_SET):
+        print('gathering_data START: ', DO_BA, ' ', DO_CALIBRATION_TEST)
         frame_cnt = 0
         for idx in range(IMAGE_CNT):
             # 0, -15 -30 15의 4가지 앵글에서 카메라뷰를 처리함
             # frame_cnt가 4배씩 증가
+            # led가 3개이하로 보이면 예외 처리가 필요함 
 
-            # 0 ##################
-            # FINAL_CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-            LED_NUMBER = CAMERA_INFO[f"{idx}"]['LED_NUMBER']
-            points2D_D = CAMERA_INFO[f"{idx}"]['points2D']['greysum']
+            # 0 ##################            
+            LED_NUMBER = CAMERA_INFO_BACKUP[f"{idx}"]['LED_NUMBER']
+            points2D_D = CAMERA_INFO_BACKUP[f"{idx}"]['points2D']['greysum']
             points3D = CALIBRATION_DATA[list(LED_NUMBER), :]
             RET, points2D_U = pnp_solver(points2D_D, points3D)
             if RET != ERROR:
-                # print(RET)
-                add_data(LED_NUMBER, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
-                frame_cnt += 1
+                if idx == 0:
+                    print(f"0 frame_cnt {frame_cnt}")
+                    print(np.array(RET[0]).flatten())
+                    print(np.array(RET[1]).flatten())
+            add_data(idx, LED_NUMBER, 0, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
+            frame_cnt += 1
             ##################
 
-            # -15 ##################
-            # FINAL_CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-            LED_NUMBER, points2D_D = filter_data(NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx]]['LED_NUMBER'], NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx]]['points2D'])
+            # -15 ##################            
+            LED_NUMBER, points2D_D = filter_data(NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx*2]]['LED_NUMBER'], NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx*2]]['points2D'])
             points2D_D = np.array(np.array(points2D_D).reshape(len(points2D_D), -1), dtype=np.float64)
             points3D = CALIBRATION_DATA[list(LED_NUMBER), :]
             RET, points2D_U = pnp_solver(points2D_D, points3D)
             if RET != ERROR:
-                # print(RET)
-                add_data(LED_NUMBER, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
-                frame_cnt += 1
+                if idx == 0:
+                    print(f"-15 frame_cnt {frame_cnt}")
+                    print(np.array(RET[0]).flatten())
+                    print(np.array(RET[1]).flatten())
+            add_data(idx, LED_NUMBER, -15, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
+            frame_cnt += 1
             ##################
 
-            # -30 ##################
-            # FINAL_CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
-            LED_NUMBER, points2D_D = filter_data(NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx + 1]]['LED_NUMBER'], NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx + 1]]['points2D'])
+            # -30 ##################            
+            LED_NUMBER, points2D_D = filter_data(NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx*2 + 1]]['LED_NUMBER'], NEW_CAMERA_INFO_UP[NEW_CAMERA_INFO_UP_KEYS[idx*2 + 1]]['points2D'])
             points2D_D = np.array(np.array(points2D_D).reshape(len(points2D_D), -1), dtype=np.float64)
             points3D = CALIBRATION_DATA[list(LED_NUMBER), :]
             RET, points2D_U = pnp_solver(points2D_D, points3D)
             if RET != ERROR:
-                # print(RET)
-                add_data(LED_NUMBER, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
-                frame_cnt += 1
+                if idx == 0:
+                    print(f"-30 frame_cnt {frame_cnt}")
+                    print(np.array(RET[0]).flatten())
+                    print(np.array(RET[1]).flatten())
+            add_data(idx, LED_NUMBER, -30, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
+            frame_cnt += 1
             ##################
 
-            # 15 ##################
-            # FINAL_CAMERA_INFO[f"{frame_cnt}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+            # 15 ##################            
             LED_NUMBER, points2D_D = filter_data(NEW_CAMERA_INFO_DOWN[NEW_CAMERA_INFO_DOWN_KEYS[idx]]['LED_NUMBER'], NEW_CAMERA_INFO_DOWN[NEW_CAMERA_INFO_DOWN_KEYS[idx]]['points2D'])   
             points2D_D = np.array(np.array(points2D_D).reshape(len(points2D_D), -1), dtype=np.float64)  
             points3D = CALIBRATION_DATA[list(LED_NUMBER), :]
             RET, points2D_U = pnp_solver(points2D_D, points3D)
             if RET != ERROR:
-                # print(RET)
-                add_data(LED_NUMBER, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
-                frame_cnt += 1
+                if idx == 0:
+                    print(f"15 frame_cnt {frame_cnt}")
+                    print(np.array(RET[0]).flatten())
+                    print(np.array(RET[1]).flatten())
+            add_data(idx, LED_NUMBER, 15, points2D_D, points2D_U, points3D, RET, frame_cnt, DO_BA, DO_CALIBRATION_TEST)
+            frame_cnt += 1
             ##################
 
         data = OrderedDict()
-        data['FINAL_BLOB_INFO'] = FINAL_BLOB_INFO
-        pickle_data(WRITE, 'FINAL_BLOB_INFO.pickle', data)
+        data['BLOB_INFO'] = BLOB_INFO
+        pickle_data(WRITE, 'BLOB_INFO.pickle', data)
         data = OrderedDict()
-        data['FINAL_CAMERA_INFO'] = FINAL_CAMERA_INFO
-        pickle_data(WRITE, 'FINAL_CAMERA_INFO.pickle', data)
-        print('data saved')
+        data['CAMERA_INFO'] = CAMERA_INFO
+        pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
+        print('data saved\n')
 
     def Check_Calibration_data_combination(combination_cnt, **kwargs):
         print('Check_Calibration_data_combination START')
@@ -256,6 +298,8 @@ if __name__ == "__main__":
                                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                             elif combination == 4:
                                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
+                            else:
+                                continue
 
                             INPUT_ARRAY = [
                                 CAM_ID,
@@ -284,17 +328,16 @@ if __name__ == "__main__":
                                                     rvec, tvec,
                                                     camera_matrix[CAM_ID][0],
                                                     camera_matrix[CAM_ID][1])
-                            if RER > 10.0:
+                            if RER > 2.5:
                                 error_cnt+=1
                                 # print('points3D_perm ', points3D_perm)
                                 # print('points3D_data ', points3D_data)
                                 # print('list(perm): ', list(perm), ' RER: ', RER)
                                 fail_reason.append([points3D_data, error_cnt, list(perm), RER, rvec.flatten(), tvec.flatten()])
-
-        
-                            rvec_list.append(np.linalg.norm(rvec))
-                            tvec_list.append(np.linalg.norm(tvec))                      
-                            reproj_err_list.append(RER)                                
+                            else:
+                                rvec_list.append(np.linalg.norm(rvec))
+                                tvec_list.append(np.linalg.norm(tvec))                      
+                                reproj_err_list.append(RER)                                
                     
                     if rvec_list and tvec_list and reproj_err_list:
                         frame_counts.append(frame_cnt)
@@ -308,6 +351,7 @@ if __name__ == "__main__":
 
 
             return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason
+        
         all_data = []
         for COMBINATION in combination_cnt:
             fig, axs = plt.subplots(3, 1, figsize=(15, 15))
@@ -462,12 +506,12 @@ if __name__ == "__main__":
     MODEL_DATA = np.array(MODEL_DATA)
     # MAIN START
     for blob_id in range(BLOB_CNT):
-        FINAL_BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
+        BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
     
-    for idx in range(IMAGE_CNT * DEGREE_CNT - 1):
+    for idx in range(IMAGE_CNT * DEGREE_CNT):
         # 0, -15 -30 15의 4가지 앵글에서 카메라뷰를 처리함
         # frame_cnt가 4배씩 증가
-        FINAL_CAMERA_INFO[f"{idx}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
+        CAMERA_INFO[f"{idx}"] = copy.deepcopy(CAMERA_INFO_STRUCTURE)
     
     
     from Advanced_Calibration import BA_RT, remake_3d_for_blob_info, LSM, init_plot, draw_result
@@ -476,20 +520,20 @@ if __name__ == "__main__":
 
     # Phase 1
     gathering_data()
-    BA_RT(info_name='FINAL_CAMERA_INFO.pickle', save_to='FINAL_BA_RT.pickle', target='OPENCV') 
+    BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
 
     # Phase 2
     gathering_data(DO_BA=DONE)
-    remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='FINAL_BLOB_INFO.pickle', undistort=DONE, opencv=DONE, blender=NOT_SET, ba_rt=DONE)
+    remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=DONE, opencv=DONE, blender=DONE, ba_rt=DONE)
     LSM(TARGET_DEVICE, MODEL_DATA, info_name='REMADE_3D_INFO_BA')
 
     # Phase 3
     gathering_data(DO_CALIBRATION_TEST=DONE)
-    draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=NOT_SET, ba_rt=DONE) 
+    draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
-    # # TEST
-    combination_cnt = [4]
-    Check_Calibration_data_combination(combination_cnt, info_name='FINAL_CAMERA_INFO.pickle')
+    # TEST
+    combination_cnt = [4,5]
+    Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()
 

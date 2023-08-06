@@ -37,6 +37,7 @@ if os_name == 'Windows':
     REMADE_3D_INFO_PATH = "D:/OpenCV_APP/REMADE_3D_INFO.pickle"
     RIGID_3D_TRANSFORM_PATH = "D:/OpenCV_APP/RIGID_3D_TRANSFORM.pickle"
     CAMERA_INFO_PATH = "D:/OpenCV_APP/CAMERA_INFO.pickle"
+#    CAMERA_INFO_PATH = "D:/OpenCV_APP/FINAL_CAMERA_INFO.pickle"
     FITTING_CIRCLE_PATH = "D:/OpenCV_APP/FITTING_CIRCLE.pickle"
 elif os_name == 'Linux':
     print("This is Linux")
@@ -52,6 +53,7 @@ else:
 delete_all_objects_except(exclude_object_names)
 
 FITTING_CIRCLE = pickle_data(READ, FITTING_CIRCLE_PATH, None)['P_fitcircle']
+#CAMERA_INFO = pickle_data(READ, CAMERA_INFO_PATH, None)['FINAL_CAMERA_INFO']
 CAMERA_INFO = pickle_data(READ, CAMERA_INFO_PATH, None)['CAMERA_INFO']
 BA_3D = pickle_data(READ, BA_3D_PATH, None)['BA_3D']
 BA_3D_LED_INDICIES = pickle_data(READ, BA_3D_PATH, None)['LED_INDICES']
@@ -167,72 +169,40 @@ def draw_camera_pos_and_dir():
     bpositions = []
     bapositions = []
     for key, camera_info in CAMERA_INFO.items():
-        print('frame_cnt: ', key)
+#        print('frame_cnt: ', key)
         orvec = camera_info['OPENCV']['rt']['rvec']
         otvec = camera_info['OPENCV']['rt']['tvec']
-        brvec = camera_info['BLENDER']['rt']['rvec']
-        btvec = camera_info['BLENDER']['rt']['tvec']
-        barvec = camera_info['BA_RT']['rt']['rvec']
-        batvec = camera_info['BA_RT']['rt']['tvec']
+        degree = camera_info['ANGLE']
+#        brvec = camera_info['BLENDER']['rt']['rvec']
+#        btvec = camera_info['BLENDER']['rt']['tvec']
+#        barvec = camera_info['BA_RT']['rt']['rvec']
+#        batvec = camera_info['BA_RT']['rt']['tvec']
         
         
-#          
-#        if len(orvec) > 0:
-#            # Add Camera Position
-#            oposition, orotation_quat = blender_location_rotation_from_opencv(orvec, otvec)        
-#            # Convert quaternion rotation to Euler rotation
-#            rotation_mat = orotation_quat.to_matrix().to_4x4()
-#            rotation_euler = rotation_mat.to_euler()        
-#            # Create a small sphere at the camera position
-#            bpy.ops.mesh.primitive_uv_sphere_add(location=oposition, radius=0.001)
-#            osphere = bpy.context.object
-#            osphere.data.materials.append(omat)  # Assign the material to the sphere
-#            opositions.append(np.array(oposition))
-#            # For OpenCV Camera
-#            draw_arrow(oposition, orotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.3, omat)
-#            bpy.ops.object.text_add(location=(oposition[0], oposition[1], oposition[2] + 0.005))  # adjust z-coordinate to place the text above the sphere
-#            txt_obj = bpy.context.object
-#            txt_obj.data.body = str(key)
-#            txt_obj.rotation_euler = rotation_euler  # Optional, if you want to align text with the sphere's orientation
-#            txt_obj.scale = (0.005, 0.005, 0.005)  # adjust the values to get the desired size
-#            
-#        # Add Camera Position
-#        bposition, brotation_quat = blender_location_rotation_from_opencv(brvec, btvec)        
-#        # Convert quaternion rotation to Euler rotation
-#        rotation_mat = brotation_quat.to_matrix().to_4x4()
-#        rotation_euler = rotation_mat.to_euler()        
-#        # Create a small sphere at the camera position
-#        bpy.ops.mesh.primitive_uv_sphere_add(location=bposition, radius=0.001)
-#        bsphere = bpy.context.object
-#        bsphere.data.materials.append(bmat)  # Assign the material to the sphere
-#        bpositions.append(np.array(bposition))
-#        # For Blender Camera
-#        draw_arrow(bposition, brotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.3, bmat)
-#            
-#        
-#        # Add Camera Position
-#        baposition, barotation_quat = blender_location_rotation_from_opencv(barvec, batvec)        
-#        # Convert quaternion rotation to Euler rotation
-#        rotation_mat = barotation_quat.to_matrix().to_4x4()
-#        rotation_euler = rotation_mat.to_euler()        
-#        # Create a small sphere at the camera position
-#        bpy.ops.mesh.primitive_uv_sphere_add(location=baposition, radius=0.001)
-#        bsphere = bpy.context.object
-#        bsphere.data.materials.append(bamat)  # Assign the material to the sphere
-#        bapositions.append(np.array(baposition))
-#                # For Blender Camera
-#        draw_arrow(baposition, barotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.3, bamat)
-#            # Add key as text
-
-#    for fitting_data in FITTING_CIRCLE:
-#        bpy.ops.mesh.primitive_uv_sphere_add(location=fitting_data, radius=0.001)
-#        sphere = bpy.context.object
-#        sphere.data.materials.append(rgid_mat)
+          
+        if len(orvec) > 0 and degree == 0:
+            # Add Camera Position
+            oposition, orotation_quat = blender_location_rotation_from_opencv(orvec, otvec)        
+            # Convert quaternion rotation to Euler rotation
+            rotation_mat = orotation_quat.to_matrix().to_4x4()
+            rotation_euler = rotation_mat.to_euler()        
+            # Create a small sphere at the camera position
+            bpy.ops.mesh.primitive_uv_sphere_add(location=oposition, radius=0.001)
+            osphere = bpy.context.object
+            osphere.data.materials.append(omat)  # Assign the material to the sphere
+            opositions.append(np.array(oposition))
+            # For OpenCV Camera
+            draw_arrow(oposition, orotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.03, omat)
+            bpy.ops.object.text_add(location=(oposition[0], oposition[1], oposition[2] + 0.005))  # adjust z-coordinate to place the text above the sphere
+            txt_obj = bpy.context.object
+            txt_obj.data.body = str(key)
+            txt_obj.rotation_euler = rotation_euler  # Optional, if you want to align text with the sphere's orientation
+            txt_obj.scale = (0.005, 0.005, 0.005)  # adjust the values to get the desired size
 
     data = OrderedDict()
     data['opositions'] = opositions
-#    pickle_data(WRITE, 'D:/OpenCV_APP/BLENDER.pickle', data)
-    pickle_data(WRITE, '/home/rangkast.jeong/Project/OpenCV_APP/BLENDER.pickle', data)
+    pickle_data(WRITE, 'D:/OpenCV_APP/BLENDER.pickle', data)
+#    pickle_data(WRITE, '/home/rangkast.jeong/Project/OpenCV_APP/BLENDER.pickle', data)
             
             
 make_models('real')

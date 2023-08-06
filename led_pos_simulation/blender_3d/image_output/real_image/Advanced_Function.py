@@ -88,15 +88,16 @@ default_cameraK = np.eye(3).astype(np.float64)
 CAMERA_INFO = {}
 CAMERA_INFO_STRUCTURE = {
     'LED_NUMBER': [],
+    'ANGLE': NOT_SET,
     'points2D': {'greysum': [], 'opencv': [], 'blender': []},
     'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
     'points3D_origin': [],
     'points3D_PCA': [],
     'points3D_IQR': [],
-    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
-    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': []},
+    'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': NOT_SET},
+    'OPENCV': {'rt': {'rvec': [], 'tvec': []}, 'status': NOT_SET},
+    'BA_RT': {'rt': {'rvec': [], 'tvec': []}, 'status': NOT_SET},
     'bboxes':[]
 }
 
@@ -346,10 +347,12 @@ def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
             
 
 def read_camera_log(file_path):
+    if not os.path.exists(file_path):
+        return "ERROR"
+
     with open(file_path, 'r') as file:
         lines = file.readlines()
 
-    # print(lines)
     camera_params = {}
     for line in lines:
         parts = line.split(',')

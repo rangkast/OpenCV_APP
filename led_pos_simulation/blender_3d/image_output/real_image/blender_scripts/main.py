@@ -41,16 +41,48 @@ make_models('real')
 
 real_camera_data = pickle_data(READ, camera_pickle_file, None)            
 
-# LEGACY
-LRVEC = np.array([-1.25370798,  1.12521308,  1.9190501 ] )
-LTVEC = np.array([0.02065667, 0.00127346, 0.33140927])
+#0 frame_cnt 0
+#[ 0.40048963 -2.04520374  1.96396611]
+#[0.02310081 0.00901199 0.31605864]
+#-15 frame_cnt 1
+#[ 0.40108061 -1.77605136  2.22209311]
+#[0.03932176 0.01539056 0.39029672]
+#-30 frame_cnt 2
+#[ 0.3958172  -1.47038563  2.44614851]
+#[0.05521316 0.04153615 0.46140459]
+#15 frame_cnt 3
+#[ 0.40819668 -2.27992681  1.66934523]
+#[0.00883877 0.02030518 0.24833141]
+#data saved
 
-#LRVEC = np.array([-1.30386976,  1.12048586,  1.869319  ]  )
-#LTVEC = np.array([ 0.01769808, -0.04910544,  0.33371041])
+# 15
+#LRVEC = np.array([ 0.40819668, -2.27992681,  1.66934523])
+#LTVEC = np.array([0.00883877, 0.02030518, 0.24833141])
+#start_frame=97, end_frame=217
+#math.radians(75), math.radians(0), math.radians(90)
+#set reverse
+
+# -15 frame_cnt 1
+#LRVEC = np.array([ 0.40108061, -1.77605136,  2.22209311])
+#LTVEC = np.array([0.03932176, 0.01539056, 0.39029672])
+#start_frame=35, end_frame=155
+#math.radians(105), math.radians(180), math.radians(90)
+
+# -30 frame_cnt 2
+#LRVEC = np.array([ 0.3958172,  -1.47038563,  2.44614851])
+#LTVEC = np.array([0.05521316, 0.04153615, 0.46140459])
+#start_frame=35, end_frame=155
+#math.radians(120), math.radians(180), math.radians(90)
+
+#0 frame_cnt 0
+LRVEC = np.array([ 0.40048963, -2.04520374,  1.96396611])
+LTVEC = np.array([0.02310081,0.00901199,0.31605864])
+#start_frame=35, end_frame=155
+#math.radians(90), math.radians(180), math.radians(90)
+
 
 
 make_cameras("CAMERA_0", LRVEC, LTVEC, cam_0_matrix)
-
 # Make Default Camera
 default_rvec_left = np.array([0.0, 0.0, 0.0])
 default_tvec_left = np.array([0.0, 0.0, 0.0])
@@ -69,17 +101,17 @@ make_cameras("CAMERA_0_DEFAULT", default_rvec_left, default_tvec_left, cam_0_mat
 #set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(0), math.radians(-90)) # adjust roll 90 degrees to the left
 
 fit_circle_tracker('CAMERA_0', 'CAMERA_0_DEFAULT')
-make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get(f"CAMERA_0_FIT_CIRCLE_LOOP"), start_frame=0, end_frame=120)
+make_camera_follow_path(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get(f"CAMERA_0_FIT_CIRCLE_LOOP"), start_frame=35, end_frame=155)
 make_camera_look_at(bpy.data.objects['CAMERA_0_DEFAULT'], bpy.data.objects.get(f"CAMERA_0_FIT_CIRCLE_LOOP_CENTER_TARGET"))
-set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(180), math.radians(90)) # adjust roll 90 degrees to the left
-
+# default 90 180 90
+set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.radians(180), math.radians(90))
 
 
 '''
     Rendering Images
 '''
 #save_png_files()
-#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=0, end_frame=120, save_pose = 1, do_render=1)
+#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=35, end_frame=155, save_pose = 1, do_render=0, do_reverse=0)
 #render_image_inverse('CAMERA_0')
 
 '''

@@ -869,6 +869,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                 CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D
                 CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
                 CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
+                CAMERA_INFO[f"{frame_cnt}"]['ANGLE'] = DEGREE
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['rvec'] = brvec_reshape
                 CAMERA_INFO[f"{frame_cnt}"]['BLENDER']['rt']['tvec'] = btvec_reshape
 
@@ -1421,19 +1422,22 @@ def BA_RT(**kwargs):
 
     for frame_cnt, cam_info in CAMERA_INFO.items():
         # print(cam_info['LED_NUMBER'])
-        if len(cam_info['LED_NUMBER']) <= 0:
-            continue
-
+        # if len(cam_info['LED_NUMBER']) <= 0:
+        #     continue        
+        # if cam_info[target]['status'] == NOT_SET:
+        #     continue
         points3D = cam_info['points3D']
         # 여기 다시 확인 해야 함
         rvec = cam_info[target]['rt']['rvec']
         tvec = cam_info[target]['rt']['tvec']
         points2D_D = cam_info['points2D']['greysum']
         points2D_U = cam_info['points2D_U']['greysum']
-        # print('frame_cnt ', frame_cnt)
-        # print('rvec ', rvec)
-        # print('tvec ', tvec)   
-        
+        if len(cam_info['LED_NUMBER']) <= 3:
+            print('led count is <= 3 ', cam_info['LED_NUMBER'])
+            print('frame_cnt ', frame_cnt)
+            print('rvec ', rvec)
+            print('tvec ', tvec)   
+            
         # Add camera parameters (rvec and tvec)
         estimated_RTs.append((rvec.ravel(), tvec.ravel()))
 
@@ -2265,9 +2269,10 @@ if __name__ == "__main__":
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 100
     DO_CIRCULAR_FIT_ALGORITHM = 1
+    DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'ARCTURAS'
+    TARGET_DEVICE = 'RIFTS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2294,8 +2299,8 @@ if __name__ == "__main__":
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 50
         controller_name = 'arcturas'
-        camera_log_path = f"./render_img/camera_log_final_ARCTURAS.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_3/"
+        camera_log_path = f"./render_img/camera_log_final.txt"
+        camera_img_path = f"./render_img/{controller_name}/test_2/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2363,15 +2368,17 @@ if __name__ == "__main__":
     else:
         # 피라미드 하면 이상해짐....
         DO_PYRAMID = 0
+        CV_MAX_THRESHOLD = 255
+        CV_MIN_THRESHOLD = 150
         ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = PLUS
-        BLOB_SIZE = 20
+        BLOB_SIZE = 60
         controller_name = 'arcturas'
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
         camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/rotation_60/"
+        camera_img_path = f"./tmp/render/ARCTURAS/plane/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2381,6 +2388,50 @@ if __name__ == "__main__":
         CONTROLLER_JOINT_ANGLE = 30
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
         DO_CIRCULAR_FIT_ALGORITHM = (2, 1)
+        
+        MODEL_DATA = np.array(MODEL_DATA)
+        DIRECTION = np.array(DIRECTION)
+        # Set the seed for Python's random module.
+        random.seed(1)
+        # Set the seed for NumPy's random module.
+        np.random.seed(1)
+        noise_std_dev = 0.0 # Noise standard deviation. Adjust this value to your needs.
+        # Generate noise with the same shape as the original data.
+        noise = np.random.normal(scale=noise_std_dev, size=MODEL_DATA.shape)
+        # Add noise to the original data.
+        target_led_data = MODEL_DATA + noise 
+        
+        # 이동 벡터 정의
+        translation_vector = np.array([0.025, 0.025, 0.025])
+
+        # 각 축에 대한 회전 각도 정의
+        rotation_degrees_x = 0
+        rotation_degrees_y = 5
+        rotation_degrees_z = 0
+
+        # 각 축에 대한 회전 객체 생성
+        rotation_x = R.from_rotvec(rotation_degrees_x / 180.0 * np.pi * np.array([1, 0, 0]))
+        rotation_y = R.from_rotvec(rotation_degrees_y / 180.0 * np.pi * np.array([0, 1, 0]))
+        rotation_z = R.from_rotvec(rotation_degrees_z / 180.0 * np.pi * np.array([0, 0, 1]))
+
+        # LED 좌표 이동 및 회전
+        new_led_data = np.empty_like(target_led_data)
+        new_led_dir = np.empty_like(DIRECTION)
+        for i in range(len(target_led_data)):
+            # 이동 적용
+            new_led_data[i] = target_led_data[i] + translation_vector
+            # 회전 적용
+            new_led_data[i] = rotation_x.apply(new_led_data[i])
+            new_led_data[i] = rotation_y.apply(new_led_data[i])
+            new_led_data[i] = rotation_z.apply(new_led_data[i])
+        
+            new_led_dir[i] = rotation_x.apply(DIRECTION[i])
+            new_led_dir[i] = rotation_y.apply(new_led_dir[i])
+            new_led_dir[i] = rotation_z.apply(new_led_dir[i])
+            
+        MODEL_DATA = new_led_data
+        DIRECTION = new_led_dir
+
     
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
