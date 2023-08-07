@@ -322,7 +322,7 @@ def pickle_data(rw_mode, path, data):
         return ERROR
     
 
-def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
+def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS=NOT_SET):
     if event == cv2.EVENT_LBUTTONDOWN:
         down_in_box = NOT_SET
         # print(f"EVENT_LBUTTONDOWN {x} {y}")
@@ -332,16 +332,16 @@ def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS):
                 bboxes.append({'idx': input_number, 'bbox': bbox[2]})
                 draw_blobs_and_ids(frame, blob_area_0, bboxes)
                 down_in_box = DONE
-        if down_in_box == NOT_SET:
+        if down_in_box == NOT_SET and POS != NOT_SET:
             if POS['status'] == UP or POS['status'] == NOT_SET:
                 POS['start'] = [x, y]
                 POS['status'] = DOWN
-    elif event == cv2.EVENT_MOUSEMOVE:
+    elif event == cv2.EVENT_MOUSEMOVE and POS != NOT_SET:
         if POS['status'] == DOWN or POS['status'] == MOVE:
             POS['move'] = [x, y]
             POS['status'] = MOVE            
 
-    elif event == cv2.EVENT_LBUTTONUP:
+    elif event == cv2.EVENT_LBUTTONUP and POS != NOT_SET:
         # print(f"EVENT_LBUTTONUP {x} {y}")
         POS['status'] = UP
             
