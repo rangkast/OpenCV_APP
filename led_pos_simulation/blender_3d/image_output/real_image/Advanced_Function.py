@@ -287,9 +287,12 @@ def draw_blobs_and_ids(frame, blobs, bboxes):
         p1 = (int(x), int(y))
         p2 = (int(x + w), int(y + h))
         cv2.rectangle(frame, p1, p2, (255, 0, 0), 1, 1)
+        
     for box in bboxes:
         cv2.putText(frame, f"{box['idx']}", (int(box['bbox'][0]), int(box['bbox'][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX,
                     0.75, (255, 255, 255), 1)
+        cv2.rectangle(frame, (int(box['bbox'][0]), int(box['bbox'][1])), (int(box['bbox'][0]) + int(box['bbox'][2]),
+                                                                           int(box['bbox'][1]) + int(box['bbox'][3])), (0, 255, 0), 1, 1)
 def rw_json_data(rw_mode, path, data=None):
     try:
         if rw_mode == READ:

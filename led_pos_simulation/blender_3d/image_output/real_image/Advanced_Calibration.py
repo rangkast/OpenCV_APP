@@ -1117,6 +1117,8 @@ def remake_3d_for_blob_info(**kwargs):
                     } 
                     points2D_D_first = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
                     points2D_U_first = [BLOB_INFO[blob_id]['points2D_U']['greysum'][i]]
+                    # print('rt_first_O\n', rt_first_O)
+                    # print('points2D_D_first\n', points2D_D_first)
                 else:
                     # Get the 2D coordinates for the first and current frame
                     points2D_D_current = [BLOB_INFO[blob_id]['points2D_D']['greysum'][i]]
@@ -2265,14 +2267,14 @@ if __name__ == "__main__":
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 3
+    SOLUTION = 2
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 100
     DO_CIRCULAR_FIT_ALGORITHM = 1
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'SEMI_SLAM_POLYHEDRON'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2501,7 +2503,7 @@ if __name__ == "__main__":
         # TEST
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 1, 0)    
         draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=NOT_SET, ba_3d=NOT_SET)
-        Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')        
+        # Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')        
     elif SOLUTION == 3:
         print('LABELING')
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
