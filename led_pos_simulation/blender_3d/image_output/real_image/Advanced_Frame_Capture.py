@@ -303,7 +303,7 @@ def init_camera_path(script_dir, video_path):
                     cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
                     cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)       
                 
-                    blob_area = detect_led_lights(frame, 5, 5, 500)
+                    blob_area = detect_led_lights(frame, 5)
                     filtered_blob_area = []    
                     for _, bbox in enumerate(blob_area):
                         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
@@ -463,7 +463,7 @@ def tracker_operation(frame, draw_frame, frame_cnt):
 
     if TRACKING_START == DONE:
         # find Blob area by findContours
-        blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+        blob_area = detect_led_lights(frame, TRACKER_PADDING)
         blobs = []
         
         for blob_id, bbox in enumerate(blob_area):
@@ -522,7 +522,7 @@ def distance_operation(frame, draw_frame, frame_cnt, prev_frame_cnt, vertical_cn
         return
 
     # find Blob area by findContours
-    blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+    blob_area = detect_led_lights(frame, TRACKER_PADDING)
     blobs = []
 
     for blob_id, bbox in enumerate(blob_area):

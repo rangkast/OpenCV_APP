@@ -260,7 +260,7 @@ def find_center(frame, SPEC_AREA):
         return 0, 0, 0
 
     return g_c_x, g_c_y, m_count
-def detect_led_lights(image, padding=5, min_area=100, max_area=1000):
+def detect_led_lights(image, padding=5):
     contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     blob_info = []
     for idx, contour in enumerate(contours):
@@ -275,8 +275,7 @@ def detect_led_lights(image, padding=5, min_area=100, max_area=1000):
         area = cv2.contourArea(contour)
 
         # Check if the area of the contour is within the specified range
-        if min_area <= area <= max_area:
-            blob_info.append((x, y, w, h))
+        blob_info.append((x, y, w, h))
 
     return blob_info
 def point_in_bbox(x, y, bbox):
@@ -552,13 +551,13 @@ def check_blobs_with_pyramid(image, draw_frame, x, y, w, h, max_level):
     FOUND_STATUS = False
     # Check for circles or ellipses at each level
     for i, (img, draw_frame_cropped) in enumerate(zip(gaussian_pyramid, draw_pyramid)):
-        found, img_with_contours, draw_frame_with_shapes = find_circles_or_ellipses(img.copy(),
-                                                                                    draw_frame_cropped.copy())
+        found, img_with_contours, draw_frame_with_shapes = find_circles_or_ellipses(img.copy(), draw_frame_cropped.copy())
         # Save the image for debugging
         if found:
             FOUND_STATUS = True
             # save_image(img_with_contours, f"debug_{i}_{FOUND_STATUS}")
             # save_image(draw_frame_with_shapes, f"debug_draw_{i}_{FOUND_STATUS}")
+        
     return FOUND_STATUS
 def rigid_transform_3D(A, B):
     assert A.shape == B.shape
@@ -672,8 +671,8 @@ def module_lsm_2D(MODEL_DATA, blob_data):
 def module_lsm_3D(MODEL_DATA, blob_data):
     print(module_lsm_3D.__name__)
 
-    print('MODEL_DATA\n', MODEL_DATA)
-    print('blob_data\n', blob_data)
+    # print('MODEL_DATA\n', MODEL_DATA)
+    # print('blob_data\n', blob_data)
 
     # X,Y,Z coordination
     axis_cnt = 3

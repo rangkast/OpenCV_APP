@@ -105,7 +105,7 @@ if SOLUTION == 1:
 
 
             # find Blob area by findContours
-            blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+            blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
             blobs = []
 
             for blob_id, bbox in enumerate(blob_area):
@@ -433,7 +433,7 @@ elif SOLUTION == 2:
 
 
             # find Blob area by findContours
-            blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+            blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
             blobs = []
 
             for blob_id, bbox in enumerate(blob_area):
@@ -612,7 +612,7 @@ elif SOLUTION == 3:
             cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
             cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
 
-            blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+            blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
             blobs = []
 
             for blob_id, bbox in enumerate(blob_area):
@@ -971,7 +971,7 @@ elif SOLUTION == 4:
                 cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
 
                 # find Blob area by findContours
-                blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+                blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
                 blobs = []
                 bboxes = []
                 for blob_id, bbox in enumerate(blob_area):

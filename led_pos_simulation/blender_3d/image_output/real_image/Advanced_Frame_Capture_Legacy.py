@@ -154,7 +154,7 @@ def init_camera_path(script_dir, video_path):
             cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)       
         
             filtered_blob_area = []
-            blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+            blob_area = detect_led_lights(frame, TRACKER_PADDING)
             for _, bbox in enumerate(blob_area):
                 (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
                 gcx,gcy, gsize = find_center(frame, (x, y, w, h))

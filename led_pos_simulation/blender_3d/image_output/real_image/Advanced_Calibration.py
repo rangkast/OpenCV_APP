@@ -222,7 +222,7 @@ def blob_setting(script_dir, SERVER, blob_file):
         # cv2.putText(draw_frame, f"rvec: {brvec}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         # cv2.putText(draw_frame, f"tvec: {btvec}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+        blob_area = detect_led_lights(frame, TRACKER_PADDING)
 
         filtered_blob_area = []    
         for _, bbox in enumerate(blob_area):
@@ -476,7 +476,7 @@ def init_new_tracker(prev_frame, Tracking_ANCHOR, CURR_TRACKER, PREV_TRACKER, ar
     # cv2.putText(draw_frame, f"{filename}", (draw_frame.shape[1] - 300, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
     #             (255, 255, 255), 1)
     # find Blob area by findContours
-    blob_area = detect_led_lights(prev_frame, TRACKER_PADDING, 5, 500)
+    blob_area = detect_led_lights(prev_frame, TRACKER_PADDING)
     blob_centers = []
     for blob_id, bbox in enumerate(blob_area):
         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
@@ -617,7 +617,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
   
 
         # find Blob area by findContours
-        blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+        blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
         blob_centers = []    
         for blob_id, bbox in enumerate(blob_area):
             (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
@@ -1918,7 +1918,7 @@ def init_camera_path(script_dir, video_path, first_image_path):
         cv2.line(draw_frame, (0, center_y), (width, center_y), (255, 255, 255), 1)
         cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)
                 
-        blob_area = detect_led_lights(frame_0, TRACKER_PADDING, 5, 500)
+        blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
         cv2.namedWindow('image')
         partial_click_event = functools.partial(click_event, frame=frame_0, blob_area_0=blob_area, bboxes=bboxes)
         cv2.setMouseCallback('image', partial_click_event)
@@ -2048,7 +2048,7 @@ def init_camera_path(script_dir, video_path, first_image_path):
                 cv2.line(draw_frame, (center_x, 0), (center_x, height), (255, 255, 255), 1)            
 
                 # LED blob 찾기
-                blobs2 = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+                blobs2 = detect_led_lights(frame, TRACKER_PADDING)
                 # 두 번째 이미지의 LED blob 중심점 계산
                 centers2 = []
                 for blob_id, blob in enumerate(blobs2):
@@ -2274,7 +2274,7 @@ if __name__ == "__main__":
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'SEMI_SLAM_POLYHEDRON'
+    TARGET_DEVICE = 'TEST'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2391,48 +2391,49 @@ if __name__ == "__main__":
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
         DO_CIRCULAR_FIT_ALGORITHM = (2, 1)
         
-        MODEL_DATA = np.array(MODEL_DATA)
-        DIRECTION = np.array(DIRECTION)
-        # Set the seed for Python's random module.
-        random.seed(1)
-        # Set the seed for NumPy's random module.
-        np.random.seed(1)
-        noise_std_dev = 0.0 # Noise standard deviation. Adjust this value to your needs.
-        # Generate noise with the same shape as the original data.
-        noise = np.random.normal(scale=noise_std_dev, size=MODEL_DATA.shape)
-        # Add noise to the original data.
-        target_led_data = MODEL_DATA + noise 
+        # ADD NOISE
+        # MODEL_DATA = np.array(MODEL_DATA)
+        # DIRECTION = np.array(DIRECTION)
+        # # Set the seed for Python's random module.
+        # random.seed(1)
+        # # Set the seed for NumPy's random module.
+        # np.random.seed(1)
+        # noise_std_dev = 0.0 # Noise standard deviation. Adjust this value to your needs.
+        # # Generate noise with the same shape as the original data.
+        # noise = np.random.normal(scale=noise_std_dev, size=MODEL_DATA.shape)
+        # # Add noise to the original data.
+        # target_led_data = MODEL_DATA + noise 
         
-        # 이동 벡터 정의
-        translation_vector = np.array([0.025, 0.025, 0.025])
+        # # 이동 벡터 정의
+        # translation_vector = np.array([0.025, 0.025, 0.025])
 
-        # 각 축에 대한 회전 각도 정의
-        rotation_degrees_x = 0
-        rotation_degrees_y = 5
-        rotation_degrees_z = 0
+        # # 각 축에 대한 회전 각도 정의
+        # rotation_degrees_x = 0
+        # rotation_degrees_y = 5
+        # rotation_degrees_z = 0
 
-        # 각 축에 대한 회전 객체 생성
-        rotation_x = R.from_rotvec(rotation_degrees_x / 180.0 * np.pi * np.array([1, 0, 0]))
-        rotation_y = R.from_rotvec(rotation_degrees_y / 180.0 * np.pi * np.array([0, 1, 0]))
-        rotation_z = R.from_rotvec(rotation_degrees_z / 180.0 * np.pi * np.array([0, 0, 1]))
+        # # 각 축에 대한 회전 객체 생성
+        # rotation_x = R.from_rotvec(rotation_degrees_x / 180.0 * np.pi * np.array([1, 0, 0]))
+        # rotation_y = R.from_rotvec(rotation_degrees_y / 180.0 * np.pi * np.array([0, 1, 0]))
+        # rotation_z = R.from_rotvec(rotation_degrees_z / 180.0 * np.pi * np.array([0, 0, 1]))
 
-        # LED 좌표 이동 및 회전
-        new_led_data = np.empty_like(target_led_data)
-        new_led_dir = np.empty_like(DIRECTION)
-        for i in range(len(target_led_data)):
-            # 이동 적용
-            new_led_data[i] = target_led_data[i] + translation_vector
-            # 회전 적용
-            new_led_data[i] = rotation_x.apply(new_led_data[i])
-            new_led_data[i] = rotation_y.apply(new_led_data[i])
-            new_led_data[i] = rotation_z.apply(new_led_data[i])
+        # # LED 좌표 이동 및 회전
+        # new_led_data = np.empty_like(target_led_data)
+        # new_led_dir = np.empty_like(DIRECTION)
+        # for i in range(len(target_led_data)):
+        #     # 이동 적용
+        #     new_led_data[i] = target_led_data[i] + translation_vector
+        #     # 회전 적용
+        #     new_led_data[i] = rotation_x.apply(new_led_data[i])
+        #     new_led_data[i] = rotation_y.apply(new_led_data[i])
+        #     new_led_data[i] = rotation_z.apply(new_led_data[i])
         
-            new_led_dir[i] = rotation_x.apply(DIRECTION[i])
-            new_led_dir[i] = rotation_y.apply(new_led_dir[i])
-            new_led_dir[i] = rotation_z.apply(new_led_dir[i])
+        #     new_led_dir[i] = rotation_x.apply(DIRECTION[i])
+        #     new_led_dir[i] = rotation_y.apply(new_led_dir[i])
+        #     new_led_dir[i] = rotation_z.apply(new_led_dir[i])
             
-        MODEL_DATA = new_led_data
-        DIRECTION = new_led_dir
+        # MODEL_DATA = new_led_data
+        # DIRECTION = new_led_dir
 
     
     BLOB_CNT = len(MODEL_DATA)

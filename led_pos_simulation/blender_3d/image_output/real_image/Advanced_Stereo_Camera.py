@@ -2,16 +2,19 @@ from Advanced_Function import *
 
 # MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/semi_slam_curve.json")
 # TARGET_DEVICE = 'SEMI_SLAM_CURVE'
-MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/semi_slam_polyhedron.json")
-TARGET_DEVICE = 'SEMI_SLAM_POLYHEDRON'
+MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/semi_slam_curve.json")
+TARGET_DEVICE = 'SEMI_SLAM_CURVE'
 MODEL_DATA = np.array(MODEL_DATA)
 BLOB_CNT = len(MODEL_DATA)
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 150
 BLOB_SIZE = 50
-TRACKER_PADDING = 5
-LOOP_CNT = 1
+TRACKER_PADDING = 10
+LOOP_CNT = 30
 VIDEO_MODE = 1
+
+left_json = 'blob_area_left_curve.json'
+right_json = 'blob_area_right_curve.json'
 
 
 BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
@@ -44,7 +47,7 @@ CAMERA_M = [
 
 def get_blob_area(frame):
     filtered_blob_area = []
-    blob_area = detect_led_lights(frame, TRACKER_PADDING, 5, 500)
+    blob_area = detect_led_lights(frame, TRACKER_PADDING)
     for _, bbox in enumerate(blob_area):
         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
         gcx,gcy, gsize = find_center(frame, (x, y, w, h))
@@ -126,14 +129,15 @@ def stereo_blob_setting(camera_devices):
         cam_R = cv2.VideoCapture(camera_devices[1]['port'])
         cam_R.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
         cam_R.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
-
+    POSE_START = NOT_SET
+    BLOB_SETTING = NOT_SET
     left_bboxes = []    
-    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/blob_area_left.json", None)
+    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/{left_json}", None)
     if json_data != ERROR:
         left_bboxes = json_data['bboxes']
 
     right_bboxes = []    
-    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/blob_area_right.json", None)
+    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/{right_json}", None)
     if json_data != ERROR:
         right_bboxes = json_data['bboxes']
 
@@ -160,82 +164,104 @@ def stereo_blob_setting(camera_devices):
                                 cv2.THRESH_TOZERO)
         _, frame2 = cv2.threshold(cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                             cv2.THRESH_TOZERO)        
-        
-        cv2.namedWindow('LEFT CAMERA')
+                
         filtered_blob_area_left = get_blob_area(frame1)
-        partial_click_event = functools.partial(click_event, frame=frame1, blob_area_0=filtered_blob_area_left, bboxes=left_bboxes)
-        cv2.setMouseCallback('LEFT CAMERA', partial_click_event)
-        draw_blobs_and_ids(draw_frame1, filtered_blob_area_left, left_bboxes)
-
-        cv2.namedWindow('RIGHT CAMERA')
         filtered_blob_area_right = get_blob_area(frame2)
-        partial_click_event = functools.partial(click_event, frame=frame2, blob_area_0=filtered_blob_area_right, bboxes=right_bboxes)
-        cv2.setMouseCallback('RIGHT CAMERA', partial_click_event)
+
+        if BLOB_SETTING == DONE:
+            cv2.namedWindow('LEFT CAMERA')
+            partial_click_event = functools.partial(click_event, frame=frame1, blob_area_0=filtered_blob_area_left, bboxes=left_bboxes)
+            cv2.setMouseCallback('LEFT CAMERA', partial_click_event)  
+            cv2.namedWindow('RIGHT CAMERA')
+            partial_click_event = functools.partial(click_event, frame=frame2, blob_area_0=filtered_blob_area_right, bboxes=right_bboxes)
+            cv2.setMouseCallback('RIGHT CAMERA', partial_click_event)
+
+            if POSE_START == DONE:
+                LRTVEC, L_points2D_U, L_points3D, LED_NUMBERS = calc_pose(frame1, left_bboxes, 0)
+                if LRTVEC != ERROR:
+                    print('LEFT')
+                    print(LRTVEC[0].flatten())
+                    print(LRTVEC[1].flatten())
+                    print(LED_NUMBERS)
+                    print('points2D_U: ',L_points2D_U)
+                    print(L_points3D)
+                image_points, _ = cv2.projectPoints(L_points3D,
+                                                    np.array(LRTVEC[0]),
+                                                    np.array(LRTVEC[1]),
+                                                    CAMERA_M[0][0],
+                                                    CAMERA_M[0][1])
+                image_points = image_points.reshape(-1, 2)
+                ###################################
+                for i, point in enumerate(image_points):
+                    pt = (int(point[0]), int(point[1]))
+                    cv2.circle(draw_frame1, pt, 5, (255, 255, 0), -1)
+                    cv2.putText(draw_frame1, str(LED_NUMBERS[i]), (pt[0], pt[1]- 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
+
+                RRTVEC, R_points2D_U, R_points3D, LED_NUMBERS = calc_pose(frame2, right_bboxes, 1)
+                if RRTVEC != ERROR:
+                    print('RIGHT')
+                    print(RRTVEC[0].flatten())
+                    print(RRTVEC[1].flatten())
+                    print(LED_NUMBERS)
+                    print('points2D_U: ',R_points2D_U)
+                    print(R_points3D)
+                image_points, _ = cv2.projectPoints(R_points3D,
+                                                    np.array(RRTVEC[0]),
+                                                    np.array(RRTVEC[1]),
+                                                    CAMERA_M[1][0],
+                                                    CAMERA_M[1][1])
+                image_points = image_points.reshape(-1, 2)
+                ###################################
+                for i, point in enumerate(image_points):
+                    pt = (int(point[0]), int(point[1]))
+                    cv2.circle(draw_frame2, pt, 5, (255, 255, 0), -1)
+                    cv2.putText(draw_frame2, str(LED_NUMBERS[i]), (pt[0], pt[1]- 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
+        
+        draw_blobs_and_ids(draw_frame1, filtered_blob_area_left, left_bboxes)
         draw_blobs_and_ids(draw_frame2, filtered_blob_area_right, right_bboxes)
+        center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+        cv2.line(draw_frame1, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 0, 0), 1)
+        cv2.line(draw_frame1, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 0, 0), 1)
+        cv2.line(draw_frame2, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 0, 0), 1)
+        cv2.line(draw_frame2, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 0, 0), 1)
 
-        if len(left_bboxes) >= 4 and len(right_bboxes) >= 4:
-            LRTVEC, L_points2D_U, L_points3D, LED_NUMBERS = calc_pose(frame1, left_bboxes, 0)
-            if LRTVEC != ERROR:
-                print('LEFT')
-                print(LRTVEC[0].flatten())
-                print(LRTVEC[1].flatten())
-                print(LED_NUMBERS)
-                print('points2D_U: ',L_points2D_U)
-                print(L_points3D)
-            image_points, _ = cv2.projectPoints(L_points3D,
-                                                np.array(LRTVEC[0]),
-                                                np.array(LRTVEC[1]),
-                                                CAMERA_M[0][0],
-                                                CAMERA_M[0][1])
-            image_points = image_points.reshape(-1, 2)
-            ###################################
-            for i, point in enumerate(image_points):
-                pt = (int(point[0]), int(point[1]))
-                cv2.circle(draw_frame1, pt, 5, (255, 255, 0), -1)
-                cv2.putText(draw_frame1, str(LED_NUMBERS[i]), (pt[0], pt[1]- 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
+        cv2.putText(draw_frame1, f"Setting MODE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(draw_frame2, f"Setting MODE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-            RRTVEC, R_points2D_U, R_points3D, LED_NUMBERS = calc_pose(frame2, right_bboxes, 1)
-            if RRTVEC != ERROR:
-                print('RIGHT')
-                print(RRTVEC[0].flatten())
-                print(RRTVEC[1].flatten())
-                print(LED_NUMBERS)
-                print('points2D_U: ',R_points2D_U)
-                print(R_points3D)
-            image_points, _ = cv2.projectPoints(R_points3D,
-                                                np.array(RRTVEC[0]),
-                                                np.array(RRTVEC[1]),
-                                                CAMERA_M[1][0],
-                                                CAMERA_M[1][1])
-            image_points = image_points.reshape(-1, 2)
-            ###################################
-            for i, point in enumerate(image_points):
-                pt = (int(point[0]), int(point[1]))
-                cv2.circle(draw_frame2, pt, 5, (255, 255, 0), -1)
-                cv2.putText(draw_frame2, str(LED_NUMBERS[i]), (pt[0], pt[1]- 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,0), 1, cv2.LINE_AA)
-
-        cv2.imshow('LEFT CAMERA', draw_frame1)
-        cv2.imshow('RIGHT CAMERA', draw_frame2)
+        if BLOB_SETTING == DONE:
+            cv2.imshow('LEFT CAMERA', draw_frame1)
+            cv2.imshow('RIGHT CAMERA', draw_frame2)
+        else:
+            stacked_frame = np.hstack((draw_frame1, draw_frame2))
+            cv2.imshow('IMAGE', stacked_frame)
 
         KEY = cv2.waitKey(1)
         if KEY & 0xFF == 27:
             break
+        elif KEY == ord('b'):
+            print('BLOB SETTING')
+            cv2.destroyAllWindows()
+            BLOB_SETTING = DONE
+        elif KEY == ord('p'):
+            print('POSE START')
+            POSE_START = DONE
         elif KEY == ord('c'):
             print('clear area')
             left_bboxes.clear()
             right_bboxes.clear()
-
         elif KEY == ord('s'):
             print('save blob area')
-            json_data = OrderedDict()
-            json_data['bboxes'] = left_bboxes
-            json_data['LRTVEC'] = np.array(LRTVEC).tolist()
-            rw_json_data(WRITE, f"{script_dir}/render_img/stereo/blob_area_left.json", json_data)
-
-            json_data = OrderedDict()
-            json_data['bboxes'] = right_bboxes
-            json_data['RRTVEC'] = np.array(RRTVEC).tolist()
-            rw_json_data(WRITE, f"{script_dir}/render_img/stereo/blob_area_right.json", json_data)
+            if POSE_START == DONE:
+                json_data = OrderedDict()
+                json_data['bboxes'] = left_bboxes
+                json_data['LRTVEC'] = np.array(LRTVEC).tolist()
+                rw_json_data(WRITE, f"{script_dir}/render_img/stereo/{left_json}", json_data)
+                json_data = OrderedDict()
+                json_data['bboxes'] = right_bboxes
+                json_data['RRTVEC'] = np.array(RRTVEC).tolist()
+                rw_json_data(WRITE, f"{script_dir}/render_img/stereo/{right_json}", json_data)
+            else:
+                print('press P')
     if VIDEO_MODE == 1:
         cam_L.release()
         cam_R.release()
@@ -255,7 +281,7 @@ def calibration(camera_devices):
     LRTVEC = NOT_SET
     RRTVEC = NOT_SET
     left_bboxes = []    
-    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/blob_area_left.json", None)
+    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/{left_json}", None)
     if json_data != ERROR:
         left_bboxes = json_data['bboxes']
         LRTVEC = json_data['LRTVEC']
@@ -263,7 +289,7 @@ def calibration(camera_devices):
     print(LRTVEC)
 
     right_bboxes = []    
-    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/blob_area_right.json", None)
+    json_data = rw_json_data(READ, f"{script_dir}/render_img/stereo/{right_json}", None)
     if json_data != ERROR:
         right_bboxes = json_data['bboxes']
         RRTVEC = json_data['RRTVEC']
@@ -301,11 +327,11 @@ def calibration(camera_devices):
         _, R_points2D_D, R_points2D_U, LED_NUMBERS = get_coords(frame2, right_bboxes, 1)
 
         for pts in L_points2D_D:
-            cv2.circle(draw_frame1, (int(pts[0]), int(pts[1])), 3, (0,255,0), -1)
-        cv2.putText(draw_frame1, f"{frame_cnt}", (draw_frame1.shape[1] - 100, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.circle(draw_frame1, (int(pts[0]), int(pts[1])), 3, (0,0,255), -1)
+        cv2.putText(draw_frame1, f"count:{frame_cnt}", (draw_frame1.shape[1] - 100, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         for pts in R_points2D_D:
-            cv2.circle(draw_frame2, (int(pts[0]), int(pts[1])), 3, (0,255,0), -1)  
-        cv2.putText(draw_frame2, f"{frame_cnt}", (draw_frame2.shape[1] - 100, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            cv2.circle(draw_frame2, (int(pts[0]), int(pts[1])), 3, (0,0,255), -1)  
+        cv2.putText(draw_frame2, f"count:{frame_cnt}", (draw_frame2.shape[1] - 100, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         REMAKE_3D = remake_3d_point(default_cameraK, default_cameraK,
                                     {'rvec': np.array(LRTVEC[0]).reshape(-1, 1), 'tvec': np.array(LRTVEC[1]).reshape(-1, 1)},
@@ -326,8 +352,15 @@ def calibration(camera_devices):
             ba_3d_dict[led_num].append(REMAKE_3D[i])
 
         frame_cnt += 1
-        cv2.imshow('LEFT CAMERA', draw_frame1)
-        cv2.imshow('RIGHT CAMERA', draw_frame2)
+
+        cv2.putText(draw_frame1, f"Calibration MODE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        cv2.putText(draw_frame2, f"Calibration MODE", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # cv2.imshow('LEFT CAMERA', draw_frame1)
+        # cv2.imshow('RIGHT CAMERA', draw_frame2)
+
+        stacked_frame = np.hstack((draw_frame1, draw_frame2))
+        cv2.imshow('IMAGE', stacked_frame)
 
         KEY = cv2.waitKey(1)
         if KEY & 0xFF == 27:
@@ -343,8 +376,10 @@ def calibration(camera_devices):
     print('#################### IQR  ####################')
     IQR_ARRAY = []
     TARGET_DATA = []
+    LED_NUMBER = []
     for blob_id, points_3d in ba_3d_dict.items():
         TARGET_DATA.append(MODEL_DATA[int(blob_id)])
+        LED_NUMBER.append(int(blob_id))
         acc_blobs = points_3d.copy()
         acc_blobs_length = len(acc_blobs)
         if acc_blobs_length == 0:
@@ -384,17 +419,26 @@ def calibration(camera_devices):
     ax1, ax2 = init_plot(MODEL_DATA)
 
     print('IQR_ARRAY_LSM')
-    for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
-        print(f"{points_3d},")
-        ax1.scatter(points_3d[0], points_3d[1], points_3d[2], color='red', alpha=0.3, marker='o', s=7)
+    CALIBRATION = [0 for i in range(BLOB_CNT)]
+    for i, blob_id in enumerate(LED_NUMBER):
+        CALIBRATION[blob_id] = IQR_ARRAY_LSM[i]   
+
+    for i, cal_data in enumerate(CALIBRATION):
+        print(f"{i}: {cal_data}")
+        distance = np.linalg.norm(MODEL_DATA[i] - cal_data)
+        ax1.text(cal_data[0], cal_data[1], cal_data[2], i, size=10)
+        ax1.scatter(cal_data[0], cal_data[1], cal_data[2], color='red', alpha=0.3, marker='o', s=7)
+        ax2.scatter(i, distance, color='red', alpha=0.5, marker='o', s=10, label='DIST')
 
     cam_pos, cam_dir, _ = calculate_camera_position_direction(np.array(LRTVEC[0]), np.array(LRTVEC[1]))
     ax1.scatter(*cam_pos, c='red', marker='o', label=f"LEFT POS")
     ax1.quiver(*cam_pos, *cam_dir, color='red', label=f"LEFT DIR", length=0.1)    
+    ax1.text(*cam_pos, 'L', size=10, c='red')
 
     cam_pos, cam_dir, _ = calculate_camera_position_direction(np.array(RRTVEC[0]), np.array(RRTVEC[1]))
     ax1.scatter(*cam_pos, c='blue', marker='o', label=f"RIGHT POS")
-    ax1.quiver(*cam_pos, *cam_dir, color='blue', label=f"RIGHT DIR", length=0.1)    
+    ax1.quiver(*cam_pos, *cam_dir, color='blue', label=f"RIGHT DIR", length=0.1)
+    ax1.text(*cam_pos, 'R', size=10, c='blue')
 
     plt.show()
 
@@ -410,10 +454,8 @@ if __name__ == "__main__":
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
 
-
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-    # stereo_blob_setting(camera_devices)
-
+    stereo_blob_setting(camera_devices)
     calibration(camera_devices)
 
 
