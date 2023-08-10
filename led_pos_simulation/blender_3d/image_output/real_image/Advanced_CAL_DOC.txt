@@ -1,0 +1,90 @@
+############ TOP BAR Pose ############
+430 200 30
+
+초기 카메라 path 정의 하는 방법
+############ Init Camera Path and Pose ############
+Advanced_Frame_Capture_Legacy.py
+    -> plane image 120장
+Advanced_Calibration.py:
+    SOLUTION = 3
+    TARGET_DEVICE = 'ARCTURAS'        
+    -> blob id가 labeling 됨
+    -> CAMERA_INFO.pickle (추후 이전 코드가 수정필요)
+    -> plane_calibration 값 저장 (1차 data) : NOT_SET
+
+Advanced_Frame_Capture.py
+    -15도 -30도
+    MOVE_DIRECTION = UP
+    DIRECTION_CNT = 10
+    -15도
+    MOVE_DIRECTION = DOWN
+    DIRECTION_CNT = 5
+
+    -> 각각 120장씩 생성
+    -> NEW_CAMERA_INFO_1.pickle 생성
+    -> NEW_CAMERA_INFO_-1.pickle 생성
+
+CAMERA_INFO.pickle -> CAMERA_INFO_BACKUP.pickle 변경 
+
+Advanced_Bundle_Adjustment.py
+    - plane_calibration 값 setting : NOT_SET
+    - Phase 1 실행 (아직 Blender 생성 RT가 없음)
+
+    -> CAMERA_INFO.pickle 생성 (기존 data가 모두 업데이트 되어 총 4개의 angle에서 측정된 값이 들어 있음)
+    -> 각각 Degree에서 초기 RT를 저장
+
+for try_cnt in range(len(degree))
+    Blender
+        show_results.py
+        - 각 degree 체크
+        -> BLENDER.pickle 생성
+
+    Advanced_fitting_circle_algorithm.py
+        -> FITTING_CIRCLE.pickle
+
+    Blender
+        -각 degree별 초기 RT settting (Blender main.py 확인)
+        -start end frame number 확인
+        -set animate path
+        -camera roll 확인
+        -do render
+
+    -> camera_log.txt 생성 -> camera_log_degree.txt로 변경
+
+Advanced_Bundle_Adjustment.py
+    -모든 phase 테스트 진행
+
+###################################################
+
+
+BLENDER 정의 RT가 이미 성립되어 있는 경우
+############ CALIBRATION_DATA ############
+Advanced_Frame_Capture_Legacy.py
+        -> plane image 120장
+Advanced_Calibration.py:
+    SOLUTION = 1
+    TARGET_DEVICE = 'ARCTURAS'        
+    -> blob id가 labeling 됨
+    -> CAMERA_INFO.pickle (추후 이전 코드가 수정필요)
+    -> plane_calibration 값 저장 (1차 data) : NOT_SET
+
+Advanced_Frame_Capture.py
+    -15도 -30도
+    MOVE_DIRECTION = UP
+    DIRECTION_CNT = 10
+    -15도
+    MOVE_DIRECTION = DOWN
+    DIRECTION_CNT = 5
+
+    -> 각각 120장씩 생성
+    -> NEW_CAMERA_INFO_1.pickle 생성
+    -> NEW_CAMERA_INFO_-1.pickle 생성
+
+CAMERA_INFO.pickle -> CAMERA_INFO_BACKUP.pickle 변경 
+
+Advanced_Bundle_Adjustment.py
+    -> plane_calibration 값 저장 (1차 data) : NOT_SET
+    -모든 phase 테스트 진행
+
+
+

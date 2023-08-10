@@ -1,6 +1,7 @@
 from Advanced_Function import *
 
 ANGLE = 3
+
 CALIBRATION_DATA = np.array([
 [-0.00528268, -0.03654436, 0.00445737],
 [0.00975209, -0.04726801, 0.00416382],
@@ -32,12 +33,14 @@ CALIBRATION_DATA = np.array([
 # ToDo
 
 TARGET_DEVICE = 'ARCTURAS'
-MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right_1_self.json")
+MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right.json")
 CAMERA_INFO_BACKUP = pickle_data(READ, "CAMERA_INFO_BACKUP.pickle", None)['CAMERA_INFO']
 NEW_CAMERA_INFO_UP = pickle_data(READ, "NEW_CAMERA_INFO_1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_UP_KEYS = list(NEW_CAMERA_INFO_UP.keys())
 NEW_CAMERA_INFO_DOWN = pickle_data(READ, "NEW_CAMERA_INFO_-1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_DOWN_KEYS = list(NEW_CAMERA_INFO_DOWN.keys())
+
+# CALIBRATION_DATA = np.array(MODEL_DATA)
 
 BLOB_CNT = len(MODEL_DATA)
 IMAGE_CNT = 120
@@ -520,9 +523,10 @@ if __name__ == "__main__":
 
     # Phase 1
     gathering_data()
-    BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
+
 
     # Phase 2
+    BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
     gathering_data(DO_BA=DONE)
     remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=DONE, opencv=DONE, blender=DONE, ba_rt=DONE)
     LSM(TARGET_DEVICE, MODEL_DATA, info_name='REMADE_3D_INFO_BA')
@@ -532,7 +536,7 @@ if __name__ == "__main__":
     draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
-    combination_cnt = [4,5]
+    combination_cnt = [4]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()

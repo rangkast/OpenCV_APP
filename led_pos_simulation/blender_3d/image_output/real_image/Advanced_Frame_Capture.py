@@ -435,88 +435,8 @@ def init_camera_path(script_dir, video_path):
                     cv2.imshow('image', draw_frame)
 
     cv2.destroyAllWindows()
-def tracker_operation(frame, draw_frame, frame_cnt):
-    # Tracker Operation
-    # INIT Tracker
-    # 다음 프레임에 갈 때마다 초기화
-    if prev_frame_cnt != frame_cnt:
-        print(f"############### {frame_cnt} ####################")
-        # print('CAMERA_INFO')
-        print(CAMERA_INFO[f"{frame_cnt}"])
-        
-        # ToDo 
-        TRACKING_START = NOT_SET
-        if TRACKING_START == NOT_SET:                    
-            print('REINIT Tracker')
-            # clear_tracker(CURR_TRACKER)
-            bboxes = []
-            CURR_TRACKER.clear()     
-            PREV_TRACKER.clear()       
-            bboxes = CAMERA_INFO[f"{frame_cnt}"]['bboxes']
-            print('bboxes:', bboxes)
-            if bboxes is None:
-                return ERROR            
-            for i in range(len(bboxes)):
-                CURR_TRACKER[bboxes[i]['idx']] = {'bbox': bboxes[i]['bbox'], 'tracker': None}
-            init_trackers(CURR_TRACKER, frame)          
-            TRACKING_START = DONE
-
-    if TRACKING_START == DONE:
-        # find Blob area by findContours
-        blob_area = detect_led_lights(frame, TRACKER_PADDING)
-        blobs = []
-        
-        for blob_id, bbox in enumerate(blob_area):
-            (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-            gcx, gcy, gsize = find_center(frame, (x, y, w, h))
-            if gsize < BLOB_SIZE:
-                continue
-            # cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-            # cv2.putText(draw_frame, f"{blob_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            blobs.append((gcx, gcy, bbox))
-
-        CURR_TRACKER_CPY = CURR_TRACKER.copy()
-        for Tracking_ANCHOR, Tracking_DATA in CURR_TRACKER_CPY.items():
-            if Tracking_DATA['tracker'] is not None:
-                ret, (tx, ty, tw, th) = Tracking_DATA['tracker'].update(frame)
-                cv2.rectangle(draw_frame, (tx, ty), (tx + tw, ty + th), (0, 255, 0), 1, 1)
-                cv2.putText(draw_frame, f"{Tracking_ANCHOR}", (tx, ty + th + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                tcx, tcy, tsize = find_center(frame, (tx, ty, tw, th))
-                if Tracking_ANCHOR in PREV_TRACKER:
-                    def check_distance(blob_centers, tcx, tcy):
-                        for center in blob_centers:
-                            gcx, gcy, _ = center
-                            distance = math.sqrt((gcx - tcx)**2 + (gcy - tcy)**2)
-                            if distance < 1:
-                                return False
-                        return True
-                    dx = PREV_TRACKER[Tracking_ANCHOR][0] - tcx
-                    dy = PREV_TRACKER[Tracking_ANCHOR][1] - tcy
-                    euclidean_distance = math.sqrt(dx ** 2 + dy ** 2)
-                    # 트랙커가 갑자기 이동
-                    # 사이즈가 작은 경우
-                    # 실패한 경우
-                    # 중심점위치에 Blob_center 데이터가 없는 경우
-                    exist_status = check_distance(blobs, tcx, tcy)
-                    if exist_status or euclidean_distance > 5 or tsize < BLOB_SIZE or not ret:
-                        # print('Tracker Broken')
-                        # print('euclidean_distance:', euclidean_distance, ' tsize:', tsize, ' ret:', ret, 'exist_status:', exist_status)
-                        # print('CUR_txy:', tcx, tcy)
-                        # print('PRV_txy:', PREV_TRACKER[Tracking_ANCHOR])
-                        if ret == SUCCESS:
-                            del CURR_TRACKER[Tracking_ANCHOR]
-                            del PREV_TRACKER[Tracking_ANCHOR]
-                            # 여기서 PREV에 만들어진 위치를 집어넣어야 바로 안튕김
-                            print(f"tracker[{Tracking_ANCHOR}] deleted")
-                        #     continue
-                        # else:
-                        #     break
-
-            PREV_TRACKER[Tracking_ANCHOR] = (tcx, tcy, (tx, ty, tw, th))
 
 def distance_operation(frame, draw_frame, frame_cnt, prev_frame_cnt, vertical_cnt):
-
-
     if frame_cnt > MAX_FRAME_CNT - 1:
         print('EOF CAMERA_INFO')
         return
@@ -688,7 +608,6 @@ if __name__ == "__main__":
             cv2.putText(draw_frame, f"frame_cnt {frame_cnt} {-ANGLE * MOVE_DIRECTION * vertical_cnt}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
                     (255, 255, 255), 1)  
             
-            # tracker_operation(frame, draw_frame, frame_cnt)
             distance_operation(frame, draw_frame, frame_cnt, prev_frame_cnt, vertical_cnt)
 
             prev_frame_cnt = frame_cnt

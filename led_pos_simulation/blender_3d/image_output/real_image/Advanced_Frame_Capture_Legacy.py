@@ -265,12 +265,10 @@ if __name__ == "__main__":
     # Add the directory containing poselib to the module search path
     print(script_dir)
     MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-       
+    
 
     ############################## TOP BAR ##############################
-    #
     # 430 200 30
-    #
 
     test_set = Setting_CMD()
     test_set.mv_sp = 200
@@ -281,31 +279,31 @@ if __name__ == "__main__":
    
     # init_camera_path(script_dir, camera_port)
 
-    # status_queue = Queue()
-    # status_queue.put("NOT_SET")
-    # stop_event = threading.Event()  # Create a stop event
-    # webcam_stream = WebcamStream(src=camera_port, status_queue=status_queue, stop_event=stop_event)  # Pass the stop event to the WebcamStream
-    # webcam_stream.start()
-    # threading.Thread(target=command_task, args=(status_queue, stop_event)).start()
+    status_queue = Queue()
+    status_queue.put("NOT_SET")
+    stop_event = threading.Event()  # Create a stop event
+    webcam_stream = WebcamStream(src=camera_port, status_queue=status_queue, stop_event=stop_event)  # Pass the stop event to the WebcamStream
+    webcam_stream.start()
+    threading.Thread(target=command_task, args=(status_queue, stop_event)).start()
     
-    # while True:
-    #     frame = webcam_stream.read()
-    #     file_name, frame_cnt = webcam_stream.get_info()
-    #     if frame is not None:
-    #         draw_frame = frame.copy()
-    #         center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
-    #         cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
-    #         cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1)
-    #         cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{file_name}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
-    #                 (255, 255, 255), 1)  
+    while True:
+        frame = webcam_stream.read()
+        file_name, frame_cnt = webcam_stream.get_info()
+        if frame is not None:
+            draw_frame = frame.copy()
+            center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+            cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
+            cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1)
+            cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{file_name}]", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (255, 255, 255), 1)  
             
-    #         # Display the resulting frame
-    #         cv2.imshow('Frame', draw_frame)
+            # Display the resulting frame
+            cv2.imshow('Frame', draw_frame)
 
-    #         key = cv2.waitKey(1)
-    #         if key & 0xFF == ord('q') or stop_event.is_set():
-    #             break
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('q') or stop_event.is_set():
+                break
 
-    # webcam_stream.stop()
-    # stop_event.set()
-    # cv2.destroyAllWindows()
+    webcam_stream.stop()
+    stop_event.set()
+    cv2.destroyAllWindows()

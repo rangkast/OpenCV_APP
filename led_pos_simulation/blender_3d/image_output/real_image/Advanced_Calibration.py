@@ -2267,14 +2267,14 @@ if __name__ == "__main__":
     AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 2
+    SOLUTION = 1
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 100
     DO_CIRCULAR_FIT_ALGORITHM = 1
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'TEST'
+    TARGET_DEVICE = 'ARCTURAS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2302,7 +2302,7 @@ if __name__ == "__main__":
         BLOB_SIZE = 50
         controller_name = 'arcturas'
         camera_log_path = f"./render_img/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_2/"
+        camera_img_path = f"./render_img/{controller_name}/test_3/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2472,7 +2472,7 @@ if __name__ == "__main__":
             -설계값을 모르는 경우에도 방안 생각
         '''
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
-        BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
+        BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='OPENCV') 
         
         # 2차 보정
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 1)
