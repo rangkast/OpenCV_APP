@@ -1348,6 +1348,8 @@ def LSM(TARGET_DEVICE, MODEL_DATA, **kwargs):
         TARGET_DATA = []
         LED_NUMBER = []
         for blob_id, points_3d in ba_3d_dict.items():
+            TARGET_DATA.append(MODEL_DATA[int(blob_id)])
+            LED_NUMBER.append(int(blob_id))
             acc_blobs = points_3d.copy()
             acc_blobs_length = len(acc_blobs)
             if acc_blobs_length == 0:
@@ -1376,16 +1378,20 @@ def LSM(TARGET_DEVICE, MODEL_DATA, **kwargs):
             IQR_ARRAY.append([mean_med_x, mean_med_y, mean_med_z])
             print(f"mean_med of IQR for blob_id {blob_id}: [{mean_med_x} {mean_med_y} {mean_med_z}]")       
 
-
+        TARGET_DATA = np.array(TARGET_DATA)
         if TARGET_DEVICE ==  'SEMI_SLAM_PLANE':
-            IQR_ARRAY_LSM = module_lsm_2D(MODEL_DATA, IQR_ARRAY)
+            IQR_ARRAY_LSM = module_lsm_2D(TARGET_DATA, IQR_ARRAY)
         else:
-            IQR_ARRAY_LSM = module_lsm_3D(MODEL_DATA, IQR_ARRAY)
+            IQR_ARRAY_LSM = module_lsm_3D(TARGET_DATA, IQR_ARRAY)
         IQR_ARRAY_LSM = [[round(x, 8) for x in sublist] for sublist in IQR_ARRAY_LSM]
         print('IQR_ARRAY_LSM\n')
-        for blob_id, points_3d in enumerate(IQR_ARRAY_LSM):
+        
+        CALIBRATION = [0 for i in range(BLOB_CNT)]
+        for i, blob_id in enumerate(LED_NUMBER):
+            CALIBRATION[blob_id] = IQR_ARRAY_LSM[i]   
+        for blob_id, points_3d in enumerate(CALIBRATION):
             print(f"{points_3d},")        
-        return PCA_ARRAY_LSM, IQR_ARRAY_LSM
+        return PCA_ARRAY_LSM, CALIBRATION
 
     print('draw_result START')
     # REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
@@ -2277,7 +2283,7 @@ if __name__ == "__main__":
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'ARCTURAS'
+    TARGET_DEVICE = 'TEST'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2375,24 +2381,29 @@ if __name__ == "__main__":
         DO_PYRAMID = 0
         CV_MAX_THRESHOLD = 255
         CV_MIN_THRESHOLD = 150
-        ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
-        LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
+        # ARCTURAS_PATTERN_RIGHT = [0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1]
+        # 6 18
+        ARCTURAS_PATTERN_LEFT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
+        # 12 0
+        LEDS_POSITION = ARCTURAS_PATTERN_LEFT
         LEFT_RIGHT_DIRECTION = PLUS
         BLOB_SIZE = 60
         controller_name = 'arcturas'
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
-        camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
-        camera_img_path = f"./tmp/render/ARCTURAS/plane/"
-        combination_cnt = [4,5]
-        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
+        # camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
+        # camera_img_path = f"./tmp/render/ARCTURAS/plane/"
+        camera_log_path = f"./tmp/render/camera_log_XY.txt"
+        camera_img_path = f"./tmp/render/"
+        combination_cnt = [4]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_left_1_self.json"))
         START_FRAME = 0
         STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
         TRACKER_PADDING = 2
         CONTROLLER_JOINT_ANGLE = 30
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
-        DO_CIRCULAR_FIT_ALGORITHM = (2, 1)
+        DO_CIRCULAR_FIT_ALGORITHM = (0, 1)
         
         # ADD NOISE
         # MODEL_DATA = np.array(MODEL_DATA)
@@ -2475,7 +2486,7 @@ if __name__ == "__main__":
             -설계값을 모르는 경우에도 방안 생각
         '''
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
-        BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='OPENCV') 
+        BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
         
         # 2차 보정
         gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 1)

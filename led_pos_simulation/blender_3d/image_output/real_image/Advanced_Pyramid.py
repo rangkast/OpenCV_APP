@@ -136,6 +136,133 @@ def advanced_check_contours(image, draw_frame, shape):
             center = (int(circle[0]), int(circle[1]))
             radius = int(circle[2])
             cv2.circle(draw_frame, center, radius, (255, 0, 0), 1)
+            
+            
+'''
+Q1 
+구조 요소 생성:
+
+python
+Copy code
+kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+여기서는 타원형 모양의 구조 요소 (커널)을 생성하고 있습니다. 크기는 3x3입니다. 이 구조 요소는 이미지에 대한 모폴로지 연산을 수행할 때 사용됩니다.
+
+모폴로지 닫힘 연산 (Morphological Closing):
+
+python
+Copy code
+morph = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel)
+닫힘 연산은 팽창(dilation) 다음에 침식(erosion)을 수행하는 모폴로지 연산입니다. 이를 통해 작은 빈공간이나 구멍을 채우는 효과를 얻습니다.
+
+거리 변환:
+
+python
+Copy code
+dist = cv2.distanceTransform(morph, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+거리 변환은 이미지 내 각 픽셀에 대해 해당 픽셀에서 가장 가까운 0 값을 가진 픽셀까지의 거리를 계산합니다. 여기서는 L2 (Euclidean) 거리를 사용합니다.
+
+이미지 테두리 추가:
+
+python
+Copy code
+distborder = cv2.copyMakeBorder(dist, borderSize, borderSize, borderSize, borderSize, 
+                                cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
+주어진 borderSize만큼의 테두리를 이미지에 추가합니다. 이것은 후속 연산에서 이미지 경계를 고려하지 않을 때 사용됩니다.
+
+두 번째 구조 요소 생성 및 테두리 추가:
+
+python
+Copy code
+kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*(borderSize-gap)+1, 2*(borderSize-gap)+1))
+kernel2 = cv2.copyMakeBorder(kernel2, gap, gap, gap, gap, 
+                                cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
+더 큰 타원형 구조 요소를 생성한 다음, 그 구조 요소에 테두리를 추가합니다.
+
+두 번째 구조 요소에 대한 거리 변환:
+
+python
+Copy code
+distTempl = cv2.distanceTransform(kernel2, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+두 번째 구조 요소에 대해 거리 변환을 수행합니다.
+
+Q2
+템플릿 매칭:
+
+python
+Copy code
+nxcor = cv2.matchTemplate(distborder, distTempl, cv2.TM_CCOEFF_NORMED)
+cv2.matchTemplate는 distborder 이미지에서 distTempl 템플릿을 찾는 함수입니다. 매칭 결과는 nxcor에 저장되며, cv2.TM_CCOEFF_NORMED 방법을 사용하여 정규화된 상관 계수를 계산합니다.
+
+매칭의 최소값과 최대값 찾기:
+
+python
+Copy code
+mn, mx, _, _ = cv2.minMaxLoc(nxcor)
+cv2.minMaxLoc는 nxcor에서 최소값과 최대값을 찾습니다. 여기서는 최대값 mx만 사용됩니다.
+
+임계값 처리:
+
+python
+Copy code
+th, peaks = cv2.threshold(nxcor, mx*0.5, 255, cv2.THRESH_BINARY)
+nxcor의 값들 중 최대값의 절반보다 큰 값들을 255로 설정하고, 그 이하의 값들은 0으로 설정합니다. 결과는 peaks에 저장됩니다.
+
+8비트 이미지로 변환:
+
+python
+Copy code
+peaks8u = cv2.convertScaleAbs(peaks)
+peaks를 8비트 부호 없는 정수로 변환합니다.
+
+윤곽선 찾기:
+
+python
+Copy code
+contours, hierarchy = cv2.findContours(peaks8u, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+cv2.findContours는 peaks8u 이미지에서 윤곽선을 찾습니다.
+
+윤곽선 기반의 처리:
+
+python
+Copy code
+for i in range(len(contours)):
+    x, y, w, h = cv2.boundingRect(contours[i])
+    _, mx, _, mxloc = cv2.minMaxLoc(dist[y:y+h, x:x+w], peaks8u[y:y+h, x:x+w])
+    cv2.circle(draw_frame, (int(mxloc[0]+x), int(mxloc[1]+y)), int(mx), (255, 0, 0), 2)
+    cv2.rectangle(draw_frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
+    cv2.drawContours(draw_frame, contours, i, (0, 0, 255), 2)
+각 윤곽선에 대해서:
+
+cv2.boundingRect로 윤곽선을 감싸는 사각형을 얻습니다.
+해당 사각형 내에서 거리 변환의 최대값 위치를 찾습니다.
+draw_frame에 원을 그려 해당 위치를 표시합니다.
+draw_frame에 윤곽선을 감싸는 사각형을 그립니다.
+draw_frame에 윤곽선을 그립니다.
+
+cv2.copyMakeBorder는 주어진 이미지의 테두리 주위에 특정 값이나 패턴으로 채워진 경계를 생성하는 함수입니다. 원탐지 알고리즘의 컨텍스트에서,
+왜 이러한 경계가 필요한지 살펴보겠습니다.
+
+이 알고리즘에서는 원의 중심을 찾기 위해 거리 변환과 템플릿 매칭을 사용합니다. 이러한 접근 방식은 이미지의 모서리 부근에서 완전한 원을 감지할 수 없게 만들 수 있습니다.
+이유는 템플릿이 이미지의 경계를 넘어갈 수 있기 때문입니다.
+
+cv2.copyMakeBorder를 사용하여 이미지의 경계에 추가 패딩을 제공함으로써 이 문제를 해결합니다. 추가된 경계는 템플릿 매칭을 수행할 때 이미지의 실제 경계를 넘어가는 매칭을 허용합니다.
+이로 인해 이미지의 모서리 근처에 있는 원도 올바르게 감지될 수 있습니다.
+
+간단하게 말해, cv2.copyMakeBorder는 이미지의 가장자리에 있는 원도 올바르게 감지하기 위해 사용됩니다.
+
+Q3
+이 코드 조각에서 두 번의 cv2.copyMakeBorder 호출은 서로 다른 목적으로 사용됩니다.
+
+첫 번째 cv2.copyMakeBorder 호출:
+dist는 거리 변환된 이미지입니다. 이미지에 패딩을 추가하여 경계를 확장하고, 템플릿 매칭 시 이미지의 경계 부근에서도 원을 올바르게 감지할 수 있도록 합니다.
+borderSize 값은 얼마나 많은 경계를 추가할 것인지를 결정합니다. 일반적으로, 이 값을 크게 하면 경계 부근에서 더 큰 원을 감지할 수 있지만, 연산의 복잡도도 높아집니다.
+두 번째 cv2.copyMakeBorder 호출:
+이 호출은 원형 구조 요소 (또는 커널)에 경계를 추가하는 데 사용됩니다. 이는 템플릿 매칭에 사용되는 템플릿의 중심을 올바르게 정렬하는 데 도움을 줍니다.
+gap 값은 템플릿의 중심과 그 경계 사이의 거리를 결정합니다. 이 값을 조정하면 감지되는 원의 크기와 위치에 영향을 줄 수 있습니다.
+이러한 값(borderSize와 gap)은 어떻게 결정해야 하는지에 대한 질문에 대한 답은 주로 실험적입니다. 주어진 이미지나 데이터셋에서 원하는 결과를 얻기 위해 다양한 값으로 실험을 진행하면 좋습니다.
+이미지의 특성, 원하는 원의 크기 범위, 경계 주변에서 원을 얼마나 잘 감지하고자 하는지 등에 따라 이러한 값을 조정할 수 있습니다.
+'''            
+            
 def test_code_1(image, shape):
     print(shape)
     (x, y, w, h) = shape
@@ -202,6 +329,7 @@ def test_code_1(image, shape):
     kernel2 = cv2.copyMakeBorder(kernel2, gap, gap, gap, gap, 
                                     cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
     distTempl = cv2.distanceTransform(kernel2, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    
     nxcor = cv2.matchTemplate(distborder, distTempl, cv2.TM_CCOEFF_NORMED)
     mn, mx, _, _ = cv2.minMaxLoc(nxcor)
     th, peaks = cv2.threshold(nxcor, mx*0.5, 255, cv2.THRESH_BINARY)
