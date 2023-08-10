@@ -1344,6 +1344,9 @@ def LSM(TARGET_DEVICE, MODEL_DATA, **kwargs):
         print('\n')
         print('#################### IQR  ####################')
         IQR_ARRAY = []
+        ####### ToDO #############3
+        TARGET_DATA = []
+        LED_NUMBER = []
         for blob_id, points_3d in ba_3d_dict.items():
             acc_blobs = points_3d.copy()
             acc_blobs_length = len(acc_blobs)
