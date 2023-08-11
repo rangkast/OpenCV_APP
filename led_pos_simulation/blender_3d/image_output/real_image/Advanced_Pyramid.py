@@ -19,10 +19,9 @@ VIDEO_MODE = 1
 CV_MAX_THRESHOLD = 255
 CV_MIN_THRESHOLD = 100
 BLOB_SIZE = 10
-TRACKER_PADDING = 10
+TRACKER_PADDING = 3
 max_level = 5
 AUTO_LOOP = 0
-
 
 def find_circles_or_ellipses(image, draw_frame):
     # Apply Gaussian blur
@@ -41,7 +40,6 @@ def find_circles_or_ellipses(image, draw_frame):
     # AREA = cv2.contourArea(c0)
 
     # print(f"contour area: {AREA}")
-
 
     circle_count = 0
     ellipse_count = 0
@@ -263,42 +261,47 @@ gap 값은 템플릿의 중심과 그 경계 사이의 거리를 결정합니다
 이미지의 특성, 원하는 원의 크기 범위, 경계 주변에서 원을 얼마나 잘 감지하고자 하는지 등에 따라 이러한 값을 조정할 수 있습니다.
 '''            
             
-def test_code_1(image, shape):
-    print(shape)
-    (x, y, w, h) = shape
+def test_code_1(image, blob_area):
+    # print(blob_area)
+    (x, y, w, h) = blob_area
     cropped = crop_image(image, x, y, w, h)
-
+    # print(f"shape: {w} {h}")
     # Generate image pyramid using pyrUp (increasing resolution)
     gaussian_pyramid = [cropped]
     for i in range(max_level):
         cropped = cv2.pyrUp(cropped)
         ch, cw = cropped.shape[:2]
-        print(f"{ch} {cw}")
         if min(ch, cw) > 480:
             break
+        # print(f"pryUP {ch} {cw}")
         gaussian_pyramid.append(cropped)
 
     image = gaussian_pyramid[len(gaussian_pyramid) - 1]
     # blurred_image = cv2.GaussianBlur(image, (3, 3), 0)
     ret, threshold_image = cv2.threshold(image, 100, 255, cv2.THRESH_BINARY)
 
-    cv2.imshow('threshold_image',threshold_image)
-    cv2.waitKey(0)
+    # cv2.imshow('threshold_image',threshold_image)
+    # cv2.waitKey(0)
+    # contours, _ = cv2.findContours(threshold_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # c0 = contours[0]
+    # AREA = cv2.contourArea(c0)
+    # print(f"contour area: {AREA}")
+
     # 경계선 감지
     edges = cv2.Canny(threshold_image, 100, 255)
 
     # 팽창과 침식을 조합하여 경계선 부드럽게 만들기
     kernel = np.ones((10, 10), np.uint8)
     smoothed_edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-    cv2.imshow('smoothed_edges',smoothed_edges)
-    cv2.waitKey(0)
+    # cv2.imshow('smoothed_edges',smoothed_edges)
+    # cv2.waitKey(0)
     # Copy the thresholded image.
     im_floodfill = smoothed_edges.copy()
 
     # Mask used to flood filling.
     # Notice the size needs to be 2 pixels than the image.
     h, w = smoothed_edges.shape[:2]
-    print(f"h,w: {h} {w}")
+    # print(f"smoothed_edges: {h} {w}")
     mask = np.zeros((h+2, w+2), np.uint8)
     
     # Floodfill from point (0, 0)
@@ -315,35 +318,43 @@ def test_code_1(image, shape):
     draw_frame = image.copy()
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     th, bw = cv2.threshold(hsv[:, :, 2], 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-     
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     morph = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel)
     dist = cv2.distanceTransform(morph, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
 
-    borderSize = 30
+    borderSize = int(min(h, w) / 8)
+
     distborder = cv2.copyMakeBorder(dist, borderSize, borderSize, borderSize, borderSize, 
                                     cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
-    gap = 5
+    gap = 1
+
     kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*(borderSize-gap)+1, 2*(borderSize-gap)+1))
     kernel2 = cv2.copyMakeBorder(kernel2, gap, gap, gap, gap, 
                                     cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
     distTempl = cv2.distanceTransform(kernel2, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
-    
+
     nxcor = cv2.matchTemplate(distborder, distTempl, cv2.TM_CCOEFF_NORMED)
     mn, mx, _, _ = cv2.minMaxLoc(nxcor)
     th, peaks = cv2.threshold(nxcor, mx*0.5, 255, cv2.THRESH_BINARY)
     peaks8u = cv2.convertScaleAbs(peaks)
     contours, hierarchy = cv2.findContours(peaks8u, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    peaks8u = cv2.convertScaleAbs(peaks)    # to use as mask
+    peaks8u = cv2.convertScaleAbs(peaks)
+
+    # print(f"len(contours) {len(contours)}")
+    R_DETECT = 0
     for i in range(len(contours)):
         x, y, w, h = cv2.boundingRect(contours[i])
         _, mx, _, mxloc = cv2.minMaxLoc(dist[y:y+h, x:x+w], peaks8u[y:y+h, x:x+w])
+        if int(mx) <= 0:
+            continue
         cv2.circle(draw_frame, (int(mxloc[0]+x), int(mxloc[1]+y)), int(mx), (255, 0, 0), 2)
-        cv2.rectangle(draw_frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
+        # print(f"center:{(int(mxloc[0]+x), int(mxloc[1]+y))} R:{int(mx)}")
+        # cv2.rectangle(draw_frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
         cv2.drawContours(draw_frame, contours, i, (0, 0, 255), 2)
+        R_DETECT += 1
 
-    return draw_frame
+    return draw_frame, R_DETECT
 
 def test_code_2(image, draw_frame):
     from scipy.ndimage import label
@@ -403,6 +414,7 @@ def test_code_2(image, draw_frame):
     circles, new_center = find_circles(image)
     for i in range(len(circles)):
         cv2.drawContours(draw_frame, circles, i, (0, 255, 0))
+
 def get_blob_area(frame):
     filtered_blob_area = []
     blob_area = detect_led_lights(frame, TRACKER_PADDING)
@@ -414,6 +426,7 @@ def get_blob_area(frame):
         filtered_blob_area.append((gcx, gcy, (x, y, w, h)))   
 
     return filtered_blob_area
+
 def pyramid_test(camera_devices):
     if VIDEO_MODE == 1:
         cam_L = cv2.VideoCapture(camera_devices[0]['port'])
@@ -451,14 +464,18 @@ def pyramid_test(camera_devices):
         filtered_blob_area_left = get_blob_area(frame1)
         for blob_id, bbox in enumerate(filtered_blob_area_left):
             (x, y, w, h) = (bbox[2])
-            if DO_PYRAMID == 1:
-                overlapping = check_blobs_with_pyramid(frame1, draw_frame1, x, y, w, h, max_level)
-                # if overlapping == True:
-                #     cv2.rectangle(draw_frame1, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
-                #     cv2.putText(draw_frame1, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-                #     continue
+            # if DO_PYRAMID == 1:
+            # overlapping = check_blobs_with_pyramid(frame1, draw_frame1, x, y, w, h, max_level)
+            # if overlapping == True:
+            #     cv2.rectangle(draw_frame1, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
+            #     cv2.putText(draw_frame1, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            #     continue
             # advanced_check_contours(frame1, draw_frame1, (x, y, w, h))
-            result_frame = test_code_1(frame1, (x, y, w, h))
+            result_frame, R_DETECT = test_code_1(frame1, (x, y, w, h))
+            if R_DETECT > 1:
+                cv2.rectangle(draw_frame1, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
+                cv2.putText(draw_frame1, f"SEG", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                # continue
             # test_code_2(frame1, draw_frame1)
 
             cv2.rectangle(draw_frame1, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
@@ -472,8 +489,9 @@ def pyramid_test(camera_devices):
                 return
             elif KEY == ord('n'):
                 if AUTO_LOOP == 0:
-                    frame_cnt += 1                   
-        
+                    frame_cnt += 1
+
+        # cv2.imshow('LEFT CAMERA', draw_frame1)
 
         KEY = cv2.waitKey(1)
         if KEY & 0xFF == 27:
@@ -508,47 +526,4 @@ if __name__ == "__main__":
 
     pyramid_test(camera_devices)
 
-    # image_files = sorted(glob.glob(f"{script_dir}/pyramid_test/*.png"))
-    # print(image_files)
-    # image = cv2.imread(image_files[5])
-
-    # draw_frame = image.copy()
-
-    # hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    # th, bw = cv2.threshold(hsv[:, :, 2], 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-     
-
-    # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    # morph = cv2.morphologyEx(bw, cv2.MORPH_CLOSE, kernel)
-    # dist = cv2.distanceTransform(morph, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
-
-
-    # borderSize = 75
-    # distborder = cv2.copyMakeBorder(dist, borderSize, borderSize, borderSize, borderSize, 
-    #                                 cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
-
-    # gap = 10                                
-    # kernel2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*(borderSize-gap)+1, 2*(borderSize-gap)+1))
-    # kernel2 = cv2.copyMakeBorder(kernel2, gap, gap, gap, gap, 
-    #                                 cv2.BORDER_CONSTANT | cv2.BORDER_ISOLATED, 0)
     
-
-    # distTempl = cv2.distanceTransform(kernel2, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
-    # nxcor = cv2.matchTemplate(distborder, distTempl, cv2.TM_CCOEFF_NORMED)
-    # mn, mx, _, _ = cv2.minMaxLoc(nxcor)
-    # th, peaks = cv2.threshold(nxcor, mx*0.5, 255, cv2.THRESH_BINARY)
-
-
-    # peaks8u = cv2.convertScaleAbs(peaks)
-    # contours, hierarchy = cv2.findContours(peaks8u, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    # peaks8u = cv2.convertScaleAbs(peaks)    # to use as mask
-
-    # for i in range(len(contours)):
-    #     x, y, w, h = cv2.boundingRect(contours[i])
-    #     _, mx, _, mxloc = cv2.minMaxLoc(dist[y:y+h, x:x+w], peaks8u[y:y+h, x:x+w])
-    #     cv2.circle(draw_frame, (int(mxloc[0]+x), int(mxloc[1]+y)), int(mx), (255, 0, 0), 2)
-    #     cv2.rectangle(draw_frame, (x, y), (x+w, y+h), (0, 255, 255), 2)
-    #     cv2.drawContours(draw_frame, contours, i, (0, 0, 255), 2)
-
-    # cv2.imshow('result', draw_frame)
-    # cv2.waitKey(0)

@@ -2393,7 +2393,7 @@ if __name__ == "__main__":
         # camera_img_path = f"./render_img/{controller_name}/test_1/"
         # camera_log_path = f"./tmp/render/ARCTURAS/plane/camera_log.txt"
         # camera_img_path = f"./tmp/render/ARCTURAS/plane/"
-        camera_log_path = f"./tmp/render/camera_log_XY.txt"
+        camera_log_path = f"./tmp/render/ARCTURAS/camera_log_0.txt"
         camera_img_path = f"./tmp/render/"
         combination_cnt = [4]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_left_1_self.json"))

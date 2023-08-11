@@ -1,10 +1,17 @@
 ############ TOP BAR Pose ############
 430 200 30
+######################################
+
+#####################################
+RIGHT vs LEFT
+TOP,BOTTOM, pattern 확인
+
 
 초기 카메라 path 정의 하는 방법
 ############ Init Camera Path and Pose ############
 Advanced_Frame_Capture_Legacy.py
     -> plane image 120장
+
 Advanced_Calibration.py:
     SOLUTION = 3
     TARGET_DEVICE = 'ARCTURAS'        
@@ -85,6 +92,3 @@ CAMERA_INFO.pickle -> CAMERA_INFO_BACKUP.pickle 변경
 Advanced_Bundle_Adjustment.py
     -> plane_calibration 값 저장 (1차 data) : NOT_SET
     -모든 phase 테스트 진행
-
-
-
