@@ -2,47 +2,77 @@ from Advanced_Function import *
 
 ANGLE = 3
 
-CALIBRATION_DATA = np.array([
-[-0.00528268, -0.03654436, 0.00445737],
-[0.00975209, -0.04726801, 0.00416382],
-[0.02991425, -0.05128519, 0.00376553],
-[0.05157105, -0.04543511, 0.00313119],
-[0.06950148, -0.0294263, 0.00313804],
-[0.07726291, -0.01311312, 0.00290795],
-[0.07830993, 0.00950335, 0.00290008],
-[0.0717, 0.0261568, 0.00298388],
-[0.05318036, 0.04458388, 0.00361513],
-[0.03439977, 0.05093834, 0.00360017],
-[0.01258188, 0.04842228, 0.00427163],
-[-0.00531589, 0.03654443, 0.00443206],
-[-0.01719296, -0.02498431, 0.01686793],
-[-0.00735957, -0.03637139, 0.01720165],
-[0.02462765, -0.05091951, 0.01816547],
-[0.04458448, -0.04728218, 0.01847828],
-[0.06122704, -0.03575422, 0.01903943],
-[0.07374303, -0.01471812, 0.01925705],
-[0.07167901, 0.02046464, 0.01915338],
-[0.05465228, 0.04161754, 0.01860349],
-[0.03432296, 0.05027539, 0.0182099],
-[0.01237024, 0.04873717, 0.01758825],
-[-0.00741192, 0.03632198, 0.01724611],
-[-0.01722993, 0.02485586, 0.01684302],
-])
+# RIGHT
+# CALIBRATION_DATA = np.array([
+# [-0.00537488, -0.03667268, 0.00441078],
+# [0.00976918, -0.04740101, 0.00406324],
+# [0.02994484, -0.05139508, 0.00403016],
+# [0.05161236, -0.04533534, 0.003306],
+# [0.06949912, -0.02938939, 0.00291452],
+# [0.0773512, -0.01299684, 0.00306191],
+# [0.07825391, 0.00931761, 0.0028105],
+# [0.07173344, 0.02617617, 0.00301462],
+# [0.05325148, 0.04467786, 0.00334735],
+# [0.03440115, 0.05094909, 0.00374633],
+# [0.01247858, 0.04832717, 0.00409713],
+# [-0.0052617, 0.03655311, 0.0043063],
+# [-0.01716756, -0.02501162, 0.01708063],
+# [-0.00733727, -0.03619887, 0.01709258],
+# [0.02458513, -0.05087589, 0.01800042],
+# [0.04452339, -0.04734544, 0.01846602],
+# [0.06128804, -0.03581444, 0.01882517],
+# [0.07364703, -0.01469757, 0.01938613],
+# [0.0715993, 0.02051887, 0.01914742],
+# [0.05464217, 0.04170264, 0.01874769],
+# [0.03419767, 0.05027262, 0.01835042],
+# [0.01252523, 0.04861041, 0.01770985],
+# [-0.00730126, 0.03638307, 0.01713485],
+# [-0.01727306, 0.02496538, 0.01697078],
+# ])
 
+# LEFT
+CALIBRATION_DATA = np.array([
+[-0.00527293, 0.03668318, 0.00450424],
+[0.0099429, 0.04729125, 0.00426474],
+[0.02989421, 0.05133848, 0.00389909],
+[0.05168177, 0.04556886, 0.003546],
+[0.06964661, 0.02947821, 0.00316254],
+[0.07757953, 0.01310856, 0.0026454],
+[0.07845474, -0.00956693, 0.00307459],
+[0.07177611, -0.02634563, 0.00300188],
+[0.05325843, -0.04473392, 0.0033167],
+[0.03451969, -0.05102242, 0.0034438],
+[0.01252673, -0.04843073, 0.00398773],
+[-0.00537917, -0.03660677, 0.00465179],
+[-0.0173, 0.02495927, 0.01677737],
+[-0.00751897, 0.03613502, 0.01747259],
+[0.02448559, 0.05078335, 0.01764873],
+[0.04445524, 0.04721534, 0.01848064],
+[0.06136232, 0.03591362, 0.01877389],
+[0.07380265, 0.01493228, 0.0192029],
+[0.07139673, -0.02043325, 0.0192482],
+[0.05433477, -0.04139863, 0.01878518],
+[0.03417449, -0.05017641, 0.0182297],
+[0.01236863, -0.04873899, 0.01784573],
+[-0.00732679, -0.03635641, 0.01723689],
+[-0.01727578, -0.02491719, 0.01682051],
+])
 
 # ToDo
 
 TARGET_DEVICE = 'ARCTURAS'
-MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right.json")
-CAMERA_INFO_BACKUP = pickle_data(READ, "CAMERA_INFO_BACKUP.pickle", None)['CAMERA_INFO']
+# ORIGIN_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right.json")
+# MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturus_#3_right+.json")
+ORIGIN_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_left.json")
+MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturus_#3_left.json")
+CAMERA_INFO_BACKUP = pickle_data(READ, "CAMERA_INFO_PLANE.pickle", None)['CAMERA_INFO']
 NEW_CAMERA_INFO_UP = pickle_data(READ, "NEW_CAMERA_INFO_1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_UP_KEYS = list(NEW_CAMERA_INFO_UP.keys())
 NEW_CAMERA_INFO_DOWN = pickle_data(READ, "NEW_CAMERA_INFO_-1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_DOWN_KEYS = list(NEW_CAMERA_INFO_DOWN.keys())
 
-# CALIBRATION_DATA = np.array(MODEL_DATA)
 
-BLOB_CNT = len(MODEL_DATA)
+BLOB_CNT = len(ORIGIN_DATA)
 IMAGE_CNT = 120
 DEGREE_CNT = 4
 CAM_ID = 0
@@ -51,13 +81,13 @@ BLOB_INFO = {}
 
 if __name__ == "__main__":
     print('PTS')
-    for i, leds in enumerate(MODEL_DATA):
+    for i, leds in enumerate(ORIGIN_DATA):
         print(f"{np.array2string(leds, separator=', ')},")
     print('DIR')
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
         
-    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    # show_calibrate_data(np.array(ORIGIN_DATA), np.array(DIRECTION))
 
     def filter_data(led_data, points2Ddata):
         LED_NUMBER = []
@@ -155,7 +185,8 @@ if __name__ == "__main__":
                     BLOB_INFO[blob_id]['OPENCV']['status'].append(NOT_SET)                    
             
             CAMERA_INFO[f"{frame_cnt}"]['points3D'] = points3D
-            CAMERA_INFO[f"{frame_cnt}"]['points3D_origin'] = MODEL_DATA[list(LED_NUMBER), :]
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_origin'] = ORIGIN_DATA[list(LED_NUMBER), :]
+            CAMERA_INFO[f"{frame_cnt}"]['points3D_legacy'] = MODEL_DATA[list(LED_NUMBER), :]
             CAMERA_INFO[f"{frame_cnt}"]['points2D']['greysum'] = points2D_D
             CAMERA_INFO[f"{frame_cnt}"]['points2D_U']['greysum'] = points2D_U            
             CAMERA_INFO[f"{frame_cnt}"]['LED_NUMBER'] =LED_NUMBER
@@ -360,12 +391,12 @@ if __name__ == "__main__":
             fig, axs = plt.subplots(3, 1, figsize=(15, 15))
             fig.suptitle(f'Calibration Data Analysis for Combination: {COMBINATION}')  # Set overall title
 
-            points3D_datas = ['points3D_origin', 'points3D_IQR']
-            colors = ['r', 'b']
+            points3D_datas = ['points3D_legacy', 'points3D_IQR']
+            colors = ['r', 'g', 'b']
             summary_text = ""
 
             for idx, points3D_data in enumerate(points3D_datas):
-                frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason = STD_Analysis(points3D_data, points3D_data, COMBINATION)
+                frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason = STD_Analysis(points3D_data, points3D_datas, COMBINATION)
 
                 axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}', alpha=0.5)
                 axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}', alpha=0.5)
@@ -506,6 +537,7 @@ if __name__ == "__main__":
         plt.subplots_adjust(hspace=0.5)
 
 
+    ORIGIN_DATA = np.array(ORIGIN_DATA)
     MODEL_DATA = np.array(MODEL_DATA)
     # MAIN START
     for blob_id in range(BLOB_CNT):
@@ -519,21 +551,20 @@ if __name__ == "__main__":
     
     from Advanced_Calibration import BA_RT, remake_3d_for_blob_info, LSM, init_plot, draw_result
 
-    ax1, ax2 = init_plot(MODEL_DATA)
+    ax1, ax2 = init_plot(ORIGIN_DATA)
 
     # Phase 1
     gathering_data()
-
 
     # Phase 2
     BA_RT(info_name='CAMERA_INFO.pickle', save_to='BA_RT.pickle', target='BLENDER') 
     gathering_data(DO_BA=DONE)
     remake_3d_for_blob_info(blob_cnt=BLOB_CNT, info_name='BLOB_INFO.pickle', undistort=DONE, opencv=DONE, blender=DONE, ba_rt=DONE)
-    LSM(TARGET_DEVICE, MODEL_DATA, info_name='REMADE_3D_INFO_BA')
+    LSM(TARGET_DEVICE, ORIGIN_DATA, info_name='REMADE_3D_INFO_BA')
 
     # Phase 3
     gathering_data(DO_CALIBRATION_TEST=DONE)
-    draw_result(MODEL_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
+    draw_result(ORIGIN_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
     combination_cnt = [4]

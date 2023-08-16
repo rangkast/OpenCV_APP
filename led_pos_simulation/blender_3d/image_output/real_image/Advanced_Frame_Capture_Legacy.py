@@ -90,7 +90,7 @@ class WebcamStream:
                     if not self.status_queue.empty():
                         status = self.status_queue.get()
                         if status == "DONE":
-                            self.file_name = f"{script_dir}/render_img/frame_{self.frame_cnt:04}.png"  # Use :04 to pad zeros up to 4 digits
+                            self.file_name = f"{script_dir}/tmp/render/frame_{self.frame_cnt:04}.png"  # Use :04 to pad zeros up to 4 digits
                             cv2.imwrite(self.file_name, self.frame)
                             print('SAVE_IMG: ', self.file_name)
                             self.frame_cnt += 1
@@ -268,7 +268,7 @@ if __name__ == "__main__":
     
 
     ############################## TOP BAR ##############################
-    # 430 200 30
+    # 430 200 0
 
     test_set = Setting_CMD()
     test_set.mv_sp = 200
@@ -277,7 +277,7 @@ if __name__ == "__main__":
     send_cmd_to_server(sys_set)
     socket_cmd_to_robot('joint', 'ac', {'1': 1.64, '2': 71.18, '3': 19.07, '4': 0.30, '5': -89.85, '6': -197.28})
    
-    # init_camera_path(script_dir, camera_port)
+    init_camera_path(script_dir, camera_port)
 
     status_queue = Queue()
     status_queue.put("NOT_SET")

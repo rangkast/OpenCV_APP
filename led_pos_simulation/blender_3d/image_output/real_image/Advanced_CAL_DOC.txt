@@ -1,5 +1,7 @@
 ############ TOP BAR Pose ############
-430 200 30
+430 200 0
+HOST = '192.168.1.10'
+RECV_HOST = '192.168.1.2'
 ######################################
 
 #####################################
@@ -68,6 +70,7 @@ BLENDER 정의 RT가 이미 성립되어 있는 경우
 ############ CALIBRATION_DATA ############
 Advanced_Frame_Capture_Legacy.py
         -> plane image 120장
+
 Advanced_Calibration.py:
     SOLUTION = 1
     TARGET_DEVICE = 'ARCTURAS'        

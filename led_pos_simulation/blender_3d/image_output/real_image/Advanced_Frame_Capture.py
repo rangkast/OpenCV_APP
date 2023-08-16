@@ -63,8 +63,10 @@ DO_SOCKET_COMM = 1
 
 UP = 1
 DOWN = -1
-MOVE_DIRECTION = UP
-DIRECTION_CNT = 10
+# MOVE_DIRECTION = UP
+# DIRECTION_CNT = 10
+MOVE_DIRECTION = DOWN
+DIRECTION_CNT = 5
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 print(script_dir)
@@ -551,6 +553,9 @@ def distance_operation(frame, draw_frame, frame_cnt, prev_frame_cnt, vertical_cn
             pt = (int(blob_data[0]), int(blob_data[1]))
             cv2.circle(draw_frame, pt, 2, (0, 0, 255), -1)
             if blob_data[4] != -1:
+                bbox = blob_data[2]
+                (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (0, 0, 255), 1, 1)
                 cv2.putText(draw_frame, str(blob_data[4]), (int(blob_data[0]), int(blob_data[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,  (0, 0, 255), 1,)
 
 
@@ -562,13 +567,13 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     # Add the directory containing poselib to the module search path
     print(script_dir)
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+    # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
     # READ CAMERA_INFO STRUCTURE for Labeling IDS
-    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO.pickle', None)['CAMERA_INFO']           
+    CAMERA_INFO = pickle_data(READ, 'CAMERA_INFO_PLANE.pickle', None)['CAMERA_INFO']           
 
     ############################## TOP BAR ##############################
     #
-    # 430 200 30
+    # 430 200 0
     #
     if DO_SOCKET_COMM == DONE:
         test_set = Setting_CMD()
@@ -627,9 +632,9 @@ if __name__ == "__main__":
     stop_event.set()
     cv2.destroyAllWindows()
 
-    # file = f"NEW_CAMERA_INFO_{MOVE_DIRECTION}.pickle"
-    # data = OrderedDict()
-    # data['NEW_CAMERA_INFO'] = NEW_CAMERA_INFO
-    # ret = pickle_data(WRITE, file, data)
-    # if ret != ERROR:
-    #     print('data saved')
+    file = f"NEW_CAMERA_INFO_{MOVE_DIRECTION}.pickle"
+    data = OrderedDict()
+    data['NEW_CAMERA_INFO'] = NEW_CAMERA_INFO
+    ret = pickle_data(WRITE, file, data)
+    if ret != ERROR:
+        print('data saved')

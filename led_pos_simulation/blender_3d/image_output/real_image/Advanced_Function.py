@@ -93,6 +93,7 @@ CAMERA_INFO_STRUCTURE = {
     'points2D_U': {'greysum': [], 'opencv': [], 'blender': []},
     'points3D': [],
     'points3D_origin': [],
+    'points3D_legacy': [],
     'points3D_PCA': [],
     'points3D_IQR': [],
     'BLENDER': {'rt': {'rvec': [], 'tvec': []}, 'status': NOT_SET},
