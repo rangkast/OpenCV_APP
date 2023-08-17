@@ -1,5 +1,5 @@
 from Advanced_Function import *
-from numba import jit
+from numba import jit, float64, int32
 
 ANGLE = 3
 
@@ -289,7 +289,7 @@ if __name__ == "__main__":
         pickle_data(WRITE, 'CAMERA_INFO.pickle', data)
         print('data saved\n')
 
-    def Check_Calibration_data_combination(combination_cnt, **kwargs):
+    def  Check_Calibration_data_combination(combination_cnt, **kwargs):
         print('Check_Calibration_data_combination START')
         info_name = kwargs.get('info_name')    
         CAMERA_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]
@@ -299,7 +299,6 @@ if __name__ == "__main__":
         for blob_id, points_3d in enumerate(RIGID_3D_TRANSFORM_IQR):
             print(f"{points_3d},")    
         
-        @jit(nopython=True)
         def STD_Analysis(points3D_data, label, combination):
             print(f"dataset:{points3D_data} combination_cnt:{combination}")
             frame_counts = []
@@ -308,12 +307,19 @@ if __name__ == "__main__":
             reproj_err_rates = []
             error_cnt = 0
             fail_reason = []
-            for frame_cnt, cam_data in CAMERA_INFO.items():       
-                
+            USING_KORNIA = NOT_SET
+             # Use the default camera matrix as the intrinsic parameters
+            intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
+
+            for frame_cnt, cam_data in CAMERA_INFO.items(): 
                 rvec_list = []
                 tvec_list = []
                 reproj_err_list = []
-
+                
+                # Prepare lists for batch processing
+                batch_2d_points = []
+                batch_3d_points = []
+                
                 LED_NUMBER = cam_data['LED_NUMBER']
                 points3D = cam_data[points3D_data]
                 points2D = cam_data['points2D']['greysum']
@@ -330,7 +336,15 @@ if __name__ == "__main__":
                             points3D_perm = points3D[list(perm), :]
                             points2D_perm = points2D[list(perm), :]
                             points2D_U_perm = points2D_U[list(perm), :]
-                            if combination >= 5:
+                            if combination >= 6:
+                                USING_KORNIA = DONE
+                                # Using DLT
+                                # Kornia, Tensor
+                                # Add to batch lists
+                                batch_2d_points.append(points2D_U_perm)
+                                batch_3d_points.append(points3D_perm)
+                                continue                            
+                            elif combination == 5:
                                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                             elif combination == 4:
                                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_AP3P
@@ -347,12 +361,10 @@ if __name__ == "__main__":
                             _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
                             # rvec이나 tvec가 None인 경우 continue
                             if rvec is None or tvec is None:
-                                continue
-                            
+                                continue                            
                             # rvec이나 tvec에 nan이 포함된 경우 continue
                             if np.isnan(rvec).any() or np.isnan(tvec).any():
                                 continue
-
                             # rvec과 tvec의 모든 요소가 0인 경우 continue
                             if np.all(rvec == 0) and np.all(tvec == 0):
                                 continue
@@ -375,6 +387,46 @@ if __name__ == "__main__":
                                 tvec_list.append(np.linalg.norm(tvec))                      
                                 reproj_err_list.append(RER)                                
                     
+                    if USING_KORNIA == DONE:
+                        # Convert lists of numpy arrays to single numpy arrays
+                        batch_2d_points_np = np.array(batch_2d_points)
+                        batch_3d_points_np = np.array(batch_3d_points)
+                        # Convert numpy arrays to PyTorch tensors
+                        batch_2d_points = torch.from_numpy(batch_2d_points_np)
+                        batch_3d_points = torch.from_numpy(batch_3d_points_np)
+                        # Duplicate intrinsics for each item in the batch
+                        intrinsics = intrinsics_single.repeat(batch_2d_points.shape[0], 1, 1)
+                        # Use tensors in kornia function
+                        pred_world_to_cam = K.geometry.solve_pnp_dlt(batch_3d_points, batch_2d_points, intrinsics)
+                        # For each predicted world_to_cam matrix...
+                        for i in range(pred_world_to_cam.shape[0]):
+                            # Unpack the rotation and translation vectors from the world_to_cam matrix
+                            # print(pred_world_to_cam[i, :3, :3])
+                            rvec = cv2.Rodrigues(pred_world_to_cam[i, :3, :3].cpu().numpy())[0]
+                            tvec = pred_world_to_cam[i, :3, 3].cpu().numpy()
+                            if rvec is None or tvec is None:
+                                continue                            
+                            # rvec이나 tvec에 nan이 포함된 경우 continue
+                            if np.isnan(rvec).any() or np.isnan(tvec).any():
+                                continue
+                            # rvec과 tvec의 모든 요소가 0인 경우 continue
+                            if np.all(rvec == 0) and np.all(tvec == 0):
+                                continue
+                            # Project the 3D points to the image plane using cv2.projectPoints
+                            projected_2d_points, _ = cv2.projectPoints(batch_3d_points[i].cpu().numpy(), rvec, tvec, default_cameraK, default_dist_coeffs)
+                            # Compute the reprojection error
+                            RER = np.sum((projected_2d_points.squeeze() - batch_2d_points[i].cpu().numpy())**2)
+                            if RER > 2.5:
+                                error_cnt+=1
+                                # print('points3D_perm ', points3D_perm)
+                                # print('points3D_data ', points3D_data)
+                                # print('list(perm): ', list(perm), ' RER: ', RER)
+                                fail_reason.append([points3D_data, error_cnt, list(perm), RER, rvec.flatten(), tvec.flatten()])
+                            else:
+                                rvec_list.append(np.linalg.norm(rvec))
+                                tvec_list.append(np.linalg.norm(tvec))                      
+                                reproj_err_list.append(RER)                            
+                        
                     if rvec_list and tvec_list and reproj_err_list:
                         frame_counts.append(frame_cnt)
                         rvec_std = np.std(rvec_list)
@@ -384,7 +436,6 @@ if __name__ == "__main__":
                         rvec_std_arr.append(rvec_std)
                         tvec_std_arr.append(tvec_std)
                         reproj_err_rates.append(reproj_err_rate)
-
 
             return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason
         
@@ -580,7 +631,7 @@ if __name__ == "__main__":
     draw_result(ORIGIN_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
-    combination_cnt = [4, 5, 6]
+    combination_cnt = [6]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()
