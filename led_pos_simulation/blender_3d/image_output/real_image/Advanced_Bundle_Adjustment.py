@@ -1,4 +1,5 @@
 from Advanced_Function import *
+from numba import jit
 
 ANGLE = 3
 
@@ -298,6 +299,7 @@ if __name__ == "__main__":
         for blob_id, points_3d in enumerate(RIGID_3D_TRANSFORM_IQR):
             print(f"{points_3d},")    
         
+        @jit(nopython=True)
         def STD_Analysis(points3D_data, label, combination):
             print(f"dataset:{points3D_data} combination_cnt:{combination}")
             frame_counts = []
