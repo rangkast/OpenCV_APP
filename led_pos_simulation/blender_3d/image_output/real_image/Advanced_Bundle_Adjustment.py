@@ -387,20 +387,22 @@ if __name__ == "__main__":
             return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason
         
         all_data = []
+        points3D_datas = ['points3D_origin', 'points3D_legacy', 'points3D_IQR']
+        colors = ['r', 'g', 'b']
+        points3D_LENGTH = len(points3D_datas)
         for COMBINATION in combination_cnt:
             fig, axs = plt.subplots(3, 1, figsize=(15, 15))
             fig.suptitle(f'Calibration Data Analysis for Combination: {COMBINATION}')  # Set overall title
 
-            points3D_datas = ['points3D_legacy', 'points3D_IQR']
-            colors = ['r', 'g', 'b']
+
             summary_text = ""
 
             for idx, points3D_data in enumerate(points3D_datas):
                 frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason = STD_Analysis(points3D_data, points3D_datas, COMBINATION)
 
-                axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label}', alpha=0.5)
-                axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label}', alpha=0.5)
-                axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label}', alpha=0.5)
+                axs[0].plot(frame_counts, rvec_std_arr, colors[idx]+'-', label=f'rvec std {label[idx]}', alpha=0.5)
+                axs[0].plot(frame_counts, tvec_std_arr, colors[idx]+'--', label=f'tvec std {label[idx]}', alpha=0.5)
+                axs[1].plot(frame_counts, reproj_err_rates, colors[idx], label=f'Reprojection error rate {label[idx]}', alpha=0.5)
                 
                 # Calculate and store the average and standard deviation for each data set
                 avg_rvec_std = np.mean(rvec_std_arr)
@@ -446,7 +448,7 @@ if __name__ == "__main__":
         avg_reproj_err_values = [item[6] for item in all_data]
         std_reproj_err_values = [item[7] for item in all_data]
 
-        x = np.arange(len(labels) // 2)
+        x = np.arange(len(labels) // points3D_LENGTH)
         print(x)
         print(labels)
         print(labels[:len(combination_cnt)])
@@ -454,8 +456,10 @@ if __name__ == "__main__":
         fig, axs = plt.subplots(4, 1, figsize=(15, 30)) # increase the figure size
 
         # Rvec subplot
-        rects1 = axs[0].bar(x - width / 4, avg_rvec_std_values[::2], width / 2, color='r', label='Avg Rvec Std for points3D')
-        rects2 = axs[0].bar(x + width / 4, avg_rvec_std_values[1::2], width / 2, color='b', label='Avg Rvec Std for points3D_IQR')
+        rects1 = axs[0].bar(x - width / points3D_LENGTH*2, avg_rvec_std_values[::3], width / points3D_LENGTH, color='r', label='Avg Rvec Std for points3D_ORIGIN')
+        rects2 = axs[0].bar(x  / points3D_LENGTH*2, avg_rvec_std_values[1::3], width / points3D_LENGTH, color='g', label='Avg Rvec Std for points3D_LEGACY')
+        rects3 = axs[0].bar(x + width / points3D_LENGTH*2, avg_rvec_std_values[2::3], width / points3D_LENGTH, color='b', label='Avg Rvec Std for points3D_IQR')
+        
 
         axs[0].set_xlabel('Combination')
         axs[0].set_ylabel('Values')
@@ -465,8 +469,9 @@ if __name__ == "__main__":
         axs[0].legend()
 
         # Tvec subplot
-        rects3 = axs[1].bar(x - width / 4, avg_tvec_std_values[::2], width / 2, color='r', label='Avg Tvec Std for points3D')
-        rects4 = axs[1].bar(x + width / 4, avg_tvec_std_values[1::2], width / 2, color='b', label='Avg Tvec Std for points3D_IQR')
+        rects4 = axs[1].bar(x - width / points3D_LENGTH*2, avg_tvec_std_values[::3], width / points3D_LENGTH, color='r', label='Avg Tvec Std for points3D_ORIGIN')
+        rects5 = axs[1].bar(x  / points3D_LENGTH*2, avg_tvec_std_values[1::3], width / points3D_LENGTH, color='g', label='Avg Tvec Std for points3D_LEGACY')
+        rects6 = axs[1].bar(x + width / points3D_LENGTH*2, avg_tvec_std_values[2::3], width / points3D_LENGTH, color='b', label='Avg Tvec Std for points3D_IQR')
 
         axs[1].set_xlabel('Combination')
         axs[1].set_ylabel('Values')
@@ -476,8 +481,9 @@ if __name__ == "__main__":
         axs[1].legend()
 
         # Reproj_err subplot
-        rects5 = axs[2].bar(x - width / 4, avg_reproj_err_values[::2], width / 2, color='r', label='Avg Reproj Err for points3D')
-        rects6 = axs[2].bar(x + width / 4, avg_reproj_err_values[1::2], width / 2, color='b', label='Avg Reproj Err for points3D_IQR')
+        rects7 = axs[2].bar(x - width / points3D_LENGTH*2, avg_reproj_err_values[::3], width / points3D_LENGTH, color='r', label='Avg Reproj Err Std for points3D_ORIGIN')
+        rects8 = axs[2].bar(x  / points3D_LENGTH*2, avg_reproj_err_values[1::3], width / points3D_LENGTH, color='g', label='Avg Reproj Err Std for points3D_LEGACY')
+        rects9 = axs[2].bar(x + width / points3D_LENGTH*2, avg_reproj_err_values[2::3], width / points3D_LENGTH, color='b', label='Avg Reproj Err Std for points3D_IQR')
 
         axs[2].set_xlabel('Combination')
         axs[2].set_ylabel('Values')
@@ -489,12 +495,17 @@ if __name__ == "__main__":
         # Organize data into a dictionary with column labels as keys
         summary_data = {
             'LEDCount:': labels[:len(combination_cnt)],
-            'AvgRvecStd(points3D):': avg_rvec_std_values[::2],
-            'AvgRvecStd(points3D_IQR):': avg_rvec_std_values[1::2],
-            'AvgTvecStd(points3D):': avg_tvec_std_values[::2],
-            'AvgTvecStd(points3D_IQR):': avg_tvec_std_values[1::2],
-            'AvgReprojErr(points3D):': avg_reproj_err_values[::2],
-            'AvgReprojErr(points3D_IQR):': avg_reproj_err_values[1::2]
+            'AvgRvecStd(points3D_ORIGIN):': avg_rvec_std_values[::3],
+            'AvgRvecStd(points3D_LEGACY):': avg_rvec_std_values[1::3],
+            'AvgRvecStd(points3D_IQR):': avg_rvec_std_values[2::3],
+
+            'AvgTvecStd(points3D_ORIGIN):': avg_tvec_std_values[::3],
+            'AvgTvecStd(points3D_LEGACY):': avg_tvec_std_values[1::3],
+            'AvgTvecStd(points3D_IQR):': avg_tvec_std_values[2::3],
+
+            'AvgReprojErr(points3D_ORIGIN):': avg_reproj_err_values[::3],
+            'AvgReprojErr(points3D_LEGACY):': avg_reproj_err_values[1::3],
+            'AvgReprojErr(points3D_IQR):': avg_reproj_err_values[2::3]
         }
 
         # Create DataFrame from dictionary
@@ -567,7 +578,7 @@ if __name__ == "__main__":
     draw_result(ORIGIN_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
-    combination_cnt = [4]
+    combination_cnt = [4, 5, 6]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()
