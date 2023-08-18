@@ -336,7 +336,7 @@ if __name__ == "__main__":
                             points3D_perm = points3D[list(perm), :]
                             points2D_perm = points2D[list(perm), :]
                             points2D_U_perm = points2D_U[list(perm), :]
-                            if combination >= 6:
+                            if combination == 6:
                                 USING_KORNIA = DONE
                                 # Using DLT
                                 # Kornia, Tensor

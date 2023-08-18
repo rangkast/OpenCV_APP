@@ -2,11 +2,15 @@
 430 200 0
 HOST = '192.168.1.10'
 RECV_HOST = '192.168.1.2'
+ssh -X 10.157.14.32 -l user.name
 ######################################
+
+
 
 #####################################
 RIGHT vs LEFT
 TOP,BOTTOM, pattern 확인
+#####################################
 
 
 초기 카메라 path 정의 하는 방법
@@ -66,6 +70,9 @@ Advanced_Bundle_Adjustment.py
 ###################################################
 
 
+
+
+
 BLENDER 정의 RT가 이미 성립되어 있는 경우
 ############ CALIBRATION_DATA ############
 Advanced_Frame_Capture_Legacy.py
@@ -95,3 +102,4 @@ CAMERA_INFO.pickle -> CAMERA_INFO_BACKUP.pickle 변경
 Advanced_Bundle_Adjustment.py
     -> plane_calibration 값 저장 (1차 data) : NOT_SET
     -모든 phase 테스트 진행
+###################################################
