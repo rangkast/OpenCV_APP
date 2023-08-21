@@ -58,7 +58,7 @@ ANGLE = 3
 MAX_FRAME_CNT = 360 / ANGLE
 # MAX_FRAME_CNT = 70
 BLOB_SIZE = 20
-TRACKER_PADDING = 3
+TRACKER_PADDING = 2
 DO_SOCKET_COMM = 1
 
 UP = 1
@@ -478,7 +478,6 @@ def distance_operation(frame, draw_frame, frame_cnt, prev_frame_cnt, vertical_cn
         #     tcx, tcy, _ = find_center(frame, tracker_data['bbox'])
         #     TRACKER.append([tracker_data['idx'], [tcx, tcy]])
         
-
         for t_data in TRACKER:
             blob_id = t_data[0]
             tcxy = t_data[1]

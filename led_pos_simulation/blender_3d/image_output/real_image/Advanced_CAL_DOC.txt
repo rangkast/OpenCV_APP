@@ -1,7 +1,7 @@
 ############ TOP BAR Pose ############
 430 200 0
 HOST = '192.168.1.10'
-RECV_HOST = '192.168.1.2'
+RECV_HOST = '192.168.1.2' 255.255.255.0 (Local)
 ssh -X 10.157.14.32 -l user.name
 ######################################
 
@@ -19,7 +19,7 @@ Advanced_Frame_Capture_Legacy.py
     -> plane image 120장
 
 Advanced_Calibration.py:
-    SOLUTION = 3
+    SOLUTION = 1
     TARGET_DEVICE = 'ARCTURAS'        
     -> blob id가 labeling 됨
     -> CAMERA_INFO.pickle (추후 이전 코드가 수정필요)
@@ -79,10 +79,10 @@ Advanced_Frame_Capture_Legacy.py
         -> plane image 120장
 
 Advanced_Calibration.py:
-    SOLUTION = 1
-    TARGET_DEVICE = 'ARCTURAS'        
+    SOLUTION = 3
+    TARGET_DEVICE = 'TEST'        
     -> blob id가 labeling 됨
-    -> CAMERA_INFO.pickle (추후 이전 코드가 수정필요)
+    -> CAMERA_INFO_PLANE.pickle (추후 이전 코드가 수정필요)
     -> plane_calibration 값 저장 (1차 data) : NOT_SET
 
 Advanced_Frame_Capture.py

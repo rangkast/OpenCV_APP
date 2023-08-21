@@ -2276,17 +2276,17 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 0
+    AUTO_LOOP = 1
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 4
+    SOLUTION = 3
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
     DO_CIRCULAR_FIT_ALGORITHM = 1
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'ARCTURAS'
+    TARGET_DEVICE = 'TEST'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2388,10 +2388,10 @@ if __name__ == "__main__":
         CV_MIN_THRESHOLD = 100
 
         ARCTURAS_PATTERN = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
-        # RIGHT 23 11
-        # LEFT 12 0
+        # RIGHT 23 11 MINUS
+        # LEFT 12 0 PLUS
         LEDS_POSITION = ARCTURAS_PATTERN
-        LEFT_RIGHT_DIRECTION = PLUS
+        LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 50
         controller_name = 'arcturas'
         # camera_log_path = f"./render_img/{controller_name}/test_1/camera_log_final.txt"
@@ -2401,8 +2401,8 @@ if __name__ == "__main__":
         camera_log_path = f"./tmp/render/ARCTURAS/camera_log_0.txt"
         camera_img_path = f"./tmp/render/"
         combination_cnt = [4]
-        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_left.json"))
-        # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
+        # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_left_1_self.json"))
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
         STOP_FRAME = 121
         THRESHOLD_DISTANCE = 10
@@ -2540,7 +2540,11 @@ if __name__ == "__main__":
         pickle_data(WRITE, 'CAMERA_INFO_PLANE.pickle', data)
         print('CAMERA_INFO_PLANE.pickle saved')
     elif SOLUTION == 4:
-        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
+        CAMERA_INFO = gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
+        data = OrderedDict()
+        data['CAMERA_INFO'] = CAMERA_INFO
+        pickle_data(WRITE, 'CAMERA_INFO_PLANE.pickle', data)
+        print('CAMERA_INFO_PLANE.pickle saved')
     else:
         print('Do Nothing')
         
