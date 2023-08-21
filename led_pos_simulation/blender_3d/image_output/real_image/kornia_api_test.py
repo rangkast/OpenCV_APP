@@ -66,7 +66,7 @@ print(f"Translation vector: {tvec}")
 # Here we assume `points3D`, `points2D`, `camera_k` and `dist_coeff` are already defined
 
 # Calculate the reprojection error using the function you provided
-rer_pnp_solver = reprojection_error(points3D, points2D, PnP_Solver_rvec, PnP_Solver_tvec, camera_matrix[0][0], camera_matrix[0][1])
+rer_pnp_solver, _ = reprojection_error(points3D, points2D, PnP_Solver_rvec, PnP_Solver_tvec, camera_matrix[0][0], camera_matrix[0][1])
 print(f"PnP_Solver reprojection error: {rer_pnp_solver}")
 
 # Convert PyTorch tensors to numpy arrays for the calculation
@@ -78,6 +78,6 @@ rvec_kornia = cv2.Rodrigues(world_to_cam[0, :3, :3].cpu().numpy())[0]
 tvec_kornia = world_to_cam[0, :3, 3].cpu().numpy()
 
 # Calculate the reprojection error
-rer_kornia = reprojection_error(points3D_np, points2D, rvec_kornia, tvec_kornia, camera_matrix[0][0], camera_matrix[0][1])
+rer_kornia, _ = reprojection_error(points3D_np, points2D, rvec_kornia, tvec_kornia, camera_matrix[0][0], camera_matrix[0][1])
 print(f"Kornia PnP reprojection error: {rer_kornia}")
 

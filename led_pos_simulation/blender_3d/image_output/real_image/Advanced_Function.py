@@ -823,7 +823,7 @@ def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):
         # print('points2D:\n', points2D)
         # print('points2D_reprojection:\n', points2D_reprojection)
         # print('RER:', RER)
-        return RER
+        return RER, points2D_reprojection
 def cal_iqr_func(arr):
     Q1 = np.percentile(arr, 25)
     Q3 = np.percentile(arr, 75)

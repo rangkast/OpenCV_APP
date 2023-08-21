@@ -1689,7 +1689,7 @@ def Check_Calibration_data_combination(combination_cnt, **kwargs):
                         # print('rvec:', rvec)
                         # print('tvec:', tvec)
 
-                        RER = reprojection_error(points3D_perm,
+                        RER, _ = reprojection_error(points3D_perm,
                                                 points2D_perm,
                                                 rvec, tvec,
                                                 camera_matrix[CAM_ID][0],
@@ -2276,17 +2276,17 @@ def draw_result(MODEL_DATA, **kwargs):
 if __name__ == "__main__":
 
     SERVER = 0
-    AUTO_LOOP = 1
+    AUTO_LOOP = 0
     DO_P3P = 0
     DO_PYRAMID = 1
-    SOLUTION = 3
+    SOLUTION = 4
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 150
     DO_CIRCULAR_FIT_ALGORITHM = 1
     DEGREE = 0
 
     # Camera RT 마지막 버전 test_7
-    TARGET_DEVICE = 'TEST'
+    TARGET_DEVICE = 'ARCTURAS'
 
     if TARGET_DEVICE == 'RIFTS':
         # Test_7 보고
@@ -2308,13 +2308,15 @@ if __name__ == "__main__":
         TRACKING_ANCHOR_RECOGNIZE_SIZE = 1
         DO_CIRCULAR_FIT_ALGORITHM = (NOT_SET, NOT_SET)
     elif TARGET_DEVICE == 'ARCTURAS':
+        # RIGHT 23 11
+        # LEFT 12 0
         ARCTURAS_PATTERN_RIGHT = [1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0]
         LEDS_POSITION = ARCTURAS_PATTERN_RIGHT
         LEFT_RIGHT_DIRECTION = MINUS
         BLOB_SIZE = 50
         controller_name = 'arcturas'
         camera_log_path = f"./render_img/camera_log_final.txt"
-        camera_img_path = f"./render_img/{controller_name}/test_3/"
+        camera_img_path = f"./render_img/{controller_name}/test_2/"
         combination_cnt = [4,5]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_right_1_self.json"))
         START_FRAME = 0
@@ -2537,7 +2539,8 @@ if __name__ == "__main__":
         data['CAMERA_INFO'] = CAMERA_INFO
         pickle_data(WRITE, 'CAMERA_INFO_PLANE.pickle', data)
         print('CAMERA_INFO_PLANE.pickle saved')
-
+    elif SOLUTION == 4:
+        gathering_data_single(ax1, script_dir, bboxes, areas, START_FRAME, STOP_FRAME, 0, 0)
     else:
         print('Do Nothing')
         

@@ -310,7 +310,7 @@ if __name__ == "__main__":
             USING_KORNIA = NOT_SET
              # Use the default camera matrix as the intrinsic parameters
             intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
-
+            img = np.zeros((960, 1280, 3), dtype=np.uint8)
             for frame_cnt, cam_data in CAMERA_INFO.items(): 
                 rvec_list = []
                 tvec_list = []
@@ -371,11 +371,17 @@ if __name__ == "__main__":
                             # print('rvec:', rvec)
                             # print('tvec:', tvec)
 
-                            RER = reprojection_error(points3D_perm,
-                                                    points2D_perm,
-                                                    rvec, tvec,
-                                                    camera_matrix[CAM_ID][0],
-                                                    camera_matrix[CAM_ID][1])
+                            RER, reproj_2d = reprojection_error(points3D_perm,
+                                                     points2D_perm,
+                                                     rvec, tvec,
+                                                     camera_matrix[CAM_ID][0],
+                                                     camera_matrix[CAM_ID][1])
+                            if int(frame_cnt) == 10:
+                                # print(reproj_2d)
+                                for (x, y) in reproj_2d:
+                                    cv2.circle(img, (int(x), int(y)), 1, (0, 0, 255), -1)
+
+                            
                             if RER > 2.5:
                                 error_cnt+=1
                                 # print('points3D_perm ', points3D_perm)
@@ -436,7 +442,8 @@ if __name__ == "__main__":
                         rvec_std_arr.append(rvec_std)
                         tvec_std_arr.append(tvec_std)
                         reproj_err_rates.append(reproj_err_rate)
-
+                        
+            cv2.imwrite(f"{points3D_data}_ouput.png", img)
             return frame_counts, rvec_std_arr, tvec_std_arr, reproj_err_rates, label, fail_reason
         
         all_data = []
@@ -631,7 +638,7 @@ if __name__ == "__main__":
     draw_result(ORIGIN_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
-    combination_cnt = [6]
+    combination_cnt = [5]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()

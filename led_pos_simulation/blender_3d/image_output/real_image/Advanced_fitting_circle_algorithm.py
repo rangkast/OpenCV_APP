@@ -297,6 +297,9 @@ ax.plot_surface(xx, yy, zz, rstride=2, cstride=2, color='y' ,alpha=0.2, shade=Fa
 #--- Plot fitting circle
 ax.plot(*P_fitcircle.T, color='k', ls='--', lw=2, label='Fitting circle')
 ax.plot(*P_fitarc.T, color='k', ls='-', lw=3, label='Fitting arc')
+# Plotting the vector as an arrow
+ax.quiver(*C, *normal, color='b', arrow_length_ratio=0.1)
+
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
