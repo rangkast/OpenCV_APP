@@ -12,7 +12,7 @@ CAM_ID = 0
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960
 UVC_MODE = 1
-AUTO_LOOP = 0
+AUTO_LOOP = 1
 undistort = 1
 
 
@@ -24,7 +24,7 @@ Solutions
 3 : translation Matrix x projectPoints
 4 : object tracking
 '''
-SOLUTION = 3
+SOLUTION = 5
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -1056,6 +1056,101 @@ elif SOLUTION == 4:
             if UVC_MODE == 1:
                 video.release()
             cv2.destroyAllWindows()
+
+
+elif SOLUTION == 5:
+    def auto_labeling():
+        frame_cnt = 0
+        # Select the first camera device
+        if UVC_MODE:
+            cam_dev_list = terminal_cmd('v4l2-ctl', '--list-devices')
+            camera_devices = init_model_json(cam_dev_list)
+            print(camera_devices)
+            camera_port = camera_devices[0]['port']
+            # Open the video capture
+            video = cv2.VideoCapture(camera_port)
+            # Set the resolution
+            video.set(cv2.CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_WIDTH)
+            video.set(cv2.CAP_PROP_FRAME_HEIGHT, CAP_PROP_FRAME_HEIGHT)
+        else:
+            image_files = sorted(glob.glob(os.path.join(script_dir, f"./render_img/rifts_right_9/test_1/" + '*.png')))        
+            print('lenght of images: ', len(image_files))
+
+
+        # Initialize each blob ID with a copy of the structure
+        for blob_id in range(BLOB_CNT):
+            BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
+
+        while video.isOpened() if UVC_MODE else True:
+            print('\n')        
+            if UVC_MODE:
+                ret, frame_0 = video.read()
+                filename = f"VIDEO Mode {camera_port}"
+                if not ret:
+                    break
+            else:
+                print(f"########## Frame {frame_cnt} ##########")
+                # BLENDER와 확인해 보니 마지막 카메라 위치가 시작지점으로 돌아와서 추후 remake 3D 에서 이상치 발생 ( -1 )  
+                if frame_cnt >= len(image_files):
+                    break
+                frame_0 = cv2.imread(image_files[frame_cnt])
+                filename = f"IMAGE Mode {os.path.basename(image_files[frame_cnt])}"
+                if frame_0 is None or frame_0.size == 0:
+                    print(f"Failed to load {image_files[frame_cnt]}, frame_cnt:{frame_cnt}")
+                    continue
+                frame_0 = cv2.resize(frame_0, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
+
+
+
+            draw_frame = frame_0.copy()
+            _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
+                                    cv2.THRESH_TOZERO)
+
+            cv2.putText(draw_frame, f"frame_cnt {frame_cnt} [{filename}]", (draw_frame.shape[1] - 500, 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+            center_x, center_y = CAP_PROP_FRAME_WIDTH // 2, CAP_PROP_FRAME_HEIGHT // 2
+            cv2.line(draw_frame, (0, center_y), (CAP_PROP_FRAME_WIDTH, center_y), (255, 255, 255), 1)
+            cv2.line(draw_frame, (center_x, 0), (center_x, CAP_PROP_FRAME_HEIGHT), (255, 255, 255), 1) 
+
+
+            # find Blob area by findContours
+            blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
+            blobs = []
+
+            for blob_id, bbox in enumerate(blob_area):
+                (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
+                gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
+                if gsize < BLOB_SIZE:
+                    continue 
+
+                cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+                blobs.append((gcx, gcy, bbox))
+
+            blobs = sorted(blobs, key=lambda x:x[0]) ## 또는 l.sort(key=lambda x:x[1])
+            # print('blobs ', blobs)
+            CNT = len(blobs)
+        
+            if AUTO_LOOP and UVC_MODE == 0:
+                frame_cnt += 1
+            # Display the resulting frame
+            cv2.imshow('Frame', draw_frame)
+            key = cv2.waitKey(1)
+            if key & 0xFF == ord('e'): 
+                # Use 'e' key to exit the loop
+                break
+            elif key & 0xFF == ord('n'):
+                if AUTO_LOOP and UVC_MODE == 0:
+                    frame_cnt += 1     
+            elif key & 0xFF == ord('b'):
+                if AUTO_LOOP and UVC_MODE == 0:
+                    frame_cnt -= 1    
+
+        # Release everything when done
+        if UVC_MODE == 1:
+            video.release()
+        cv2.destroyAllWindows()
+
 def insert_ba_rt(**kwargs):
     print('insert_ba_rt START')
     BA_RT = pickle_data(READ, kwargs.get('ba_name'), None)['BA_RT']

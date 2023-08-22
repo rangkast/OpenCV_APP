@@ -73,11 +73,11 @@ def bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, point_indice
         A[2 * i + 1, n_cameras * 6 + point_indices * 3 + s] = 1
 
     return A
-# A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, points_indices)
-# res = least_squares(fun, x0, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
-#                     jac_sparsity=A, args=(n_cameras, n_points, camera_indices, points_indices, points_2d))
+A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indices, points_indices)
 res = least_squares(fun, x0, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
-                    args=(n_cameras, n_points, camera_indices, points_indices, points_2d))
+                    jac_sparsity=A, args=(n_cameras, n_points, camera_indices, points_indices, points_2d))
+# res = least_squares(fun, x0, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
+#                     args=(n_cameras, n_points, camera_indices, points_indices, points_2d))
 estimated_points3D = res.x[:n_points * 3].reshape((n_points, 3))
 print("오염된 3D 좌표:")
 print(estimated_points3D)
