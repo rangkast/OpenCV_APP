@@ -1511,8 +1511,17 @@ def BA_RT(**kwargs):
     print('\n')
     print('#################### BA  ####################')
     print('n_points', n_points)
+    start_time = time.time() 
+    # Use Sparsity pattern
     res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
                         args=(n_cameras, camera_indices, point_indices, POINTS_2D, POINTS_3D, camera_matrix))
+
+    # res = least_squares(fun, x0, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
+    #                     args=(n_cameras, camera_indices, point_indices, POINTS_2D, POINTS_3D, camera_matrix))
+
+    end_time = time.time()  # Store the current time again
+    elapsed_time = end_time - start_time  # Calculate the difference
+    print(f"The function took {elapsed_time} seconds to complete.")         
 
     # You are only optimizing camera parameters, so the result only contains camera parameters data
     n_cameras_params = res.x.reshape((n_cameras, 6))
