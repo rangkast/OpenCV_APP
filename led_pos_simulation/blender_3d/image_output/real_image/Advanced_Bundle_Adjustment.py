@@ -307,7 +307,7 @@ if __name__ == "__main__":
             reproj_err_rates = []
             error_cnt = 0
             fail_reason = []
-            USING_KORNIA = NOT_SET
+
              # Use the default camera matrix as the intrinsic parameters
             intrinsics_single = torch.tensor(np.array([default_cameraK]), dtype=torch.float64)
             img = np.zeros((960, 1280, 3), dtype=np.uint8)
@@ -337,13 +337,15 @@ if __name__ == "__main__":
                             points2D_perm = points2D[list(perm), :]
                             points2D_U_perm = points2D_U[list(perm), :]
                             if combination == 6:
-                                USING_KORNIA = DONE
-                                # Using DLT
-                                # Kornia, Tensor
-                                # Add to batch lists
-                                batch_2d_points.append(points2D_U_perm)
-                                batch_3d_points.append(points3D_perm)
-                                continue                            
+                                if USING_KORNIA == DONE:
+                                    # Using DLT
+                                    # Kornia, Tensor
+                                    # Add to batch lists
+                                    batch_2d_points.append(points2D_U_perm)
+                                    batch_3d_points.append(points3D_perm)
+                                    continue
+                                else:
+                                    METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC          
                             elif combination == 5:
                                 METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
                             elif combination == 4:
@@ -638,7 +640,8 @@ if __name__ == "__main__":
     draw_result(ORIGIN_DATA, ax1=ax1, ax2=ax2, opencv=DONE, blender=DONE, ba_rt=DONE) 
 
     # TEST
-    combination_cnt = [4]
+    USING_KORNIA = NOT_SET
+    combination_cnt = [6]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()
