@@ -152,3 +152,6 @@ for data in points2D:
 import math
 total_cases = math.comb(6, 5) * math.perm(5)
 print(total_cases)
+
+R_BlenderView_to_OpenCVView = np.diag([1, -1, -1])
+print(f"R_BlenderView_to_OpenCVView{R_BlenderView_to_OpenCVView}")

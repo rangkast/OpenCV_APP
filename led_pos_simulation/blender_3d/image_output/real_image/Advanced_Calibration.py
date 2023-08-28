@@ -1433,7 +1433,7 @@ def BA_RT(**kwargs):
 
     if len(CAMERA_INFO) <= 0:
         return ERROR
-
+    LED_INDICES = []
     for frame_cnt, cam_info in CAMERA_INFO.items():
         # print(cam_info['LED_NUMBER'])
         # if len(cam_info['LED_NUMBER']) <= 0:
@@ -1460,6 +1460,8 @@ def BA_RT(**kwargs):
         
         # Adding 3D points
         POINTS_3D.extend(points3D)
+
+        LED_INDICES.extend(cam_info['LED_NUMBER'])
         
         # Adding indices
         camera_indices.extend([cam_id]*len(points3D))
@@ -1486,8 +1488,7 @@ def BA_RT(**kwargs):
         points_proj = np.array(points_proj)
         return (points_proj - points_2d).ravel()
 
-
-    def bundle_adjustment_sparsity(n_cameras, camera_indices):
+    def bundle_adjustment_sparsity_RT(n_cameras, camera_indices):
         m = camera_indices.size * 2
         n = n_cameras * 6
         A = lil_matrix((m, n), dtype=int)
@@ -1496,6 +1497,32 @@ def BA_RT(**kwargs):
             A[2 * i, camera_indices * 6 + s] = 1
             A[2 * i + 1, camera_indices * 6 + s] = 1
         return A
+    
+    def bundle_adjustment_sparsity_Point(n_points, point_indices):
+        m = point_indices.size * 2
+        n = n_points * 3
+        A = lil_matrix((m, n), dtype=int)
+        i = np.arange(point_indices.size)
+        for s in range(3):
+            A[2 * i, point_indices * 3 + s] = 1
+            A[2 * i + 1, point_indices * 3 + s] = 1
+        return A
+    
+    def bundle_adjustment_sparsity_Point_RT(n_cameras, n_points, camera_indices, point_indices):
+        m = camera_indices.size * 2
+        n = n_cameras * 6 + n_points * 3  # Note: Here camera parameters are 6 (3 for rotation and 3 for translation)
+        A = lil_matrix((m, n), dtype=int)
+
+        i = np.arange(camera_indices.size)
+        for s in range(6):  # Changed here from 9 to 6
+            A[2 * i, camera_indices * 6 + s] = 1
+            A[2 * i + 1, camera_indices * 6 + s] = 1
+
+        for s in range(3):
+            A[2 * i, n_cameras * 6 + point_indices * 3 + s] = 1
+            A[2 * i + 1, n_cameras * 6 + point_indices * 3 + s] = 1
+        return A
+
 
     # Convert the lists to NumPy arrays
     n_cameras = len(estimated_RTs)
@@ -1506,11 +1533,17 @@ def BA_RT(**kwargs):
     POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
 
     x0 = camera_params.ravel()
-    A = bundle_adjustment_sparsity(n_cameras, camera_indices)
+    A = bundle_adjustment_sparsity_RT(n_cameras, camera_indices)
+    # A = bundle_adjustment_sparsity_Point_RT(n_cameras, n_points, camera_indices, point_indices)
     
     print('\n')
     print('#################### BA  ####################')
     print('n_points', n_points)
+    # print(f"camera_params\n{camera_params}")
+    print(f"camera_indices:\n{camera_indices}")
+    print(f"point_indices:\n{point_indices}")
+    print(f"A: {A.shape[0]}")
+
     start_time = time.time() 
     # Use Sparsity pattern
     res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
@@ -1526,112 +1559,118 @@ def BA_RT(**kwargs):
     # You are only optimizing camera parameters, so the result only contains camera parameters data
     n_cameras_params = res.x.reshape((n_cameras, 6))
     # print("Optimized camera parameters: ", n_cameras_params, ' ', len(n_cameras_params))
+    # n_points_3d = res.x.reshape((n_points, 3))
+
     file = save_to
     data = OrderedDict()
     data['BA_RT'] = n_cameras_params
     data['camera_indices'] = camera_indices
-    ret = pickle_data(WRITE, file, data)
-    if ret != ERROR:
-        print('data saved')   
-def BA_3D_POINT(**kwargs):
-    print('BA_3D_POINT START')
-    RT = kwargs.get('RT')
-    BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
-    REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
-    REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
-    camera_indices = []
-    point_indices = []
-    estimated_RTs = []
-    POINTS_2D = []
-    POINTS_3D = []
-    n_points = 0
-    cam_id = 0
-
-    # Iterating over each blob_id in BLOB_INFO and REMADE_3D_INFO_B
-    LED_INDICES = []
-    for blob_id, blob_info in BLOB_INFO.items():
-        remade_3d_info = REMADE_3D_INFO_B[blob_id]
-        for frame_id in range(1, len(blob_info[RT]['rt']['rvec'])):
-            # Adding 2D points
-            if undistort == 0:
-                POINTS_2D.append(blob_info['points2D_D']['greysum'][frame_id])
-            else:
-                POINTS_2D.append(blob_info['points2D_U']['greysum'][frame_id])
-            # Adding 3D points
-            POINTS_3D.append(remade_3d_info[frame_id - 1])
-            # Adding RTs
-            rvec = blob_info[RT]['rt']['rvec'][frame_id]
-            tvec = blob_info[RT]['rt']['tvec'][frame_id]
-            estimated_RTs.append((rvec.ravel(), tvec.ravel()))
-
-            # Adding camera id
-            camera_indices.append(cam_id)
-            # Adding point index
-            point_indices.append(cam_id)
-            LED_INDICES.append(blob_id)
-            cam_id += 1
-        n_points += (len(blob_info[RT]['rt']['rvec']) - 1)
-
-    def fun(params, n_points, camera_indices, point_indices, points_2d, camera_params, camera_matrix):
-        """Compute residuals.
-        `params` contains 3-D coordinates.
-        """
-        points_3d = params.reshape((n_points, 3))
-
-        points_proj = []
-        for i, POINT_3D in enumerate(points_3d[point_indices]):
-            camera_index = camera_indices[i]
-            # print('points_3d', POINT_3D, ' ', camera_index, ' ', i)
-            # print('R', np.array(camera_params[camera_indices][i][0]))
-            # print('T', np.array(camera_params[camera_indices][i][1]))
-            POINT_2D_PROJ, _ = cv2.projectPoints(POINT_3D,
-                                                 np.array(camera_params[camera_indices][i][0]),
-                                                 np.array(camera_params[camera_indices][i][1]),
-                                                 camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
-                                                 camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs)
-            points_proj.append(POINT_2D_PROJ[0][0])
-
-        points_proj = np.array(points_proj)
-        return (points_proj - points_2d).ravel()
-
-    def bundle_adjustment_sparsity(n_points, point_indices):
-        m = point_indices.size * 2
-        n = n_points * 3
-        A = lil_matrix((m, n), dtype=int)
-        i = np.arange(point_indices.size)
-        for s in range(3):
-            A[2 * i, point_indices * 3 + s] = 1
-            A[2 * i + 1, point_indices * 3 + s] = 1
-        return A
-
-    # Convert the lists to NumPy arrays
-    n_cameras = len(estimated_RTs)
-    camera_indices = np.array(camera_indices)
-    point_indices = np.array(point_indices)
-    camera_params = np.array(estimated_RTs)
-    POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
-    POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
-
-    # print('camera_params\n', camera_params.reshape(-1, 6))
-    x0 = POINTS_3D.ravel()
-    A = bundle_adjustment_sparsity(n_points, point_indices)
-    
-    print('\n')
-    print('#################### BA  ####################')
-    print('n_points', n_points)
-    res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
-                        args=(n_points, camera_indices, point_indices, POINTS_2D, camera_params, camera_matrix))
-
-    # You are only optimizing points, so the result only contains point data
-    n_points_3d = res.x.reshape((n_points, 3))
-    # print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
-    file = 'BA_3D.pickle'
-    data = OrderedDict()
-    data['BA_3D'] = n_points_3d
+    # data['BA_3D'] = n_points_3d
     data['LED_INDICES'] = LED_INDICES
     ret = pickle_data(WRITE, file, data)
     if ret != ERROR:
         print('data saved')
+
+# def BA_3D_POINT(**kwargs):
+#     print('BA_3D_POINT START')
+#     RT = kwargs.get('RT')
+#     BLOB_INFO = pickle_data(READ, 'BLOB_INFO.pickle', None)['BLOB_INFO']
+#     REMADE_3D_INFO_B = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_B']
+#     REMADE_3D_INFO_O = pickle_data(READ, 'REMADE_3D_INFO.pickle', None)['REMADE_3D_INFO_O']
+#     camera_indices = []
+#     point_indices = []
+#     estimated_RTs = []
+#     POINTS_2D = []
+#     POINTS_3D = []
+#     n_points = 0
+#     cam_id = 0
+
+#     # Iterating over each blob_id in BLOB_INFO and REMADE_3D_INFO_B
+#     LED_INDICES = []
+#     for blob_id, blob_info in BLOB_INFO.items():
+#         remade_3d_info = REMADE_3D_INFO_B[blob_id]
+#         for frame_id in range(1, len(blob_info[RT]['rt']['rvec'])):
+#             # Adding 2D points
+#             if undistort == 0:
+#                 POINTS_2D.append(blob_info['points2D_D']['greysum'][frame_id])
+#             else:
+#                 POINTS_2D.append(blob_info['points2D_U']['greysum'][frame_id])
+#             # Adding 3D points
+#             POINTS_3D.append(remade_3d_info[frame_id - 1])
+#             # Adding RTs
+#             rvec = blob_info[RT]['rt']['rvec'][frame_id]
+#             tvec = blob_info[RT]['rt']['tvec'][frame_id]
+#             estimated_RTs.append((rvec.ravel(), tvec.ravel()))
+
+#             # Adding camera id
+#             camera_indices.append(cam_id)
+#             # Adding point index
+#             point_indices.append(cam_id)
+#             LED_INDICES.append(blob_id)
+#             cam_id += 1
+#         n_points += (len(blob_info[RT]['rt']['rvec']) - 1)
+
+#     def fun(params, n_points, camera_indices, point_indices, points_2d, camera_params, camera_matrix):
+#         """Compute residuals.
+#         `params` contains 3-D coordinates.
+#         """
+#         points_3d = params.reshape((n_points, 3))
+
+#         points_proj = []
+#         for i, POINT_3D in enumerate(points_3d[point_indices]):
+#             camera_index = camera_indices[i]
+#             # print('points_3d', POINT_3D, ' ', camera_index, ' ', i)
+#             # print('R', np.array(camera_params[camera_indices][i][0]))
+#             # print('T', np.array(camera_params[camera_indices][i][1]))
+#             POINT_2D_PROJ, _ = cv2.projectPoints(POINT_3D,
+#                                                  np.array(camera_params[camera_indices][i][0]),
+#                                                  np.array(camera_params[camera_indices][i][1]),
+#                                                  camera_matrix[CAM_ID][0] if undistort == 0 else default_cameraK,
+#                                                  camera_matrix[CAM_ID][1] if undistort == 0 else default_dist_coeffs)
+#             points_proj.append(POINT_2D_PROJ[0][0])
+
+#         points_proj = np.array(points_proj)
+#         return (points_proj - points_2d).ravel()
+
+#     def bundle_adjustment_sparsity(n_points, point_indices):
+#         m = point_indices.size * 2
+#         n = n_points * 3
+#         A = lil_matrix((m, n), dtype=int)
+#         i = np.arange(point_indices.size)
+#         for s in range(3):
+#             A[2 * i, point_indices * 3 + s] = 1
+#             A[2 * i + 1, point_indices * 3 + s] = 1
+#         return A
+
+#     # Convert the lists to NumPy arrays
+#     n_cameras = len(estimated_RTs)
+#     camera_indices = np.array(camera_indices)
+#     point_indices = np.array(point_indices)
+#     camera_params = np.array(estimated_RTs)
+#     POINTS_2D = np.array(POINTS_2D).reshape(-1, 2)
+#     POINTS_3D = np.array(POINTS_3D).reshape(-1, 3)
+
+#     # print('camera_params\n', camera_params.reshape(-1, 6))
+#     x0 = POINTS_3D.ravel()
+#     A = bundle_adjustment_sparsity(n_points, point_indices)
+    
+#     print('\n')
+#     print('#################### BA  ####################')
+#     print('n_points', n_points)
+#     res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-6, method='trf',
+#                         args=(n_points, camera_indices, point_indices, POINTS_2D, camera_params, camera_matrix))
+
+#     # You are only optimizing points, so the result only contains point data
+#     n_points_3d = res.x.reshape((n_points, 3))
+#     # print("Optimized 3D points: ", n_points_3d, ' ', len(n_points_3d))
+#     file = 'BA_3D.pickle'
+#     data = OrderedDict()
+#     data['BA_3D'] = n_points_3d
+#     data['LED_INDICES'] = LED_INDICES
+#     ret = pickle_data(WRITE, file, data)
+#     if ret != ERROR:
+#         print('data saved')
+
 def Check_Calibration_data_combination(combination_cnt, **kwargs):
     print('Check_Calibration_data_combination START')
     info_name = kwargs.get('info_name')    
