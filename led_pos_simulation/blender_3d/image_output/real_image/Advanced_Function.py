@@ -47,6 +47,7 @@ import torchvision
 import kornia as K
 import time
 from sklearn.cluster import AgglomerativeClustering
+from numba import jit, float64, int32
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path

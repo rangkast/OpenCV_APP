@@ -1539,10 +1539,20 @@ def BA_RT(**kwargs):
     print('\n')
     print('#################### BA  ####################')
     print('n_points', n_points)
-    # print(f"camera_params\n{camera_params}")
-    print(f"camera_indices:\n{camera_indices}")
-    print(f"point_indices:\n{point_indices}")
     print(f"A: {A.shape[0]}")
+
+    print('n_cameras', n_cameras)
+    print('len(point_indices)', len(point_indices))
+    print('len(camera_params)', len(camera_params))
+    print('len(camera_indices)', len(camera_indices))
+    print(f"camera_params\n{camera_params[:50]}")
+    print(f"point_indices\n{point_indices[:50]}")
+    print(f"camera_indices\n{camera_indices[:50]}")
+
+    # Visualize the sparse matrix
+    plt.figure(figsize=(20, 20))
+    plt.spy(A, markersize=1, aspect='auto')
+    plt.show()
 
     start_time = time.time() 
     # Use Sparsity pattern
