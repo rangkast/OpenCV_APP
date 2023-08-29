@@ -93,7 +93,6 @@ print("Rvec: ", rvec_new_B)
 print("Tvec: ", t_new_B)
 
 
-
 # Original B pose
 rvec_B = np.array([-1.33942214, 0.97914561, 0.97919369])
 tvec_B = np.array([0.0254568, 0.01676413, 0.31461424])

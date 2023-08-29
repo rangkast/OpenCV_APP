@@ -303,6 +303,7 @@ def rw_json_data(rw_mode, path, data=None):
             print(data)
             with open(path, 'w', encoding="utf-8") as wdata:
                 json.dump(data, wdata, ensure_ascii=False, indent="\t")
+                # json.dump(data, wdata, separators=(',', ':'))
         else:
             print('not support mode')
     except:
