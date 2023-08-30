@@ -24,7 +24,7 @@ Solutions
 3 : translation Matrix x projectPoints
 4 : object tracking
 '''
-SOLUTION = 5
+SOLUTION = 1
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -204,7 +204,7 @@ if SOLUTION == 1:
                                                     rvec, tvec,
                                                     camera_matrix[CAM_ID][0],
                                                     camera_matrix[CAM_ID][1])
-                            if RER < RER_SPEC:
+                            if RER[0] < RER_SPEC:
                                 # pos, dir = world_location_rotation_from_opencv(rvec, tvec.flatten())
                                 # ax.quiver(*pos, *dir, color='g', label='Direction Right', length=0.1)                                              
                                 # cam_pos, cam_dir, _ = calculate_camera_position_direction(rvec, tvec)
@@ -216,8 +216,8 @@ if SOLUTION == 1:
                                 # visible_result = check_simple_facing(MODEL_DATA, cam_pos, LED_NUMBER, angle_spec=80)
                                 # print(f"2. visible_result {visible_result}")
                                 plt.draw()
-                                if RER < min_RER_blob:
-                                    min_RER_blob = RER
+                                if RER[0] < min_RER_blob:
+                                    min_RER_blob = RER[0]
                                     best_LED_NUMBER_blob = LED_NUMBER
                                     BRFS = brfs
                                     RVEC = rvec
@@ -313,11 +313,11 @@ if SOLUTION == 1:
                         for brfs_idx, brfs in enumerate(MODEL_BRFS):
                             X = np.array(brfs)
                             x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-                            # print('X ', X)
-                            # print('x ', x)
+                            print('X ', X)
+                            print('x ', x)
                             poselib_result = poselib.p3p(x, X)
-                            # print(X)
-                            # print(poselib_result)
+                            print(X)
+                            print(poselib_result)
                             
                             if brfs_idx:
                                 LED_NUMBER = np.flip(LED_NUMBER)

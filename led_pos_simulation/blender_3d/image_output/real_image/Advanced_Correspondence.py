@@ -54,6 +54,8 @@ points3D = np.array([
 [-0.01727314, 0.02493721, 0.01696496],
 ])
 
+
+
 points3D_dir = np.array([
 [-0.60688004, -0.75584205, -0.24576291],
 [-0.33720495, -0.90003042, -0.27611241],
@@ -84,26 +86,130 @@ points3D_dir = np.array([
 # LED 번호 배열 지정
 LED_NUMBER = np.array([10, 9, 11, 8, 21, 20, 22, 23, 19])
 
+CAM_ID = 0
 
 # KD-Tree 생성
 from scipy.spatial import KDTree
 points3D_tree = KDTree(points3D)
-
+points2D_U_tree = KDTree(points2D_U)
+points2D_tree = KDTree(points2D)
 # 특정 LED를 기준으로 가까운 이웃 찾기 (예: 첫 번째 LED)
-distances, indices = points3D_tree.query(points3D[0], k=4)  # 가장 가까운 4개의 이웃을 찾음
 
-print("가까운 이웃 거리:", distances)
-print("가까운 이웃 인덱스:", indices)
+points3D_IND = []
 
 
-X = np.array(brfs)
-x = np.hstack((points2D_U, np.ones((points2D_U.shape[0], 1))))
-# print('X ', X)
-# print('x ', x)
-poselib_result = poselib.p3p(x, X)
-# print(X)
-# print(poselib_result)
+print('points3D')
+for i in range(len(points3D)):
+    distances, indices = points3D_tree.query(points3D[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+    print("distances", distances)
+    print("indices", indices)
+    points3D_IND.append(indices)
+
+# print('points2D_U')
+# for i in range(len(points2D_U)):
+#     distances, indices = points2D_U_tree.query(points2D_U[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+#     print("distances", distances)
+#     print("indices", LED_NUMBER[indices])
+
+
+print('points2D')
+for i in range(len(points2D)):
+    distances, indices = points2D_tree.query(points2D[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+    print("distances", distances)
+    print("indices", indices)
+
+min_RER = float('inf')
+min_points3d_ind = NOT_SET
+min_points2d_ind = NOT_SET
+min_rvec = NOT_SET
+min_tvec = NOT_SET
+
+DP = [-1] * len(points2D)
+
+for points3d_ind in points3D_IND:
+    for i in range(len(points2D)):
+        distances, points2d_ind = points2D_tree.query(points2D[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+
+        POINTS3D = np.array(np.array(points3D[points3d_ind]), dtype=np.float64)
+        POINTS2D = np.array(points2D[points2d_ind], dtype=np.float64)
+        check_blob = POINTS2D[3]
+        retval, rvec, tvec = cv2.solveP3P(POINTS3D[:3], POINTS2D[:3], camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1], flags=cv2.SOLVEPNP_P3P)
+
+        for ret_i in range(retval):
+            RER, image_points = reprojection_error(POINTS3D,
+                    POINTS2D,
+                    rvec[ret_i],
+                    tvec[ret_i],
+                    camera_matrix[CAM_ID][0],
+                    camera_matrix[CAM_ID][1])
+            if RER < 0.5:
+                # print(image_points)
+                # print('RER', RER)
+                # print('points3D ind:', points3d_ind)
+                # print('points2D ind:', LED_NUMBER[points2d_ind])
+                # print('check_blob: ', check_blob)
+                # print('candidates')
+                if RER < min_RER:
+                    min_RER = RER
+                    min_points3d_ind = points3d_ind
+                    min_points2d_ind = points2d_ind
+                    min_rvec = rvec[ret_i]
+                    min_tvec = tvec[ret_i]
+
+print(f"min_points3d_ind {min_points3d_ind}")
+print(f"min_points2d_ind {min_points2d_ind}")
+print(f"min_rvec {min_rvec}")
+print(f"min_tvec {min_tvec}")
+
+
+for i, idx in enumerate(min_points2d_ind):
+    DP[idx] = min_points3d_ind[i]
+
+print(DP)
+
+for led in DP:
+    if led != -1:
+        _, points3d_ind = points3D_tree.query(points3D[led], k=4)
+        print(points3d_ind[1:4])
+        for candidates in points3d_ind[1:4]:
+            if candidates not in DP:
+                print(candidates)
+
+        
+
+
+
 
 
 
 show_calibrate_data(np.array(points3D), np.array(points3D_dir))
+
+
+# def parametric_search(arr, target):
+#     left = 0
+#     right = len(arr) - 1
+#     result = -1
+
+#     while left <= right:
+#         mid = (left + right) // 2
+
+#         if arr[mid]>= target:
+#             result = arr[mid]
+#             right = mid - 1
+#         else:
+#             left = mid + 1
+
+#     return result
+
+# # 정렬된 배열
+# arr = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19]
+
+# # 파라미터 검색 수행
+# target = 10
+# result = parametric_search(arr, target)
+
+# # 결과 출력
+# if result != -1:
+#     print(f"가장 작은 값: {result}")
+# else:
+#     print("조건을 만족하는 값이 없습니다.")

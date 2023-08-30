@@ -57,69 +57,69 @@ best_pose = None
 
 
 
-# def is_valid_pose(pose):
-#     if pose is None:
-#         return False
-#     q, t = pose.q, pose.t
-#     return not np.isnan(q).any() and not np.isnan(t).any()
+def is_valid_pose(pose):
+    if pose is None:
+        return False
+    q, t = pose.q, pose.t
+    return not np.isnan(q).any() and not np.isnan(t).any()
 
-# def calculate_pose(p3d, p2d):
-#     # Convert 2D points to homogeneous coordinates
-#     p2d_homogeneous = np.hstack((p2d, np.ones((p2d.shape[0], 1))))
+def calculate_pose(p3d, p2d):
+    # Convert 2D points to homogeneous coordinates
+    p2d_homogeneous = np.hstack((p2d, np.ones((p2d.shape[0], 1))))
+    # print(p2d_homogeneous)
+    # poselib.p3p requires 3 points to solve pose
+    poses = poselib.p3p(p2d_homogeneous, p3d)
+    for pose in poses:
+        if is_valid_pose(pose):
+            return pose
+    return None
 
-#     # poselib.p3p requires 3 points to solve pose
-#     poses = poselib.p3p(p2d_homogeneous, p3d)
-#     for pose in poses:
-#         if is_valid_pose(pose):
-#             return pose
-#     return None
+from scipy.spatial.transform import Rotation as R
 
-# from scipy.spatial.transform import Rotation as R
-
-# def project_3d_to_2d(p3d, pose):
-#     # Ensure p3d is a 2D array
-#     p3d = np.atleast_2d(p3d)
+def project_3d_to_2d(p3d, pose):
+    # Ensure p3d is a 2D array
+    p3d = np.atleast_2d(p3d)
     
-#     # Convert quaternion to rotation matrix
-#     rotation_matrix = R.from_quat(pose.q).as_matrix()
+    # Convert quaternion to rotation matrix
+    rotation_matrix = R.from_quat(pose.q).as_matrix()
 
-#     # Use camera matrix to project 3D points to 2D
-#     # K = camera_matrix[0][0]  # Assuming camera_matrix is defined
-#     K = default_cameraK  # Assuming camera_matrix is defined
-#     projected = np.dot(K, np.dot(rotation_matrix, p3d.T) + pose.t.reshape(-1, 1))
+    # Use camera matrix to project 3D points to 2D
+    # K = camera_matrix[0][0]  # Assuming camera_matrix is defined
+    K = default_cameraK  # Assuming camera_matrix is defined
+    projected = np.dot(K, np.dot(rotation_matrix, p3d.T) + pose.t.reshape(-1, 1))
     
-#     return (projected[:-1] / projected[-1]).T
+    return (projected[:-1] / projected[-1]).T
 
 
-# # 각 페어에 대해
-# for pair in pairs:
-#     # 대응되는 3D 점과 2D 점을 선택
-#     selected_3d_points = origin_led_data[list(pair)]
-#     selected_2d_points = image_coordinates
+# 각 페어에 대해
+for pair in pairs:
+    # 대응되는 3D 점과 2D 점을 선택
+    selected_3d_points = origin_led_data[list(pair)]
+    selected_2d_points = image_coordinates
 
-#     # pose를 계산 (여기서는 P3P 알고리즘을 사용)
-#     pose = calculate_pose(selected_3d_points, selected_2d_points)
+    # pose를 계산 (여기서는 P3P 알고리즘을 사용)
+    pose = calculate_pose(selected_3d_points, selected_2d_points)
 
-#     # If no valid pose found, skip this pair
-#     if pose is None:
-#         continue
+    # If no valid pose found, skip this pair
+    if pose is None:
+        continue
 
-#     # pose를 이용해 3D 점을 2D로 투영
-#     projected_2d_points = project_3d_to_2d(selected_3d_points, pose)
+    # pose를 이용해 3D 점을 2D로 투영
+    projected_2d_points = project_3d_to_2d(selected_3d_points, pose)
 
-#     # 재투영 오차를 계산
-#     error = np.sum((selected_2d_points - projected_2d_points)**2)
+    # 재투영 오차를 계산
+    error = np.sum((selected_2d_points - projected_2d_points)**2)
 
-#     # 오차가 최소인 페어와 pose를 저장
-#     if error < min_error:
-#         min_error = error
-#         best_pair = pairq
-#         best_pose = pose
+    # 오차가 최소인 페어와 pose를 저장
+    if error < min_error:
+        min_error = error
+        best_pair = pair
+        best_pose = pose
 
-# print("Best pair:", best_pair)
-# print("Best pose:", best_pose)
+print("Best pair:", best_pair)
+print("Best pose:", best_pose)
 
-# help(poselib)
+help(poselib)
 import numpy as np
 import cv2
 

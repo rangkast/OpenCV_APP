@@ -3,16 +3,17 @@ import tkinter as tk
 from tkinter import ttk
 
 # OpenAI API key 설정
-api_key = "your-api-key-here"
+api_key = "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"
 
 def chat_with_gpt4(prompt):
     openai.api_key = api_key
-    model_engine = "text-davinci-002"  # 예시 엔진 이름입니다; 실제 엔진 이름은 문서를 참조하세요.
-    max_tokens = 100  # 응답의 최대 토큰 수
+    model_engine = "gpt-3.5-turbo-0301"  # 예시 엔진 이름입니다; 실제 엔진 이름은 문서를 참조하세요.
+    max_tokens = 4000  # 응답의 최대 토큰 수
     
     response = openai.Completion.create(
         engine=model_engine,
         prompt=prompt,
+        temperature=1,
         max_tokens=max_tokens
     )
     
