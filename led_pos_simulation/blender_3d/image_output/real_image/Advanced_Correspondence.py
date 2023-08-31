@@ -89,7 +89,7 @@ LED_NUMBER = np.array([10, 9, 11, 8, 21, 20, 22, 23, 19])
 CAM_ID = 0
 
 # KD-Tree 생성
-from scipy.spatial import KDTree
+
 points3D_tree = KDTree(points3D)
 points2D_U_tree = KDTree(points2D_U)
 points2D_tree = KDTree(points2D)
@@ -123,15 +123,14 @@ min_points3d_ind = NOT_SET
 min_points2d_ind = NOT_SET
 min_rvec = NOT_SET
 min_tvec = NOT_SET
-
-DP = [-1] * len(points2D)
-
 for points3d_ind in points3D_IND:
     for i in range(len(points2D)):
         distances, points2d_ind = points2D_tree.query(points2D[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
 
         POINTS3D = np.array(np.array(points3D[points3d_ind]), dtype=np.float64)
         POINTS2D = np.array(points2D[points2d_ind], dtype=np.float64)
+        # print(f"POINTS3D {POINTS3D}")
+        # print(f"POINTS2D {POINTS2D}")
         check_blob = POINTS2D[3]
         retval, rvec, tvec = cv2.solveP3P(POINTS3D[:3], POINTS2D[:3], camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1], flags=cv2.SOLVEPNP_P3P)
 
@@ -142,19 +141,19 @@ for points3d_ind in points3D_IND:
                     tvec[ret_i],
                     camera_matrix[CAM_ID][0],
                     camera_matrix[CAM_ID][1])
-            if RER < 0.5:
-                # print(image_points)
-                # print('RER', RER)
-                # print('points3D ind:', points3d_ind)
-                # print('points2D ind:', LED_NUMBER[points2d_ind])
-                # print('check_blob: ', check_blob)
-                # print('candidates')
-                if RER < min_RER:
-                    min_RER = RER
-                    min_points3d_ind = points3d_ind
-                    min_points2d_ind = points2d_ind
-                    min_rvec = rvec[ret_i]
-                    min_tvec = tvec[ret_i]
+            # if RER < 0.5:
+            #     # print(image_points)
+            #     # print('RER', RER)
+            #     # print('points3D ind:', points3d_ind)
+            #     # print('points2D ind:', LED_NUMBER[points2d_ind])
+            #     # print('check_blob: ', check_blob)
+            #     # print('candidates')
+            if RER < min_RER:
+                min_RER = RER
+                min_points3d_ind = points3d_ind
+                min_points2d_ind = points2d_ind
+                min_rvec = rvec[ret_i]
+                min_tvec = tvec[ret_i]
 
 print(f"min_points3d_ind {min_points3d_ind}")
 print(f"min_points2d_ind {min_points2d_ind}")
@@ -162,27 +161,82 @@ print(f"min_rvec {min_rvec}")
 print(f"min_tvec {min_tvec}")
 
 
+DP = [-1] * len(points2D)
+MAP = [[-1,0]] * len(points3D)
 for i, idx in enumerate(min_points2d_ind):
     DP[idx] = min_points3d_ind[i]
+    MAP[min_points3d_ind[i]] = [idx, 0]
 
 print(DP)
-
-for led in DP:
-    if led != -1:
-        _, points3d_ind = points3D_tree.query(points3D[led], k=4)
-        print(points3d_ind[1:4])
-        for candidates in points3d_ind[1:4]:
-            if candidates not in DP:
-                print(candidates)
-
-        
+print(MAP)
 
 
+# for led in DP:
+#     if led != -1:
+#         _, points3d_ind = points3D_tree.query(points3D[led], k=4)
+#         print(points3d_ind[1:4])
+#         for candidates in points3d_ind[1:4]:
+#             if candidates not in DP:
+#                 print(candidates)    
+
+# show_calibrate_data(np.array(points3D), np.array(points3D_dir))
+
+
+SEARCH_QUEUE = Queue()
+
+while True:
+    for led in DP:
+        if led != -1:
+            _, points3d_ind = points3D_tree.query(points3D[led], k=4)
+            print(points3d_ind[1:4])            
+            for candidates in points3d_ind[1:4]:
+                if MAP[candidates][0] != -1:
+                    continue
+                print(f"candidates {candidates} MAP {MAP[candidates]}")
+
+                if MAP[candidates][1] == 0:
+                    SEARCH_QUEUE.put(candidates)
+                    print(f"put {candidates}")
+                    # 여기 왜 이런지 모르겠음
+                    MAP[candidates] = [-1, 1]
+        MAP[led][1] = 2
+
+
+    item = SEARCH_QUEUE.get()
+    print(f"get {item}")
+
+    # Add Searching
+    points3D_candidates = np.array(points3D[item], dtype=np.float64)
+    print(f"points3D_candidates {points3D_candidates}")
+    min_RER = float('inf')
+    min_i = -1
+    for i in range(len(points2D)):
+        if DP[i] != -1:
+            continue
+
+        points2D_candidates = np.array(points2D[i], dtype=np.float64)
+        print(f"points2D_candidates {points2D_candidates}")
+        RER, image_points = reprojection_error(points3D_candidates,
+                                               points2D_candidates,
+                                               min_rvec,
+                                               min_tvec,
+                                               camera_matrix[CAM_ID][0],
+                                               camera_matrix[CAM_ID][1])
+        print(f"i {i} RER {RER}")
+        if RER < min_RER:
+            min_RER = RER
+            min_i = i
+
+    DP[min_i] = item
+
+    print(f"DP {DP}")
+    print(f"MAP {MAP}")
+
+    if SEARCH_QUEUE.empty():        
+        break
 
 
 
-
-show_calibrate_data(np.array(points3D), np.array(points3D_dir))
 
 
 # def parametric_search(arr, target):

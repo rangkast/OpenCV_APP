@@ -48,6 +48,8 @@ import kornia as K
 import time
 from sklearn.cluster import AgglomerativeClustering
 from numba import jit, float64, int32
+from queue import Queue
+from scipy.spatial import KDTree
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
@@ -73,6 +75,7 @@ BOTTOM = 1
 
 PLUS = 0
 MINUS = 1
+
 
 
 camera_matrix = [
@@ -461,6 +464,15 @@ def show_calibrate_data(model_data, direction, **kwargs):
         for i in range(Candidates_points.shape[0]):
             ax.text(Candidates_points[i, 0], Candidates_points[i, 1], Candidates_points[i, 2], str(i), color='red')
 
+
+    # cam_pos = (-0.3333529614308831, -0.31225748061354075, -0.04021312123980764)
+    # cam_dir = (0.7617491440154766, 0.64338896896647, 0.07608466470946346)
+    # pos = [-0.33335296, -0.31225748, -0.04021312]
+    # dir = [ 94.70627498,  21.97873876, -48.05008108]
+
+    # ax.quiver(*cam_pos, *cam_dir, length=0.1, linewidths=0.2, color='red', normalize=True)
+    # ax.quiver(*pos, *dir, length=0.1, linewidths=0.2, color='blue', normalize=True)
+
     # 점들을 plot에 추가
     ax.scatter(model_data[:, 0], model_data[:, 1], model_data[:, 2])
     # 각 점에 대한 인덱스를 추가
@@ -797,10 +809,44 @@ def check_simple_facing(MODEL_DATA, cam_pos, blob_ids, angle_spec=90.0):
     return results
 
 
-def check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, cam_dir, blob_ids, threshold_angle=80.0):
+
+def facing_dot(DIRECTION, dir, blob_ids, threshold_angle=70.0):
+    norm_dir = np.linalg.norm(dir)
+    # results = {}
+    for blob_id in blob_ids: 
+        # Blob의 방향 벡터
+        blob_dir = DIRECTION[blob_id]
+        norm_blob_dir = np.linalg.norm(blob_dir)
+        
+        # 벡터의 내적을 계산
+        dot_product = np.dot(dir, blob_dir)
+        # -1과 1 사이로 클리핑
+        cos_angle = np.clip(dot_product / (norm_dir * norm_blob_dir), -1.0, 1.0)
+        # 각도를 계산 (라디안)
+        angle_rad = np.arccos (cos_angle)
+        # 각도를 계산 (도)
+        angle_deg = np.degrees (angle_rad)
+        # print(f"dir {dir}")
+        # print(f"norm_dir {norm_dir}")
+        # print(f"blob_dir {blob_dir}")
+        # print(f"norm_blob_dir {norm_blob_dir}")
+        # print(f"angle_rad {angle_rad}")
+
+        check_status = (angle_deg >= threshold_angle)
+
+        if check_status == False:
+            return False
+
+        # results[blob_id] = (check_status, angle_deg, angle_rad)
+
+    return True
+                
+
+
+def check_angle_and_facing(MODEL_DATA, DIRECTION, pos, dir, blob_ids, threshold_angle=70.0):
     results = {}
 
-    cam_pose = {'position': vector3(*cam_pos), 'orient': quat(*cam_dir)}
+    cam_pose = {'position': vector3(*pos), 'orient': quat(*dir)}
     for blob_id in blob_ids:
         # Blob의 위치
         blob_pos = MODEL_DATA[blob_id]        
@@ -817,11 +863,15 @@ def check_angle_and_facing(MODEL_DATA, DIRECTION, cam_pos, cam_dir, blob_ids, th
         results[blob_id] = (facing_dot < rad)
         # print(f"{blob_id} : facing_dot: {facing_dot} rad{rad}")
     return results
+
 def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
         points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
         # Squeeze the points2D_reprojection to match the dimensionality of points2D
         points2D_reprojection = points2D_reprojection.squeeze()
-        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+        if len(points2D.shape) > 1:
+            RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+        else:
+            RER = np.average(np.linalg.norm(points2D - points2D_reprojection))
         # print('points2D:\n', points2D)
         # print('points2D_reprojection:\n', points2D_reprojection)
         # print('RER:', RER)
@@ -1193,28 +1243,29 @@ def init_model_json(cam_dev_list):
 
 
 def world_location_rotation_from_opencv(rvec, tvec, isCamera=True):
-    R_BlenderView_to_OpenCVView = np.matrix([
-        [1 if isCamera else -1, 0, 0],
-        [0, -1, 0],
-        [0, 0, -1],
-    ])
+    R_BlenderView_to_OpenCVView = np.diag([1 if isCamera else -1, -1, -1])
+
     # Convert rvec to rotation matrix
     R_OpenCV, _ = cv2.Rodrigues(rvec)
 
     # Convert OpenCV R|T to Blender R|T
-    R_BlenderView = R_BlenderView_to_OpenCVView @ np.matrix(R_OpenCV.tolist())
-    T_BlenderView = R_BlenderView_to_OpenCVView @ vector3(tvec[0], tvec[1], tvec[2])
+    R_BlenderView = np.matmul(R_BlenderView_to_OpenCVView, R_OpenCV)
+    T_BlenderView = np.matmul(R_BlenderView_to_OpenCVView, tvec)
 
-    print('tvec', tvec)
     # Invert rotation matrix
-    R_BlenderView_inv = np.array(R_BlenderView).T
-    print(R_BlenderView_inv)
-    print(T_BlenderView)
+    R_BlenderView_inv = np.transpose(R_BlenderView)
+
     # Calculate location
-    location = -1.0 * R_BlenderView_inv @ T_BlenderView
-    # Convert rotation matrix to quaternion
-    rotation = R_BlenderView_inv.to_quaternion()
-    return location, rotation
+    location = -1.0 * np.matmul(R_BlenderView_inv, T_BlenderView)
+
+    # #Convert rotation matrix to quaternion
+    # rotation_quat = R.from_matrix(R_BlenderView_inv).as_quat()
+    # # 쿼터니언을 오일러 각으로 변환
+    # rotation_euler = R.from_quat(rotation_quat).as_euler('xyz', degrees=True)
+    # 월드 좌표계에서 카메라가 보고 있는 방향 벡터
+    direction = np.dot(R_BlenderView_inv, np.array([0, 0, -1]))
+
+    return location, direction
 
 
 def area_filter(x, y, POS):

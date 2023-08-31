@@ -16,6 +16,14 @@ AUTO_LOOP = 1
 undistort = 1
 
 
+# WMTD306N100AXM
+camera_matrix = [
+    [np.array([[712.623, 0.0, 653.448],
+               [0.0, 712.623, 475.572],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.072867], [-0.026268], [0.007135], [-0.000997]], dtype=np.float64)],
+]
+
 
 '''
 Solutions
@@ -24,7 +32,7 @@ Solutions
 3 : translation Matrix x projectPoints
 4 : object tracking
 '''
-SOLUTION = 1
+SOLUTION = 5
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):
@@ -1056,8 +1064,6 @@ elif SOLUTION == 4:
             if UVC_MODE == 1:
                 video.release()
             cv2.destroyAllWindows()
-
-
 elif SOLUTION == 5:
     def auto_labeling():
         frame_cnt = 0
@@ -1081,6 +1087,18 @@ elif SOLUTION == 5:
         for blob_id in range(BLOB_CNT):
             BLOB_INFO[blob_id] = copy.deepcopy(BLOB_INFO_STRUCTURE)
 
+        # make KD Tree
+        points3D_tree = KDTree(MODEL_DATA)
+        points3D_IND = []
+        print('points3D')
+        for i in range(len(MODEL_DATA)):
+            distances, indices = points3D_tree.query(MODEL_DATA[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+            print("distances", distances)
+            print("indices", indices)
+            points3D_IND.append(indices)
+
+        SEARCH_QUEUE = Queue()
+
         while video.isOpened() if UVC_MODE else True:
             print('\n')        
             if UVC_MODE:
@@ -1101,7 +1119,6 @@ elif SOLUTION == 5:
                 frame_0 = cv2.resize(frame_0, (CAP_PROP_FRAME_WIDTH, CAP_PROP_FRAME_HEIGHT))
 
 
-
             draw_frame = frame_0.copy()
             _, frame_0 = cv2.threshold(cv2.cvtColor(frame_0, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD,
                                     cv2.THRESH_TOZERO)
@@ -1118,6 +1135,7 @@ elif SOLUTION == 5:
             blob_area = detect_led_lights(frame_0, TRACKER_PADDING)
             blobs = []
 
+            # Blob Detection
             for blob_id, bbox in enumerate(blob_area):
                 (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
                 gcx, gcy, gsize = find_center(frame_0, (x, y, w, h))
@@ -1125,12 +1143,131 @@ elif SOLUTION == 5:
                     continue 
 
                 cv2.rectangle(draw_frame, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-                blobs.append((gcx, gcy, bbox))
+                blobs.append((gcx, gcy))
 
-            blobs = sorted(blobs, key=lambda x:x[0]) ## 또는 l.sort(key=lambda x:x[1])
-            # print('blobs ', blobs)
-            CNT = len(blobs)
-        
+
+            if len(blobs) >= 4:
+                points2D_D = np.array(blobs, dtype=np.float64)
+                points2D_D_tree = KDTree(points2D_D)
+                points2D_D_ind = []
+                print('points2D')
+
+                for i in range(len(points2D_D)):
+                    _, indices = points2D_D_tree.query(points2D_D[i], k=4)  # 가장 가까운 4개의 이웃을 찾음
+                    print("indices", indices)
+                    points2D_D_ind.append(indices)
+
+                min_RER = float('inf')
+                min_points3d_ind = NOT_SET
+                min_points2d_ind = NOT_SET
+                min_rvec = NOT_SET
+                min_tvec = NOT_SET
+                for points3d_ind in points3D_IND:
+                    for i in range(len(points2D_D)):
+                        points2d_ind = points2D_D_ind[i] # 가장 가까운 4개의 이웃을 찾음
+
+                        POINTS3D = np.array(MODEL_DATA[points3d_ind], dtype=np.float64)
+                        POINTS2D = points2D_D[points2d_ind]
+                        # print(f"POINTS3D {POINTS3D}")
+                        # print(f"POINTS2D {POINTS2D}")
+                        check_blob = POINTS2D[3]
+                        retval, rvec, tvec = cv2.solveP3P(POINTS3D[:3], POINTS2D[:3], camera_matrix[CAM_ID][0], camera_matrix[CAM_ID][1], flags=cv2.SOLVEPNP_P3P)
+
+                        for ret_i in range(retval):
+                            RER, image_points = reprojection_error(POINTS3D,
+                                    POINTS2D,
+                                    rvec[ret_i],
+                                    tvec[ret_i],
+                                    camera_matrix[CAM_ID][0],
+                                    camera_matrix[CAM_ID][1])
+
+                            
+                            if RER < min_RER:
+                                _, dir = world_location_rotation_from_opencv(rvec[ret_i], tvec[ret_i])
+                                visible_result = facing_dot(DIRECTION, dir, points3d_ind, threshold_angle=70)
+                                if visible_result == True:
+                                    min_RER = RER
+                                    min_points3d_ind = points3d_ind
+                                    min_points2d_ind = points2d_ind
+                                    min_rvec = rvec[ret_i]
+                                    min_tvec = tvec[ret_i]
+
+
+                print(f"min_points3d_ind {min_points3d_ind}")
+                print(f"min_points2d_ind {min_points2d_ind}")
+                print(f"min_rvec {min_rvec.flatten()}")
+                print(f"min_tvec {min_tvec.flatten()}")
+            
+                DP = [-1] * len(points2D_D)
+                MAP = [[-1,0]] * len(MODEL_DATA)
+                for i, idx in enumerate(min_points2d_ind):
+                    DP[idx] = min_points3d_ind[i]
+                    MAP[min_points3d_ind[i]] = [idx, 0]
+
+                # print(DP)
+                # print(MAP)
+
+                while True:
+                    for led in DP:
+                        if led != -1:
+                            points3d_ind = points3D_IND[led]
+                            print(points3d_ind[1:4])            
+                            for candidates in points3d_ind[1:4]:
+                                if MAP[candidates][0] != -1:
+                                    continue
+                                print(f"candidates {candidates} MAP {MAP[candidates]}")
+
+                                if MAP[candidates][1] == 0:
+                                    SEARCH_QUEUE.put(candidates)
+                                    print(f"put {candidates}")
+                                    # 여기 왜 이런지 모르겠음
+                                    MAP[candidates] = [-1, 1]
+                        MAP[led][1] = 2
+
+
+                    if SEARCH_QUEUE.qsize() != 0:
+                        item = SEARCH_QUEUE.get()
+                        print(f"get {item}")
+
+                        # Add Searching
+                        points3D_candidates = np.array(MODEL_DATA[item], dtype=np.float64)
+                        # print(f"points3D_candidates {points3D_candidates}")
+                        min_RER = float('inf')
+                        min_i = -1
+                        for i in range(len(points2D_D)):
+                            if DP[i] != -1:
+                                continue
+
+                            points2D_candidates = np.array(points2D_D[i], dtype=np.float64)
+                            # print(f"points2D_candidates {points2D_candidates}")
+                            RER, image_points = reprojection_error(points3D_candidates,
+                                                                points2D_candidates,
+                                                                min_rvec,
+                                                                min_tvec,
+                                                                camera_matrix[CAM_ID][0],
+                                                                camera_matrix[CAM_ID][1])
+                            print(f"i {i} RER {RER}")
+                            if RER < min_RER:
+                                min_RER = RER
+                                min_i = i
+                        if min_i != -1:
+                            DP[min_i] = item
+
+                        print(f"DP {DP}")
+                        print(f"MAP {MAP}")
+
+                    else:
+                        break
+
+                # End of While
+                DETECT_CNT = sum(1 for i in DP if i != -1)
+                if DETECT_CNT == len(points2D_D):
+                    for i, point in enumerate(points2D_D):
+                        pt = (int(point[0]), int(point[1]))
+                        cv2.circle(draw_frame, tuple(pt), 2, (0, 0, 255), -1)
+                        cv2.putText(draw_frame, f"{DP[i]}", (pt[0], pt[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+
             if AUTO_LOOP and UVC_MODE == 0:
                 frame_cnt += 1
             # Display the resulting frame
@@ -1224,11 +1361,16 @@ if __name__ == "__main__":
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
         print(f"{np.array2string(leds, separator=', ')},")
+    
+    print('DIR')
+    for i, dir in enumerate(DIRECTION):
+        print(f"{np.array2string(dir, separator=', ')},")
+
 
     from Advanced_Plot_3D import regenerate_pts_by_dist
 
-    MODEL_DATA, DIRECTION = regenerate_pts_by_dist(0, MODEL_DATA, DIRECTION)
-    # MODEL_DATA = np.array(MODEL_DATA)
+    # MODEL_DATA, DIRECTION = regenerate_pts_by_dist(0, MODEL_DATA, DIRECTION)
+    MODEL_DATA = np.array(MODEL_DATA)
     show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
     auto_labeling()
