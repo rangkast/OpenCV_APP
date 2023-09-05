@@ -1,5 +1,13 @@
 from Advanced_Function import *
 
+pebble_camera_matrix = [
+    # 0번 sensor
+    [np.array([[240.699213, 0.0, 313.735554],
+               [0.0, 240.394949, 235.316344],
+               [0.0, 0.0, 1.0]], dtype=np.float64),
+     np.array([[0.040384], [-0.015174], [-0.000401], [-0.000584]], dtype=np.float64)],
+]
+
 MODEL_DATA = np.array([
 [-0.03670253, -0.00136743, -0.00683186],
 [-0.04727607,  0.01015054,  0.00304395],
@@ -53,18 +61,45 @@ DIRECTION = np.array([
 [ 0.57732451, -0.53728441, -0.61483484],
 ])
 
-BLOB_CNT = len(MODEL_DATA)
-print('PTS')
-for i, leds in enumerate(MODEL_DATA):
-    print(f"{np.array2string(leds, separator=', ')},")
-print('DIR')
-for i, dir in enumerate(DIRECTION):
-    print(f"{np.array2string(dir, separator=', ')},")
 
-show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+'''
+Building blobs search array
+Blob 0 = (447.979401,144.898239 3x5) -> (0.647337, -0.436557) 0.012464 x 0.020799 (LED id -1)
+Blob 1 = (435.574677,145.552032 6x7) -> (0.575447, -0.424494) 0.024927 x 0.029119 (LED id -1)
+Blob 2 = (411.985107,146.596695 7x7) -> (0.449188, -0.406132) 0.029082 x 0.029119 (LED id -1)
+Blob 3 = (391.150848,148.510162 3x5) -> (0.345844, -0.388288) 0.012464 x 0.020799 (LED id -1)
+Blob 4 = (398.024750,147.767563 5x7) -> (0.379233, -0.394397) 0.020773 x 0.029119 (LED id -1)
+Blob 5 = (450.171570,154.882889 3x5) -> (0.653244, -0.385596) 0.012464 x 0.020799 (LED id -1)
+Blob 6 = (440.099121,156.250366 5x6) -> (0.594284, -0.372316) 0.020773 x 0.024959 (LED id -1)
+Blob 7 = (393.340179,158.017059 4x6) -> (0.353181, -0.343387) 0.016618 x 0.024959 (LED id -1)
+Blob 8 = (414.117188,157.718704 7x7) -> (0.455107, -0.352255) 0.029082 x 0.029119 (LED id -1)
+Blob 9 = (429.436829,157.300140 6x7) -> (0.535129, -0.361289) 0.024927 x 0.029119 (LED id -1)
+Blob 10 = (403.095795,158.119385 5x8) -> (0.400145, -0.346117) 0.020773 x 0.033279 (LED id -1)
+'''
+# points2D_D 초기화
+points2D_D = np.array([
+    [447.979401, 144.898239],
+    [435.574677, 145.552032],
+    [411.985107, 146.596695],
+    [391.150848, 148.510162],
+    [398.024750, 147.767563],
+    [450.171570, 154.882889],
+    [440.099121, 156.250366],
+    [393.340179, 158.017059],
+    [414.117188, 157.718704],
+    [429.436829, 157.300140],
+    [403.095795, 158.119385]
+], dtype=np.float64)
 
+def correspondence_search_set_blobs():
+    camera_matrix = pebble_camera_matrix[0][0]
+    dist_coeffs = pebble_camera_matrix[0][1]
+    points2D_U = cv2.fisheye.undistortPoints(points2D_D.reshape(-1,1,2), camera_matrix, dist_coeffs)
 
-# Test Start
+    print(f"points2D_U {points2D_U}")
+    
+    return points2D_U
+
 '''
 1. Model DATA neighbours lists 만들기
     - 각 id에서 내각 90이내 grouping
@@ -78,5 +113,26 @@ show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 7. matching led score 계산
     - 6번에서 만족된 pose로 visible led를 찾음
     - projectPonts하여 몇개나 box안에 들어오는지 check
-
 '''
+if __name__ == "__main__":
+    BLOB_CNT = len(MODEL_DATA)
+    print('PTS')
+    for i, leds in enumerate(MODEL_DATA):
+        print(f"{np.array2string(leds, separator=', ')},")
+    print('DIR')
+    for i, dir in enumerate(DIRECTION):
+        print(f"{np.array2string(dir, separator=', ')},")
+
+    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    correspondence_search_set_blobs()
+    
+    
+
+
+
+
+
+
+
+
+
