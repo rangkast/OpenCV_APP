@@ -91,14 +91,28 @@ points2D_D = np.array([
     [403.095795, 158.119385]
 ], dtype=np.float64)
 
+
+def distance(point1, point2):
+    return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
 def correspondence_search_set_blobs():
     camera_matrix = pebble_camera_matrix[0][0]
     dist_coeffs = pebble_camera_matrix[0][1]
-    points2D_U = cv2.fisheye.undistortPoints(points2D_D.reshape(-1,1,2), camera_matrix, dist_coeffs)
+    
+    points2D_U = cv2.fisheye.undistortPoints(points2D_D.reshape(-1, 1, 2), camera_matrix, dist_coeffs)
+    points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
 
     print(f"points2D_U {points2D_U}")
+    sorted_neighbors = []
     
-    return points2D_U
+    for i, anchor in enumerate(points2D_U):
+        distances = [(j, distance(anchor, point)) for j, point in enumerate(points2D_U) if i != j]
+        sorted_by_distance = sorted(distances, key=lambda x: x[1])
+        sorted_neighbors.append(sorted_by_distance)
+        
+    print(f"Sorted neighbors by distance: {sorted_neighbors}")
+    
+    return points2D_U, sorted_neighbors
 
 '''
 1. Model DATA neighbours lists 만들기
