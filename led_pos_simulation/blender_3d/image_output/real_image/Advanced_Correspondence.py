@@ -110,7 +110,12 @@ def correspondence_search_set_blobs():
         sorted_by_distance = sorted(distances, key=lambda x: x[1])
         sorted_neighbors.append(sorted_by_distance)
         
-    print(f"Sorted neighbors by distance: {sorted_neighbors}")
+    print(f"Sorted neighbors by distance")
+    for i, neighbors in enumerate(sorted_neighbors):
+            print(f"Anchor Point {i}:")
+            for j, dist in neighbors:
+                print(f"    Neighbor {j}: Distance = {dist:.4f}")
+
     
     return points2D_U, sorted_neighbors
 
