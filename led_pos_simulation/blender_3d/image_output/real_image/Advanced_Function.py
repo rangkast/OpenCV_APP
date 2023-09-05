@@ -465,14 +465,6 @@ def show_calibrate_data(model_data, direction, **kwargs):
             ax.text(Candidates_points[i, 0], Candidates_points[i, 1], Candidates_points[i, 2], str(i), color='red')
 
 
-    # cam_pos = (-0.3333529614308831, -0.31225748061354075, -0.04021312123980764)
-    # cam_dir = (0.7617491440154766, 0.64338896896647, 0.07608466470946346)
-    # pos = [-0.33335296, -0.31225748, -0.04021312]
-    # dir = [ 94.70627498,  21.97873876, -48.05008108]
-
-    # ax.quiver(*cam_pos, *cam_dir, length=0.1, linewidths=0.2, color='red', normalize=True)
-    # ax.quiver(*pos, *dir, length=0.1, linewidths=0.2, color='blue', normalize=True)
-
     # 점들을 plot에 추가
     ax.scatter(model_data[:, 0], model_data[:, 1], model_data[:, 2])
     # 각 점에 대한 인덱스를 추가

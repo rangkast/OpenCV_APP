@@ -7,14 +7,14 @@ ORIGINAL 3D Points
 # MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_right+.json"
 # MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/arcturas_#3_right_new.json"
 
-# MODEL_PATH = f"{script_dir}/jsons/specs/rifts_right.json"
-# MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_right_new.json"
+MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_right_new_cal_sensor_cal_LED21X_ref_out.json"
+MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_right_new.json"
 
 # MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_left.json"
 # MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/arcturas_#3_left_new.json"
 
-MODEL_PATH = f"{script_dir}/jsons/specs/rifts_left.json"
-MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_left_new.json"
+# MODEL_PATH = f"{script_dir}/jsons/specs/rifts_left.json"
+# MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_left_new.json"
 
 MODEL_DATA, DIRECTION = init_coord_json(MODEL_PATH)
 # MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_left_1_self.json"))
@@ -116,22 +116,24 @@ CALIBRATION_DATA_LEFT = np.array([
 BLOB_CNT = len(MODEL_DATA)
 print('PTS')
 for i, leds in enumerate(MODEL_DATA):
-    print(f"{np.array2string(leds, separator=', ')},")
+    print(f"{i} {np.array2string(leds, separator=', ')},")
 print('DIR')
 for i, dir in enumerate(DIRECTION):
-    print(f"{np.array2string(dir, separator=', ')},")
-    
-show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION), TARGET=np.array(CALIBRATION_DATA_LEFT))
+    print(f"{i} {np.array2string(dir, separator=', ')},")
+
+
+print(f"len(MODEL_DATA) {len(MODEL_DATA)} len(CALIBRATION_DATA_RIGHT) {len(CALIBRATION_DATA_RIGHT)}")
+show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION), TARGET=np.array(CALIBRATION_DATA_RIGHT))
 
 
 print('calibrate data save start')
 json_data = rw_json_data(READ, MODEL_PATH, None)
 json_data_cpy = copy.deepcopy(json_data)
 for i, jdata in enumerate(json_data['TrackedObject']['ModelPoints']):
-    json_data_cpy['TrackedObject']['ModelPoints'].get(jdata)[0:3] = CALIBRATION_DATA_LEFT[i]
+    json_data_cpy['TrackedObject']['ModelPoints'].get(jdata)[0:3] = CALIBRATION_DATA_RIGHT[i]
     # print(json_data_cpy['TrackedObject']['ModelPoints'].get(jdata))
 
 
-rw_json_data(WRITE, MODEL_PATH_SAVE, json_data_cpy)
-print(f"Saved to: \"{MODEL_PATH_SAVE}\".")
+# rw_json_data(WRITE, MODEL_PATH_SAVE, json_data_cpy)
+# print(f"Saved to: \"{MODEL_PATH_SAVE}\".")
 
