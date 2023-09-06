@@ -1,5 +1,21 @@
 from Advanced_Function import *
 
+'''
+1. Model DATA neighbours lists 만들기
+    - 각 id에서 내각 90이내 grouping
+    - 거리로 sorting
+2. 2D Blob Undistort Points
+3. 각 2D Blob에서 5개까지 neighbours lists 만들기
+    - 거리로 sorting
+4. Model DATA와 2D blobs의 조합
+5. lambda twist
+6. 4번째 led로 checking
+7. matching led score 계산
+    - 6번에서 만족된 pose로 visible led를 찾음
+    - projectPonts하여 몇개나 box안에 들어오는지 check
+'''
+
+
 pebble_camera_matrix = [
     # 0번 sensor
     [np.array([[240.699213, 0.0, 313.735554],
@@ -60,22 +76,6 @@ DIRECTION = np.array([
 [ 0.74783871, -0.40384633, -0.52692068],
 [ 0.57732451, -0.53728441, -0.61483484],
 ])
-
-
-'''
-Building blobs search array
-Blob 0 = (447.979401,144.898239 3x5) -> (0.647337, -0.436557) 0.012464 x 0.020799 (LED id -1)
-Blob 1 = (435.574677,145.552032 6x7) -> (0.575447, -0.424494) 0.024927 x 0.029119 (LED id -1)
-Blob 2 = (411.985107,146.596695 7x7) -> (0.449188, -0.406132) 0.029082 x 0.029119 (LED id -1)
-Blob 3 = (391.150848,148.510162 3x5) -> (0.345844, -0.388288) 0.012464 x 0.020799 (LED id -1)
-Blob 4 = (398.024750,147.767563 5x7) -> (0.379233, -0.394397) 0.020773 x 0.029119 (LED id -1)
-Blob 5 = (450.171570,154.882889 3x5) -> (0.653244, -0.385596) 0.012464 x 0.020799 (LED id -1)
-Blob 6 = (440.099121,156.250366 5x6) -> (0.594284, -0.372316) 0.020773 x 0.024959 (LED id -1)
-Blob 7 = (393.340179,158.017059 4x6) -> (0.353181, -0.343387) 0.016618 x 0.024959 (LED id -1)
-Blob 8 = (414.117188,157.718704 7x7) -> (0.455107, -0.352255) 0.029082 x 0.029119 (LED id -1)
-Blob 9 = (429.436829,157.300140 6x7) -> (0.535129, -0.361289) 0.024927 x 0.029119 (LED id -1)
-Blob 10 = (403.095795,158.119385 5x8) -> (0.400145, -0.346117) 0.020773 x 0.033279 (LED id -1)
-'''
 # points2D_D 초기화
 points2D_D = np.array([
     [447.979401, 144.898239],
@@ -92,47 +92,162 @@ points2D_D = np.array([
 ], dtype=np.float64)
 
 
-def distance(point1, point2):
-    return np.sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
 def correspondence_search_set_blobs():
+    def distance(point1, point2):
+        return np.sqrt ((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
     camera_matrix = pebble_camera_matrix[0][0]
     dist_coeffs = pebble_camera_matrix[0][1]
-    
-    points2D_U = cv2.fisheye.undistortPoints(points2D_D.reshape(-1, 1, 2), camera_matrix, dist_coeffs)
-    points2D_U = np.array(np.array(points2D_U).reshape(len(points2D_U), -1), dtype=np.float64)
+
+    points2D_U = cv2.fisheye.undistortPoints ( points2D_D.reshape (-1, 1, 2), camera_matrix, dist_coeffs)
+    points2D_U = np.array ( points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
 
     print(f"points2D_U {points2D_U}")
     sorted_neighbors = []
-    
-    for i, anchor in enumerate(points2D_U):
-        distances = [(j, distance(anchor, point)) for j, point in enumerate(points2D_U) if i != j]
-        sorted_by_distance = sorted(distances, key=lambda x: x[1])
-        sorted_neighbors.append(sorted_by_distance)
-        
-    print(f"Sorted neighbors by distance")
-    for i, neighbors in enumerate(sorted_neighbors):
-            print(f"Anchor Point {i}:")
-            for j, dist in neighbors:
-                print(f"    Neighbor {j}: Distance = {dist:.4f}")
 
-    
+    for i, anchor in enumerate(points2D_D):
+        distances = [(NOT_SET, j, distance(anchor, point), point) for j, point in enumerate(points2D_D) if i != j]
+        sorted_by_distance = sorted(distances, key=lambda x: x[2])
+        sorted_neighbors.append(sorted_by_distance[:5])
+
+        print(f"Sorted neighbors by distance")
+
+    for i, neighbors in enumerate(sorted_neighbors):
+        print(f"Model 0, blob {i} @ {points2D_D[i][0]:.6f} , {points2D_D[i][1]:.6f} neighbours {len(neighbors)} Search list:")
+        for ID, j, dist, point in neighbors:
+            print(f"LED ID {ID} ( {points2D_U[j][0]:.6f} , {points2D_U[j][1]:.6f} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f}")
+
     return points2D_U, sorted_neighbors
 
-'''
-1. Model DATA neighbours lists 만들기
-    - 각 id에서 내각 90이내 grouping
-    - 거리로 sorting
-2. 2D Blob Undistort Points
-3. 각 2D Blob에서 5개까지 neighbours lists 만들기
-    - 거리로 sorting
-4. Model DATA와 2D blobs의 조합
-5. lambda twist
-6. 4번째 led로 checking
-7. matching led score 계산
-    - 6번에서 만족된 pose로 visible led를 찾음
-    - projectPonts하여 몇개나 box안에 들어오는지 check
-'''
+
+
+class Vec3f:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.arr = np.array ([x, y, z])
+    def inverse(self):
+        return Vec3f(-self.x, -self.y, -self.z)
+    def get_sqlength(self):
+        return np.dot ( self.arr , self.arr )
+    def get_dot(self, vec):
+        return np.dot ( self.arr , vec.arr )
+    def distance_to(self, other_vec):
+        return np.linalg.norm ( self.arr - other_vec.arr )
+    
+    def __repr__(self):
+        return f"({self.x} {self.y} {self.z})"
+
+
+class Quatf:
+    def __init__(self, x, y, z, w):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.w = w
+    def normalize_me(self):
+        len = self.get_length ()
+        self.x /= len
+        self.y /= len
+        self.z /= len
+        self.w /= len
+    def get_length(self):
+        return math.sqrt (self.x**2 + self.y**2 + self.z**2 + self.w**2)
+                       
+    @staticmethod
+    def from_vectors(from_vec, to_vec):
+        axis = np.cross ( from_vec.arr , to_vec.arr )
+        dot = from_vec.get_dot (to_vec)
+        if np.linalg.norm (axis)**2 < 1e-7:
+            if dot < 0:
+                return Quatf(from_vec.x, -from_vec.z, from_vec.y, 0).normalize_me()
+            else:
+                return Quatf(0, 0, 0, 1)
+        else:
+            w = dot + math.sqrt ( from_vec.get_sqlength () * to_vec.get_sqlength ())
+            q = Quatf(axis[0], axis[1], axis[2], w)
+            q.normalize_me ()
+            return q
+
+class Led:
+    def __init__(self, led_id, pos, dir):
+        self.led_id = led_id
+        self.pos = Vec3f(pos[0], pos[1], pos[2])
+        self.dir = Vec3f(dir[0], dir[1], dir[2])
+
+class Pose:
+    def __init__(self, pos, orient):
+        self.pos = pos
+        self.orient = orient
+
+class RiftLeds:
+    def __init__(self, num_points, points):
+        self.num_points = num_points
+        self.points = points
+        
+
+def ovec3f_add(a, b):
+    return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z)
+
+# Oquatf get_rotated
+def oquatf_get_rotated(me, vec):
+    q = Quatf(vec.x * me.w + vec.z * me.y - vec.y * me.z,
+                vec.y * me.w + vec.x * me.z - vec.z * me.x,
+                vec.z * me.w + vec.y * me.x - vec.x * me.y,
+                vec.x * me.x + vec.y * me.y + vec.z * me.z)
+    x = me.w * q.x + me.x * q.w + me.y * q.z - me.z * q.y
+    y = me.w * q.y + me.y * q.w + me.z * q.x - me.x * q.z
+    z = me.w * q.z + me.z * q.w + me.x * q.y - me.y * q.x
+
+    return Vec3f(x, y, z)
+
+def compare_leds(c, l):
+    tmp = ovec3f_add(l.pos, c.pose.pos)
+    led_pos = oquatf_get_rotated(c.pose.orient , tmp)
+
+    return math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2)
+
+def calc_led_dist(c, l):
+    tmp = ovec3f_add(l.pos, c.pose.pos)
+    led_pos = oquatf_get_rotated(c.pose.orient , tmp)
+
+    return led_pos, math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2)
+
+class LedSearchCandidate:
+    def __init__(self, led, led_model):
+        self.led = led
+        self.neighbours = []
+        self.num_neighbours = 0
+        self.pose = Pose(Vec3f.inverse(self.led.pos), Quatf.from_vectors ( self.led.dir , Vec3f(0.0, 0.0, 1.0)))
+
+        for i in range( led_model.num_points ):
+            cur = led_model.points [i]
+            if cur == self.led :
+                continue
+            if self.led.dir.get_dot ( cur.dir ) <= 0:
+                continue
+            self.neighbours.append (cur)
+            self.num_neighbours += 1
+        # Sort neighbours based on the projected distance
+        self.neighbours = sorted( self.neighbours , key=lambda x: compare_leds(self, x))
+
+        print(f"Have { self.num_neighbours } neighbours for LED { self.led.led_id } ({ self.led.pos.x },{ self.led.pos.y },{ self.led.pos.z }) dir ({ self.led.dir.x },{ self.led.dir.y },{ self.led.dir.z }):")
+        print(f"pose pos [{ self.pose.pos.x },{ self.pose.pos.y },{ self.pose.pos.z }]")
+        print(f"pose orient [{ self.pose.orient.x },{ self.pose.orient.y },{ self.pose.orient.z },{ self.pose.orient.w }]")
+        for i in range( self.num_neighbours ):
+            cur = self.neighbours [i]
+            led_pos, distance = calc_led_dist(self, cur)
+            print(f"LED id { cur.led_id } ({ cur.pos.x },{ cur.pos.y },{ cur.pos.z }) ({ cur.dir.x },{ cur.dir.y },{ cur.dir.z }) -> {led_pos.x} {led_pos.y} @ distance {distance}")
+
+def led_search_candidate_new(led, led_model, led_num):
+    led.led_id = led_num
+    c = LedSearchCandidate(led, led_model)
+
+    return c
+
+
 if __name__ == "__main__":
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
@@ -142,9 +257,15 @@ if __name__ == "__main__":
     for i, dir in enumerate(DIRECTION):
         print(f"{np.array2string(dir, separator=', ')},")
 
-    show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-    correspondence_search_set_blobs()
-    
+    # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
+    # correspondence_search_set_blobs()
+    leds = [Led(i, MODEL_DATA[i], DIRECTION[i]) for i in range(len(MODEL_DATA))]
+    # Create RiftLeds object
+    rift_leds = RiftLeds(len(leds), leds)
+
+    for i, led in enumerate( rift_leds.points ):
+        led_search_candidate_new(led, rift_leds, i)
+
     
 
 
