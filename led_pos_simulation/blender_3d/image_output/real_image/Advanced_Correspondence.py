@@ -15,7 +15,6 @@ from Advanced_Function import *
     - projectPonts하여 몇개나 box안에 들어오는지 check
 '''
 
-
 pebble_camera_matrix = [
     # 0번 sensor
     [np.array([[240.699213, 0.0, 313.735554],
@@ -49,7 +48,6 @@ MODEL_DATA = np.array([
 [ 0.03636108,  0.00516153, -0.01790085],
 [ 0.02493721, -0.00263817, -0.02406681],
 ])
-
 
 DIRECTION = np.array([
 [-0.75584205, -0.62542513, -0.19376841],
@@ -136,7 +134,8 @@ class Vec3f:
         return np.dot ( self.arr , vec.arr )
     def distance_to(self, other_vec):
         return np.linalg.norm ( self.arr - other_vec.arr )
-    
+    def ovec3f_add(a, b):
+        return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z)
     def __repr__(self):
         return f"({self.x} {self.y} {self.z})"
 
@@ -155,6 +154,16 @@ class Quatf:
         self.w /= len
     def get_length(self):
         return math.sqrt (self.x**2 + self.y**2 + self.z**2 + self.w**2)
+    # Oquatf get_rotated
+    def oquatf_get_rotated(me, vec):
+        q = Quatf(vec.x * me.w + vec.z * me.y - vec.y * me.z,
+                    vec.y * me.w + vec.x * me.z - vec.z * me.x,
+                    vec.z * me.w + vec.y * me.x - vec.x * me.y,
+                    vec.x * me.x + vec.y * me.y + vec.z * me.z)
+        x = round(me.w * q.x + me.x * q.w + me.y * q.z - me.z * q.y, 8)
+        y = round(me.w * q.y + me.y * q.w + me.z * q.x - me.x * q.z, 8)
+        z = round(me.w * q.z + me.z * q.w + me.x * q.y - me.y * q.x, 8)
+        return Vec3f(x, y, z)
                        
     @staticmethod
     def from_vectors(from_vec, to_vec):
@@ -187,33 +196,17 @@ class RiftLeds:
         self.num_points = num_points
         self.points = points
         
-
-def ovec3f_add(a, b):
-    return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z)
-
-# Oquatf get_rotated
-def oquatf_get_rotated(me, vec):
-    q = Quatf(vec.x * me.w + vec.z * me.y - vec.y * me.z,
-                vec.y * me.w + vec.x * me.z - vec.z * me.x,
-                vec.z * me.w + vec.y * me.x - vec.x * me.y,
-                vec.x * me.x + vec.y * me.y + vec.z * me.z)
-    x = me.w * q.x + me.x * q.w + me.y * q.z - me.z * q.y
-    y = me.w * q.y + me.y * q.w + me.z * q.x - me.x * q.z
-    z = me.w * q.z + me.z * q.w + me.x * q.y - me.y * q.x
-
-    return Vec3f(x, y, z)
-
 def compare_leds(c, l):
-    tmp = ovec3f_add(l.pos, c.pose.pos)
-    led_pos = oquatf_get_rotated(c.pose.orient , tmp)
+    tmp = Vec3f.ovec3f_add(l.pos, c.pose.pos)
+    led_pos = Quatf.oquatf_get_rotated(c.pose.orient , tmp)
 
-    return math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2)
+    return round(math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2), 8)
 
 def calc_led_dist(c, l):
-    tmp = ovec3f_add(l.pos, c.pose.pos)
-    led_pos = oquatf_get_rotated(c.pose.orient , tmp)
+    tmp = Vec3f.ovec3f_add(l.pos, c.pose.pos)
+    led_pos = Quatf.oquatf_get_rotated(c.pose.orient , tmp)
 
-    return led_pos, math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2)
+    return led_pos, round(math.pow (led_pos.x, 2) + math.pow (led_pos.y, 2), 8)
 
 class LedSearchCandidate:
     def __init__(self, led, led_model):
@@ -241,12 +234,51 @@ class LedSearchCandidate:
             led_pos, distance = calc_led_dist(self, cur)
             print(f"LED id { cur.led_id } ({ cur.pos.x },{ cur.pos.y },{ cur.pos.z }) ({ cur.dir.x },{ cur.dir.y },{ cur.dir.z }) -> {led_pos.x} {led_pos.y} @ distance {distance}")
 
-def led_search_candidate_new(led, led_model, led_num):
-    led.led_id = led_num
-    c = LedSearchCandidate(led, led_model)
+def led_search_candidate_new():
+    leds = [Led(i, MODEL_DATA[i], DIRECTION[i]) for i in range(len(MODEL_DATA))]
+    # Create RiftLeds object
+    rift_leds = RiftLeds(len(leds), leds)
+    search_model = []
+    for i, led in enumerate( rift_leds.points ):
+        led.led_id = i
+        c = LedSearchCandidate(led, rift_leds)
+        search_model.append(c)
+        
+    return search_model
 
-    return c
+def check_led_match(anchor, candidate_list):
+    print(f"check_led_match: {anchor} {candidate_list}")
 
+def select_k_leds_from_n(anchor, candidate_list):
+    k = 3  # anchor 포함해서 총 4개의 LED를 선택
+    if len(candidate_list) < k:
+        return
+
+    for combo in combinations(candidate_list, k):
+        check_led_match(anchor, list(combo))
+        # 가운데 2개만 바꿔서 새로운 조합 생성
+        if len(combo) >= 3:
+            swapped = [combo[0], combo[2], combo[1]]
+            check_led_match(anchor, swapped)
+
+def generate_led_match_candidates(neighbors, start=0, depth=3, hopping=3):
+    anchor = neighbors[start]
+
+    for _ in range(depth):
+        if start + hopping >= len(neighbors):
+            break
+
+        candidate_list = neighbors[start + hopping:start + hopping + 3]
+        if len(candidate_list) != 3:
+            break
+        print(f"candidate_list: {candidate_list}")
+        select_k_leds_from_n(anchor, candidate_list)
+        start += 1  # 다음 이웃으로 이동
+
+def long_search_python():
+    # 예제 사용
+    neighbors = [0, 13, 1, 12, 14, 2, 15, 22, 3]
+    generate_led_match_candidates(neighbors, start=0, depth=3, hopping=3)
 
 if __name__ == "__main__":
     BLOB_CNT = len(MODEL_DATA)
@@ -258,15 +290,12 @@ if __name__ == "__main__":
         print(f"{np.array2string(dir, separator=', ')},")
 
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-    # correspondence_search_set_blobs()
-    leds = [Led(i, MODEL_DATA[i], DIRECTION[i]) for i in range(len(MODEL_DATA))]
-    # Create RiftLeds object
-    rift_leds = RiftLeds(len(leds), leds)
 
-    for i, led in enumerate( rift_leds.points ):
-        led_search_candidate_new(led, rift_leds, i)
+    led_search_candidate_new()
+    correspondence_search_set_blobs()
+    long_search_python()
 
-    
+
 
 
 
