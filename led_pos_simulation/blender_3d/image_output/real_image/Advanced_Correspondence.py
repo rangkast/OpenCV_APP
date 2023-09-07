@@ -90,6 +90,21 @@ points2D_D = np.array([
 ], dtype=np.float64)
 
 
+# 라이브러리 로드
+LAMBDATWIST_LIB = cdll.LoadLibrary(f"{script_dir}/../../../../EXTERNALS/lambdatwist_p3p.so")
+
+lambdatwist_p3p = LAMBDATWIST_LIB.lambdatwist_p3p
+lambdatwist_p3p.argtypes = [
+    np.ctypeslib.ndpointer(dtype=np.float64),  # iny1
+    np.ctypeslib.ndpointer(dtype=np.float64),  # iny2
+    np.ctypeslib.ndpointer(dtype=np.float64),  # iny3
+    np.ctypeslib.ndpointer(dtype=np.float64),  # x1
+    np.ctypeslib.ndpointer(dtype=np.float64),  # x2
+    np.ctypeslib.ndpointer(dtype=np.float64),  # x3
+    np.ctypeslib.ndpointer(dtype=np.float64, shape=(4,9)),  # R
+    np.ctypeslib.ndpointer(dtype=np.float64, shape=(4,3))   # t
+]
+
 
 def correspondence_search_set_blobs():
     def distance(point1, point2):
@@ -308,6 +323,7 @@ def check_led_match(anchor, candidate_list):
     POINTS3D_candidates_DIR = np.array(DIRECTION[list(candidate_list), :], dtype=np.float64)
     # print(f"points3D_candidate {POINTS3D_candidates}")
     
+
     for neighbours_2D in SEARCH_BLOBS:
         for blob_searching in SEARCH_BLOBS_MAP:
             points2D_list = neighbours_2D[list(blob_searching), :]
@@ -317,9 +333,24 @@ def check_led_match(anchor, candidate_list):
             blob0 = Vec3f(POINTS2D_candidates[0][0], POINTS2D_candidates[0][1], 1.0)
             checkblob = Vec3f(POINTS2D_candidates[3][0], POINTS2D_candidates[3][1], 1.0)
             
-            # 이거 문제임. 다름....
-            retval, rvec, tvec = cv2.solveP3P(POINTS3D_candidates_POS[:3], POINTS2D_candidates[:3], default_cameraK, default_dist_coeffs, flags=cv2.SOLVEPNP_P3P)
+            # 첫 세 개의 3D 및 2D 포인트
+            y1, y2, y3 = POINTS2D_candidates[:3]
+            x1, x2, x3 = POINTS3D_candidates_POS[:3]
 
+            R = np.zeros((4, 9), dtype=np.float64)  # 4개의 3x3 행렬
+            t = np.zeros((4, 3), dtype=np.float64)  # 4개의 3D 이동 벡터
+
+            lambdatwist_p3p(y1, y2, y3, x1, x2, x3, R, t)
+
+
+            print("Rotation matrices:", R)
+            print("Translation vectors:", t)
+            
+            
+            
+            
+            # retval, rvec, tvec = cv2.solveP3P(POINTS3D_candidates_POS[:3], POINTS2D_candidates[:3], default_cameraK, default_dist_coeffs, flags=cv2.SOLVEPNP_P3P)
+'''
             for ret_i in range(retval):
                 # rvec를 회전 행렬로 변환
                 _, rot_matrix = cv2.Rodrigues (rvec[ret_i])
@@ -377,7 +408,7 @@ def check_led_match(anchor, candidate_list):
                 tmp = Vec3f.ovec3f_substract(led_check_pos, checkblob)
                 distance = Vec3f.ovec3f_get_length(tmp)
                 print(f"distance {distance}")
-
+'''
 
 def select_k_leds_from_n(anchor, candidate_list):
     k = 3  # anchor 포함해서 총 4개의 LED를 선택

@@ -50,6 +50,7 @@ from sklearn.cluster import AgglomerativeClustering
 from numba import jit, float64, int32
 from queue import Queue
 from scipy.spatial import KDTree
+from ctypes import cdll, c_double
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
