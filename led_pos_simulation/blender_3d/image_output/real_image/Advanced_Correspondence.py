@@ -101,22 +101,22 @@ def correspondence_search_set_blobs():
     points2D_U = cv2.fisheye.undistortPoints ( points2D_D.reshape (-1, 1, 2), camera_matrix, dist_coeffs)
     points2D_U = np.array ( points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
 
-    print(f"points2D_U {points2D_U}")
+    # print(f"points2D_U {points2D_U}")
     sorted_neighbors = []
 
     for i, anchor in enumerate(points2D_D):
-        distances = [(NOT_SET, j, distance(anchor, point), point) for j, point in enumerate(points2D_D) if i != j]
+        distances = [(NOT_SET, i, 0.0, anchor, points2D_U[i])] # 현재 anchor 자신을 추가
+        distances += [(NOT_SET, j, distance(anchor, point), point, points2D_U[j]) for j, point in enumerate(points2D_D) if i != j]
         sorted_by_distance = sorted(distances, key=lambda x: x[2])
-        sorted_neighbors.append(sorted_by_distance[:5])
+        sorted_neighbors.append (sorted_by_distance[:6]) # anchor 포함해서 6개까지
 
-        print(f"Sorted neighbors by distance")
-
+    print(f"Sorted neighbors by distance")
     for i, neighbors in enumerate(sorted_neighbors):
         print(f"Model 0, blob {i} @ {points2D_D[i][0]:.6f} , {points2D_D[i][1]:.6f} neighbours {len(neighbors)} Search list:")
-        for ID, j, dist, point in neighbors:
-            print(f"LED ID {ID} ( {points2D_U[j][0]:.6f} , {points2D_U[j][1]:.6f} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f}")
+        for ID, j, dist, point, point_u in neighbors:
+            print(f"LED ID {ID} ( {point_u} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f}")
 
-    return points2D_U, sorted_neighbors
+    return np.array(sorted_neighbors)
 
 
 
@@ -130,12 +130,26 @@ class Vec3f:
         return Vec3f(-self.x, -self.y, -self.z)
     def get_sqlength(self):
         return np.dot ( self.arr , self.arr )
+    def ovec3f_get_length(self):
+        return math.sqrt (self.x**2 + self.y**2 + self.z**2) 
     def get_dot(self, vec):
         return np.dot ( self.arr , vec.arr )
     def distance_to(self, other_vec):
         return np.linalg.norm ( self.arr - other_vec.arr )
     def ovec3f_add(a, b):
         return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z)
+    def ovec3f_substract(a, b):
+        return Vec3f(a.x - b.x, a.y - b.y, a.z - b.z)
+    def ovec3f_multiply_scalar(a, S):
+        return Vec3f(a.x*S, a.y*S, a.z*S)
+    def ovec3f_normalize_me(self):
+        if self.x == 0 and self.y == 0 and self.z == 0:
+            return
+        len = np.linalg.norm ( self.arr )
+        self.x /= len
+        self.y /= len
+        self.z /= len
+        return Vec3f(self.x, self.y, self.z) # Update the 'arr' attribute as well
     def __repr__(self):
         return f"({self.x} {self.y} {self.z})"
 
@@ -226,13 +240,13 @@ class LedSearchCandidate:
         # Sort neighbours based on the projected distance
         self.neighbours = sorted( self.neighbours , key=lambda x: compare_leds(self, x))
 
-        print(f"Have { self.num_neighbours } neighbours for LED { self.led.led_id } ({ self.led.pos.x },{ self.led.pos.y },{ self.led.pos.z }) dir ({ self.led.dir.x },{ self.led.dir.y },{ self.led.dir.z }):")
-        print(f"pose pos [{ self.pose.pos.x },{ self.pose.pos.y },{ self.pose.pos.z }]")
-        print(f"pose orient [{ self.pose.orient.x },{ self.pose.orient.y },{ self.pose.orient.z },{ self.pose.orient.w }]")
+        # print(f"Have { self.num_neighbours } neighbours for LED { self.led.led_id } ({ self.led.pos.x },{ self.led.pos.y },{ self.led.pos.z }) dir ({ self.led.dir.x },{ self.led.dir.y },{ self.led.dir.z }):")
+        # print(f"pose pos [{ self.pose.pos.x },{ self.pose.pos.y },{ self.pose.pos.z }]")
+        # print(f"pose orient [{ self.pose.orient.x },{ self.pose.orient.y },{ self.pose.orient.z },{ self.pose.orient.w }]")
         for i in range( self.num_neighbours ):
             cur = self.neighbours [i]
             led_pos, distance = calc_led_dist(self, cur)
-            print(f"LED id { cur.led_id } ({ cur.pos.x },{ cur.pos.y },{ cur.pos.z }) ({ cur.dir.x },{ cur.dir.y },{ cur.dir.z }) -> {led_pos.x} {led_pos.y} @ distance {distance}")
+            # print(f"LED id { cur.led_id } ({ cur.pos.x },{ cur.pos.y },{ cur.pos.z }) ({ cur.dir.x },{ cur.dir.y },{ cur.dir.z }) -> {led_pos.x} {led_pos.y} @ distance {distance}")
 
 def led_search_candidate_new():
     leds = [Led(i, MODEL_DATA[i], DIRECTION[i]) for i in range(len(MODEL_DATA))]
@@ -244,10 +258,126 @@ def led_search_candidate_new():
         c = LedSearchCandidate(led, rift_leds)
         search_model.append(c)
         
-    return search_model
+    return rift_leds, search_model
+
+
+def quaternion_from_rotation_matrix(R):
+    q = Quatf(0, 0, 0, 0)
+    trace = R[0, 0] + R[1, 1] + R[2, 2]
+    if trace > 0:
+        s = 0.5 / np.sqrt (trace + 1.0)
+        q.w = -0.25 / s
+        q.x = -(R[2, 1] - R[1, 2]) * s
+        q.y = -(R[0, 2] - R[2, 0]) * s
+        q.z = -(R[1, 0] - R[0, 1]) * s
+    else:
+        if R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
+            s = 2.0 * np.sqrt (1.0 + R[0, 0] - R[1, 1] - R[2, 2])
+            q.w = -(R[2, 1] - R[1, 2]) / s
+            q.x = -0.25 * s
+            q.y = -(R[0, 1] + R[1, 0]) / s
+            q.z = -(R[0, 2] + R[2, 0]) / s
+        elif R[1, 1] > R[2, 2]:
+            s = 2.0 * np.sqrt (1.0 + R[1, 1] - R[0, 0] - R[2, 2])
+            q.w = -(R[0, 2] - R[2, 0]) / s
+            q.x = -(R[0, 1] + R[1, 0]) / s
+            q.y = -0.25 * s
+            q.z = -(R[1, 2] + R[2, 1]) / s
+        else:
+            s = 2.0 * np.sqrt (1.0 + R[2, 2] - R[0, 0] - R[1, 1])
+            q.w = -(R[1, 0] - R[0, 1]) / s
+            q.x = -(R[0, 2] + R[2, 0]) / s
+            q.y = -(R[1, 2] + R[2, 1]) / s
+            q.z = -0.25 * s
+    return q
 
 def check_led_match(anchor, candidate_list):
+    # 조합은 미리 만들어놔도 될 듯?
+    SEARCH_BLOBS_MAP = [
+        [0, 1, 2, 3],
+        [0, 1, 3, 4],
+        [0, 1, 4, 5],
+        [0, 2, 3, 4],
+        [0, 2, 4, 5],
+        [0, 3, 4, 5]
+    ]
     print(f"check_led_match: {anchor} {candidate_list}")
+    candidate_list.insert(0, anchor)
+
+    POINTS3D_candidates_POS = np.array(MODEL_DATA[list(candidate_list), :], dtype=np.float64)
+    POINTS3D_candidates_DIR = np.array(DIRECTION[list(candidate_list), :], dtype=np.float64)
+    # print(f"points3D_candidate {POINTS3D_candidates}")
+    
+    for neighbours_2D in SEARCH_BLOBS:
+        for blob_searching in SEARCH_BLOBS_MAP:
+            points2D_list = neighbours_2D[list(blob_searching), :]
+            # print(f"{blob_searching}")
+            # print(f"points2D_list {points2D_list}")
+            POINTS2D_candidates = np.array([point[-1] for point in points2D_list], dtype=np.float64)
+            blob0 = Vec3f(POINTS2D_candidates[0][0], POINTS2D_candidates[0][1], 1.0)
+            checkblob = Vec3f(POINTS2D_candidates[3][0], POINTS2D_candidates[3][1], 1.0)
+            
+            # 이거 문제임. 다름....
+            retval, rvec, tvec = cv2.solveP3P(POINTS3D_candidates_POS[:3], POINTS2D_candidates[:3], default_cameraK, default_dist_coeffs, flags=cv2.SOLVEPNP_P3P)
+
+            for ret_i in range(retval):
+                # rvec를 회전 행렬로 변환
+                _, rot_matrix = cv2.Rodrigues (rvec[ret_i])
+
+                q = quaternion_from_rotation_matrix(rot_matrix)
+                
+                pose = Pose(Vec3f(round(tvec[ret_i][0][0], 8),
+                                  round(tvec[ret_i][1][0], 8),
+                                  round(tvec[ret_i][2][0], 8)), q)
+                if pose.pos.z < 0.05 or pose.pos.z > 15:
+                    continue
+                pose.orient.normalize_me()
+                
+                checkpos = Quatf.oquatf_get_rotated(pose.orient ,
+                                                   Vec3f(POINTS3D_candidates_POS[0][0],
+                                                         POINTS3D_candidates_POS[0][1],
+                                                         POINTS3D_candidates_POS[0][2]))
+                checkpos = Vec3f.ovec3f_add(checkpos, pose.pos)
+                
+                checkdir = Quatf.oquatf_get_rotated(pose.orient ,
+                                                   Vec3f(POINTS3D_candidates_DIR[0][0],
+                                                         POINTS3D_candidates_DIR[0][1],
+                                                         POINTS3D_candidates_DIR[0][2]))
+                checkpos = Vec3f.ovec3f_normalize_me(checkpos)
+                
+                print(f"pose.pos {pose.pos.x} {pose.pos.y} {pose.pos.z}")  
+                print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}") 
+                print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
+                print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")             
+                print(f"checkpos {checkpos}")
+                print(f"checkdir {checkdir}")
+                
+                # return
+                
+                facing_dot = Vec3f.get_dot(checkpos, checkdir)
+                
+                if facing_dot > 0:
+                    # print("invalid pose")
+                    continue           
+                
+                checkpos = Vec3f.ovec3f_multiply_scalar(checkpos, 1.0/checkpos.z)
+                tmp = Vec3f.ovec3f_substract(checkpos, blob0)
+                l = Vec3f.ovec3f_get_length(tmp)
+                if l > 0.0025:
+                    # print(f"Error pose candidate")
+                    continue
+                    
+                # check 4th point                
+                led_check_pos = Quatf.oquatf_get_rotated(pose.orient ,
+                                                   Vec3f(POINTS3D_candidates_POS[3][0],
+                                                         POINTS3D_candidates_POS[3][1],
+                                                         POINTS3D_candidates_POS[3][2]))
+                led_check_pos = Vec3f.ovec3f_add(led_check_pos, pose.pos)
+                led_check_pos = Vec3f.ovec3f_multiply_scalar(led_check_pos, 1.0/led_check_pos.z)
+                tmp = Vec3f.ovec3f_substract(led_check_pos, checkblob)
+                distance = Vec3f.ovec3f_get_length(tmp)
+                print(f"distance {distance}")
+
 
 def select_k_leds_from_n(anchor, candidate_list):
     k = 3  # anchor 포함해서 총 4개의 LED를 선택
@@ -271,14 +401,27 @@ def generate_led_match_candidates(neighbors, start=0, depth=3, hopping=3):
         candidate_list = neighbors[start + hopping:start + hopping + 3]
         if len(candidate_list) != 3:
             break
-        print(f"candidate_list: {candidate_list}")
+        # print(f"candidate_list: {candidate_list}")
         select_k_leds_from_n(anchor, candidate_list)
         start += 1  # 다음 이웃으로 이동
 
 def long_search_python():
     # 예제 사용
-    neighbors = [0, 13, 1, 12, 14, 2, 15, 22, 3]
-    generate_led_match_candidates(neighbors, start=0, depth=3, hopping=3)
+    NEIGHBOURS_LIST = []
+    for idx, data in enumerate(SEARCH_MODEL):
+        anchor_point = data.led.led_id
+        # print(f"Anchor {anchor_point}")
+        neighbours_list = []
+        neighbours_list.append(anchor_point)
+        for led_num in data.neighbours:
+            # print(led_num.led_id)
+            neighbours_list.append(led_num.led_id)
+        NEIGHBOURS_LIST.append(neighbours_list) 
+    print("NEIGHBOURS_LIST")
+    for neighbors in NEIGHBOURS_LIST:
+        print(f"neighbours: {neighbors}")
+        generate_led_match_candidates(neighbors, start=0, depth=3, hopping=3)
+            
 
 if __name__ == "__main__":
     BLOB_CNT = len(MODEL_DATA)
@@ -291,8 +434,8 @@ if __name__ == "__main__":
 
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
 
-    led_search_candidate_new()
-    correspondence_search_set_blobs()
+    RIFT_MODEL, SEARCH_MODEL = led_search_candidate_new()
+    SEARCH_BLOBS = correspondence_search_set_blobs()
     long_search_python()
 
 
