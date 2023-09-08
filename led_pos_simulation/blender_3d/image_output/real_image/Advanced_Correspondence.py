@@ -137,20 +137,20 @@ def correspondence_search_set_blobs():
 
 class Vec3f:
     def __init__(self, x, y, z):
-        self.x = x
-        self.y = y
-        self.z = z
+        self.x = round(x, 8)
+        self.y = round(y, 8)
+        self.z = round(z, 8)
         self.arr = np.array ([x, y, z])
     def inverse(self):
         return Vec3f(-self.x, -self.y, -self.z)
     def get_sqlength(self):
-        return np.dot ( self.arr , self.arr )
+        return round(np.dot ( self.arr , self.arr ), 8)
     def ovec3f_get_length(self):
-        return math.sqrt (self.x**2 + self.y**2 + self.z**2) 
+        return round(math.sqrt (self.x**2 + self.y**2 + self.z**2), 8)
     def get_dot(self, vec):
         return np.dot ( self.arr , vec.arr )
     def distance_to(self, other_vec):
-        return np.linalg.norm ( self.arr - other_vec.arr )
+        return round(np.linalg.norm ( self.arr - other_vec.arr ), 8)
     def ovec3f_add(a, b):
         return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z)
     def ovec3f_substract(a, b):
@@ -171,10 +171,10 @@ class Vec3f:
 
 class Quatf:
     def __init__(self, x, y, z, w):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.w = w
+        self.x = round(x, 8)
+        self.y = round(y, 8)
+        self.z = round(z, 8)
+        self.w = round(w, 8)
     def normalize_me(self):
         len = self.get_length ()
         self.x /= len
@@ -182,7 +182,7 @@ class Quatf:
         self.z /= len
         self.w /= len
     def get_length(self):
-        return math.sqrt (self.x**2 + self.y**2 + self.z**2 + self.w**2)
+        return round(math.sqrt (self.x**2 + self.y**2 + self.z**2 + self.w**2), 8)
     # Oquatf get_rotated
     def oquatf_get_rotated(me, vec):
         q = Quatf(vec.x * me.w + vec.z * me.y - vec.y * me.z,
@@ -277,34 +277,35 @@ def led_search_candidate_new():
 
 
 def quaternion_from_rotation_matrix(R):
-    q = Quatf(0, 0, 0, 0)
-    trace = R[0, 0] + R[1, 1] + R[2, 2]
+    trace = R[0] + R[4] + R[8]
     if trace > 0:
-        s = 0.5 / np.sqrt (trace + 1.0)
-        q.w = -0.25 / s
-        q.x = -(R[2, 1] - R[1, 2]) * s
-        q.y = -(R[0, 2] - R[2, 0]) * s
-        q.z = -(R[1, 0] - R[0, 1]) * s
+        s = 0.5 / math.sqrt (trace + 1.0)
+        w = -0.25 / s
+        x = -(R[7] - R[5]) * s
+        y = -(R[2] - R[6]) * s
+        z = -(R[3] - R[1]) * s
     else:
-        if R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
-            s = 2.0 * np.sqrt (1.0 + R[0, 0] - R[1, 1] - R[2, 2])
-            q.w = -(R[2, 1] - R[1, 2]) / s
-            q.x = -0.25 * s
-            q.y = -(R[0, 1] + R[1, 0]) / s
-            q.z = -(R[0, 2] + R[2, 0]) / s
-        elif R[1, 1] > R[2, 2]:
-            s = 2.0 * np.sqrt (1.0 + R[1, 1] - R[0, 0] - R[2, 2])
-            q.w = -(R[0, 2] - R[2, 0]) / s
-            q.x = -(R[0, 1] + R[1, 0]) / s
-            q.y = -0.25 * s
-            q.z = -(R[1, 2] + R[2, 1]) / s
+        if R[0] > R[4] and R[0] > R[8]:
+            s = 2.0 * math.sqrt (1.0 + R[0] - R[4] - R[8])
+            w = -(R[7] - R[5]) / s
+            x = -0.25 * s
+            y = -(R[1] + R[3]) / s
+            z = -(R[2] + R[6]) / s
+        elif R[4] > R[8]:
+            s = 2.0 * math.sqrt (1.0 + R[4] - R[0] - R[8])
+            w = -(R[2] - R[6]) / s
+            x = -(R[1] + R[3]) / s
+            y = -0.25 * s
+            z = -(R[5] + R[7]) / s
         else:
-            s = 2.0 * np.sqrt (1.0 + R[2, 2] - R[0, 0] - R[1, 1])
-            q.w = -(R[1, 0] - R[0, 1]) / s
-            q.x = -(R[0, 2] + R[2, 0]) / s
-            q.y = -(R[1, 2] + R[2, 1]) / s
-            q.z = -0.25 * s
-    return q
+            s = 2.0 * math.sqrt (1.0 + R[8] - R[0] - R[4])
+            w = -(R[3] - R[1]) / s
+            x = -(R[2] + R[6]) / s
+            y = -(R[5] + R[7]) / s
+            z = -0.25 * s
+    return Quatf(x, y, z, w)
+
+
 
 def check_led_match(anchor, candidate_list):
     # 조합은 미리 만들어놔도 될 듯?
@@ -332,83 +333,79 @@ def check_led_match(anchor, candidate_list):
             POINTS2D_candidates = np.array([point[-1] for point in points2D_list], dtype=np.float64)
             blob0 = Vec3f(POINTS2D_candidates[0][0], POINTS2D_candidates[0][1], 1.0)
             checkblob = Vec3f(POINTS2D_candidates[3][0], POINTS2D_candidates[3][1], 1.0)
-            
+
+            # print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
+            # print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")
+
             # 첫 세 개의 3D 및 2D 포인트
-            y1, y2, y3 = POINTS2D_candidates[:3]
+            y1, y2, y3 = [ np.append (point, 1.0) for point in POINTS2D_candidates[:3]]
             x1, x2, x3 = POINTS3D_candidates_POS[:3]
+
+            # print(f"{y1} {y2} {y3}")
+            # print(f"{x1} {x2} {x3}")
 
             R = np.zeros((4, 9), dtype=np.float64)  # 4개의 3x3 행렬
             t = np.zeros((4, 3), dtype=np.float64)  # 4개의 3D 이동 벡터
 
-            lambdatwist_p3p(y1, y2, y3, x1, x2, x3, R, t)
+            valid = lambdatwist_p3p(y1, y2, y3, x1, x2, x3, R, t)
 
+            # print("Rotation matrices:", R)
+            # print("Translation vectors:", t)
+            # print(f"valid {valid}")
 
-            print("Rotation matrices:", R)
-            print("Translation vectors:", t)
-            
-            
-            
-            
-            # retval, rvec, tvec = cv2.solveP3P(POINTS3D_candidates_POS[:3], POINTS2D_candidates[:3], default_cameraK, default_dist_coeffs, flags=cv2.SOLVEPNP_P3P)
-'''
-            for ret_i in range(retval):
-                # rvec를 회전 행렬로 변환
-                _, rot_matrix = cv2.Rodrigues (rvec[ret_i])
-
-                q = quaternion_from_rotation_matrix(rot_matrix)
-                
-                pose = Pose(Vec3f(round(tvec[ret_i][0][0], 8),
-                                  round(tvec[ret_i][1][0], 8),
-                                  round(tvec[ret_i][2][0], 8)), q)
-                if pose.pos.z < 0.05 or pose.pos.z > 15:
-                    continue
-                pose.orient.normalize_me()
-                
-                checkpos = Quatf.oquatf_get_rotated(pose.orient ,
+            if valid:
+                for i in range(valid):
+                    q = quaternion_from_rotation_matrix(R[i])
+                    pose = Pose(Vec3f(round(t[i][0], 8),
+                                      round(t[i][1], 8),
+                                      round(t[i][2], 8)), q)
+                    if pose.pos.z < 0.05 or pose.pos.z > 15:
+                        continue
+                    pose.orient.normalize_me()
+                    checkpos = Quatf.oquatf_get_rotated(pose.orient ,
                                                    Vec3f(POINTS3D_candidates_POS[0][0],
                                                          POINTS3D_candidates_POS[0][1],
                                                          POINTS3D_candidates_POS[0][2]))
-                checkpos = Vec3f.ovec3f_add(checkpos, pose.pos)
-                
-                checkdir = Quatf.oquatf_get_rotated(pose.orient ,
-                                                   Vec3f(POINTS3D_candidates_DIR[0][0],
-                                                         POINTS3D_candidates_DIR[0][1],
-                                                         POINTS3D_candidates_DIR[0][2]))
-                checkpos = Vec3f.ovec3f_normalize_me(checkpos)
-                
-                print(f"pose.pos {pose.pos.x} {pose.pos.y} {pose.pos.z}")  
-                print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}") 
-                print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
-                print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")             
-                print(f"checkpos {checkpos}")
-                print(f"checkdir {checkdir}")
-                
-                # return
-                
-                facing_dot = Vec3f.get_dot(checkpos, checkdir)
-                
-                if facing_dot > 0:
-                    # print("invalid pose")
-                    continue           
-                
-                checkpos = Vec3f.ovec3f_multiply_scalar(checkpos, 1.0/checkpos.z)
-                tmp = Vec3f.ovec3f_substract(checkpos, blob0)
-                l = Vec3f.ovec3f_get_length(tmp)
-                if l > 0.0025:
-                    # print(f"Error pose candidate")
-                    continue
+                    checkpos = Vec3f.ovec3f_add(checkpos, pose.pos)                    
+                    checkdir = Quatf.oquatf_get_rotated(pose.orient ,
+                                                    Vec3f(POINTS3D_candidates_DIR[0][0],
+                                                            POINTS3D_candidates_DIR[0][1],
+                                                            POINTS3D_candidates_DIR[0][2]))
+                    checkpos = Vec3f.ovec3f_normalize_me(checkpos)
+                    facing_dot = Vec3f.get_dot(checkpos, checkdir)
+
+                    print(f"checkpos {checkpos}")
+                    print(f"checkdir {checkdir}")
+                    if facing_dot > 0:
+                        # print("invalid pose")
+                        continue           
                     
-                # check 4th point                
-                led_check_pos = Quatf.oquatf_get_rotated(pose.orient ,
-                                                   Vec3f(POINTS3D_candidates_POS[3][0],
-                                                         POINTS3D_candidates_POS[3][1],
-                                                         POINTS3D_candidates_POS[3][2]))
-                led_check_pos = Vec3f.ovec3f_add(led_check_pos, pose.pos)
-                led_check_pos = Vec3f.ovec3f_multiply_scalar(led_check_pos, 1.0/led_check_pos.z)
-                tmp = Vec3f.ovec3f_substract(led_check_pos, checkblob)
-                distance = Vec3f.ovec3f_get_length(tmp)
-                print(f"distance {distance}")
-'''
+                    checkpos = Vec3f.ovec3f_multiply_scalar(checkpos, 1.0/checkpos.z)
+                    tmp = Vec3f.ovec3f_substract(checkpos, blob0)
+                    l = Vec3f.ovec3f_get_length(tmp)
+                    if l > 0.0025:
+                        # print(f"Error pose candidate")
+                        continue
+                        
+                    # check 4th point                
+                    led_check_pos = Quatf.oquatf_get_rotated(pose.orient ,
+                                                    Vec3f(POINTS3D_candidates_POS[3][0],
+                                                            POINTS3D_candidates_POS[3][1],
+                                                            POINTS3D_candidates_POS[3][2]))
+                    led_check_pos = Vec3f.ovec3f_add(led_check_pos, pose.pos)
+                    led_check_pos = Vec3f.ovec3f_multiply_scalar(led_check_pos, 1.0/led_check_pos.z)
+                    tmp = Vec3f.ovec3f_substract(led_check_pos, checkblob)
+                    distance = Vec3f.ovec3f_get_length(tmp)
+                    
+                    print(f"ANCHOR [{blob0.x},{blob0.y},{blob0.z}]")
+                    print(f"pose.pos {pose.pos.x} {pose.pos.y} {pose.pos.z}")  
+                    print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}")      
+                    print(f"distance {distance}")
+
+                    # ToDo
+                    # correspondence_search_project_pose
+                            
+
 
 def select_k_leds_from_n(anchor, candidate_list):
     k = 3  # anchor 포함해서 총 4개의 LED를 선택
