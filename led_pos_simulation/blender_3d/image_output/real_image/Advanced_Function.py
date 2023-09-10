@@ -24,6 +24,7 @@ import subprocess
 import cv2
 import traceback
 import math
+from math import cos, pi
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
