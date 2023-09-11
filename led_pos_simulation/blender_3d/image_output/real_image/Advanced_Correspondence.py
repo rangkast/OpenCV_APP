@@ -89,7 +89,10 @@ points2D_D = np.array([
     [429.436829, 157.300140],
     [403.095795, 158.119385]
 ], dtype=np.float64)
-
+points2D_U = cv2.fisheye.undistortPoints (points2D_D.reshape (-1, 1, 2), 
+                                            pebble_camera_matrix[0][0],
+                                            pebble_camera_matrix[0][1])
+points2D_U = np.array ( points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
 
 class Vec3f:
     def __init__(self, x, y, z):
@@ -218,12 +221,6 @@ def correspondence_search_set_blobs():
     def distance(point1, point2):
         return np.sqrt ((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
-    camera_matrix = pebble_camera_matrix[0][0]
-    dist_coeffs = pebble_camera_matrix[0][1]
-
-    points2D_U = cv2.fisheye.undistortPoints ( points2D_D.reshape (-1, 1, 2), camera_matrix, dist_coeffs)
-    points2D_U = np.array ( points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
-
     # print(f"points2D_U {points2D_U}")
     sorted_neighbors = []
 
@@ -324,30 +321,6 @@ def OHMD_MAX(_a, _b):
 def LED_OBJECT_ID(l):
     return l if l < 0 else l >> 8
 
-def find_best_matching_led(led_points, num_leds, blob):
-    best_z = None
-    best_led_index = -1
-    best_sqerror = 1e20
-    leds_within_range = 0
-
-    for i in range(num_leds):
-        led_info = led_points[i]
-        pos_px = led_info['pos_px']
-        led_radius_px = led_info['led_radius_px']
-        dx = abs(pos_px[0] - blob['x'])
-        dy = abs(pos_px[1] - blob['y'])
-        sqerror = dx ** 2 + dy ** 2
-
-        if sqerror < (led_radius_px * led_radius_px):
-            leds_within_range += 1
-
-            if best_led_index < 0 or best_z > led_info['pos_m'].z or (sqerror + led_radius_px) < best_sqerror:
-                best_z = led_info['pos_m'].z
-                best_led_index = i
-                best_sqerror = sqerror
-
-    return best_led_index, best_sqerror
-
 def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     led_radius_mm = 4.0 / 1000.0
     first_visible = True
@@ -361,12 +334,13 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     tvec = np.array([pose.pos.x, pose.pos.y, pose.pos.z], dtype=np.float64)
     # Convert the quaternion to rotation vector
     rvec = np.array(quaternion_to_rotvec(quaternion), dtype=np.float64)
-    camera_matrix = pebble_camera_matrix[0][0]
-    dist_coeffs = pebble_camera_matrix[0][1]
 
     # Project the 3D LED points onto the 2D image plane
-    projected_points, _ = cv2.fisheye.projectPoints( MODEL_DATA.reshape (-1, 1, 3), rvec, tvec, camera_matrix, dist_coeffs)
-    # print(f"projected_points\n{projected_points}")
+    projected_points, _ = cv2.fisheye.projectPoints( MODEL_DATA.reshape (-1, 1, 3), rvec, tvec,
+                                                    pebble_camera_matrix[0][0],
+                                                    pebble_camera_matrix[0][1])
+    flattened_points = projected_points.squeeze()
+    # print(f"projected_points\n{flattened_points}")
      # Get the focal length from the camera matrix
     focal_length = OHMD_MAX(pebble_camera_matrix[0][0][0, 0], pebble_camera_matrix[0][0][1, 1])
     
@@ -377,7 +351,7 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     # Iterate through the LED points (assuming they are in MODEL_DATA)
     num_leds = BLOB_CNT
     for i in range(num_leds):
-        led_pos_px = projected_points[i][0]
+        led_pos_px = flattened_points[i]
         
         # Check if LED is within screen bounds
         if led_pos_px[0] < 0 or led_pos_px[1] < 0 or led_pos_px[0] >= pebble_camera_matrix[0][0][0, 2] * 2 or led_pos_px[1] >= pebble_camera_matrix[0][0][1, 2] * 2:
@@ -397,7 +371,7 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
         tmp = Vec3f.ovec3f_normalize_me(tmp)
         normal = Quatf.oquatf_get_rotated(pose.orient , Vec3f(DIRECTION[i][0], DIRECTION[i][1], DIRECTION[i][2]))          
         facing_dot = Vec3f.get_dot(tmp, normal)
-
+        print(f"facing_dot {facing_dot}")
         # Check the facing_dot value against a threshold
         if facing_dot < cos(DEG_TO_RAD * (180.0 - RIFT_LED_ANGLE)):
             # Append to visible LED points
@@ -424,12 +398,14 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     print(f"score_visible_leds {score_visible_leds}")
     if score_visible_leds < 5:
         return bounds
+    
+    print("points2D_D")
+    for blobs in points2D_D:
+        print(blobs)
+    
+    sys.exit()
     # 전체 블롭에서 score 계산
-    
-       
-  
-    
-
+ 
 def check_led_match(anchor, candidate_list):
     # 조합은 미리 만들어놔도 될 듯?
     SEARCH_BLOBS_MAP = [
@@ -531,10 +507,6 @@ def check_led_match(anchor, candidate_list):
                     # sys.exit()
 
 
-                    
-                    
-                             
-
 def select_k_leds_from_n(anchor, candidate_list):
     k = 3  # anchor 포함해서 총 4개의 LED를 선택
     if len(candidate_list) < k:
@@ -589,7 +561,7 @@ if __name__ == "__main__":
         print(f"{np.array2string(dir, separator=', ')},")
 
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-
+    
     RIFT_MODEL, SEARCH_MODEL = led_search_candidate_new()
     SEARCH_BLOBS = correspondence_search_set_blobs()
     long_search_python()
