@@ -320,6 +320,31 @@ def OHMD_MAX(_a, _b):
     return _a if _a > _b else _b
 def LED_OBJECT_ID(l):
     return l if l < 0 else l >> 8
+def find_best_matching_led(led_points, num_leds, blob):
+    best_z = float('inf')
+    best_led_index = -1
+    best_sqerror = 1e20
+    leds_within_range = 0
+
+    for i in range(num_leds):
+        led_info = led_points[i]
+        pos_px = led_info['pos_px']
+        led_radius_px = led_info['led_radius_px']
+
+        dx = abs(pos_px[0] - blob[0])
+        dy = abs(pos_px[1] - blob[1])
+
+        sqerror = dx ** 2 + dy ** 2
+
+        if sqerror < (led_radius_px ** 2):
+            leds_within_range += 1
+
+            if best_led_index < 0 or best_z > led_info['pos_m'].z or (sqerror + led_radius_px) < best_sqerror:
+                best_z = led_info['pos_m'].z
+                best_led_index = i
+                best_sqerror = sqerror
+
+    return best_led_index, best_sqerror
 
 def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     led_radius_mm = 4.0 / 1000.0
@@ -399,12 +424,44 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     if score_visible_leds < 5:
         return bounds
     
-    print("points2D_D")
-    for blobs in points2D_D:
-        print(blobs)
+    # print("points2D_D")
+    # for blobs in points2D_D:
+    #     print(blobs)
     
-    # 전체 블롭에서 score 계산
+    # Initialize score dictionary
+    score = {'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': 0.0}
 
+    # Assuming find_best_matching_led is defined in your code
+    # def find_best_matching_led(visible_led_points, num_leds, blob): ...
+
+    for i, blob in enumerate(points2D_D):  # Assuming points2D_D is similar to blobs in C
+        # led_object_id = LED_OBJECT_ID(blob['led_id'])  # Assuming blob has 'led_id'
+        
+        # # Skip blobs which already have an ID not belonging to this device
+        # if led_object_id != LED_INVALID_ID and led_object_id != device_id:
+        #     continue
+        
+        # Check if blob is within the bounding box
+        if blob[0] >= bounds['left'] and blob[1] >= bounds['top'] and blob[0] < bounds['right'] and blob[1] < bounds['bottom']:
+            sqerror = 0.0  # You might want to replace this with an actual calculation
+
+            match_result = find_best_matching_led(visible_led_points, score_visible_leds, blob)
+            if match_result is not None:  # or some other condition to check for valid result
+                match_led_index, sqerror = match_result
+                if match_led_index >= 0:
+                    score['reprojection_error'] += sqerror
+                    score['matched_blobs'] += 1
+                else:
+                    score['unmatched_blobs'] += 1
+
+    # Check if there are enough matched blobs
+    if score['matched_blobs'] < 5:
+        print("Not enough matched blobs, exiting.")
+        # Your exit or return logic here
+    else:
+        error_per_led = score['reprojection_error'] / score['matched_blobs']
+        print(f"Error per LED: {error_per_led}")
+    
 
  
 def check_led_match(anchor, candidate_list):
