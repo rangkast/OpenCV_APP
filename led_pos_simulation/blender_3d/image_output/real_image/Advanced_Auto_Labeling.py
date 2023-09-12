@@ -32,7 +32,7 @@ Solutions
 3 : translation Matrix x projectPoints
 4 : object tracking
 '''
-SOLUTION = 5
+SOLUTION = 4
 
 def sliding_window(data, window_size):
     for i in range(len(data) - window_size + 1):

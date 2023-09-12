@@ -371,7 +371,7 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
         tmp = Vec3f.ovec3f_normalize_me(tmp)
         normal = Quatf.oquatf_get_rotated(pose.orient , Vec3f(DIRECTION[i][0], DIRECTION[i][1], DIRECTION[i][2]))          
         facing_dot = Vec3f.get_dot(tmp, normal)
-        print(f"facing_dot {facing_dot}")
+        print(f"LED {i} pos {led_pos_m.x},{led_pos_m.y},{led_pos_m.z} -> {led_pos_px[0]},{led_pos_px[1]}  facing_dot {facing_dot}")
         # Check the facing_dot value against a threshold
         if facing_dot < cos(DEG_TO_RAD * (180.0 - RIFT_LED_ANGLE)):
             # Append to visible LED points
@@ -403,8 +403,9 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
     for blobs in points2D_D:
         print(blobs)
     
-    sys.exit()
     # 전체 블롭에서 score 계산
+
+
  
 def check_led_match(anchor, candidate_list):
     # 조합은 미리 만들어놔도 될 듯?
@@ -433,15 +434,17 @@ def check_led_match(anchor, candidate_list):
             blob0 = Vec3f(POINTS2D_candidates[0][0], POINTS2D_candidates[0][1], 1.0)
             checkblob = Vec3f(POINTS2D_candidates[3][0], POINTS2D_candidates[3][1], 1.0)
 
-            # print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
-            # print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")
+            print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
+            print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")
 
             # 첫 세 개의 3D 및 2D 포인트
             y1, y2, y3 = [ np.append (point, 1.0) for point in POINTS2D_candidates[:3]]
             x1, x2, x3 = POINTS3D_candidates_POS[:3]
 
-            # print(f"{y1} {y2} {y3}")
-            # print(f"{x1} {x2} {x3}")
+            print(f"POINTS2D_candidates")
+            print(f"{y1}\n{y2}\n{y3}")
+            print(f"POINTS3D_candidates_POS")
+            print(f"{x1}\n{x2}\n{x3}")
 
             R = np.zeros((4, 9), dtype=np.float64)  # 4개의 3x3 행렬
             t = np.zeros((4, 3), dtype=np.float64)  # 4개의 3D 이동 벡터
@@ -473,8 +476,8 @@ def check_led_match(anchor, candidate_list):
                     checkpos = Vec3f.ovec3f_normalize_me(checkpos)
                     facing_dot = Vec3f.get_dot(checkpos, checkdir)
 
-                    # print(f"checkpos {checkpos}")
-                    # print(f"checkdir {checkdir}")
+                    print(f"checkpos {checkpos}")
+                    print(f"checkdir {checkdir}")
                     if facing_dot > 0:
                         # print("invalid pose")
                         continue           
@@ -491,21 +494,22 @@ def check_led_match(anchor, candidate_list):
                                                     Vec3f(POINTS3D_candidates_POS[3][0],
                                                             POINTS3D_candidates_POS[3][1],
                                                             POINTS3D_candidates_POS[3][2]))
+
                     led_check_pos = Vec3f.ovec3f_add(led_check_pos, pose.pos)
                     led_check_pos = Vec3f.ovec3f_multiply_scalar(led_check_pos, 1.0/led_check_pos.z)
                     tmp = Vec3f.ovec3f_substract(led_check_pos, checkblob)
                     distance = Vec3f.ovec3f_get_length(tmp)
                     
-                    # print(f"ANCHOR [{blob0.x},{blob0.y},{blob0.z}]")
-                    # print(f"pose.pos {pose.pos.x} {pose.pos.y} {pose.pos.z}")  
-                    # print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}")      
-                    # print(f"distance {distance}")
+                    print(f"ANCHOR [{blob0.x},{blob0.y},{blob0.z}]")
+                    print(f"pose.pos {pose.pos.x} {pose.pos.y} {pose.pos.z}")  
+                    print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}")      
+                    print(f"distance {distance}")
 
                     # 4th blob가 distance 비교 추가필요
                     rift_evaluate_pose_with_prior(pose)
+            
+            sys.exit()
                     
-                    # sys.exit()
-
 
 def select_k_leds_from_n(anchor, candidate_list):
     k = 3  # anchor 포함해서 총 4개의 LED를 선택
