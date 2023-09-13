@@ -179,7 +179,7 @@ def blob_setting(script_dir, SERVER, blob_file):
             POS = TEMP_POS
     if SERVER == 1:
         return bboxes, NOT_SET
-    
+
     image_files = sorted(glob.glob(os.path.join(script_dir, camera_img_path + '*.png')))
     # camera_params = read_camera_log(os.path.join(script_dir, camera_log_path))
     if VIDEO_MODE == 1:

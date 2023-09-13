@@ -315,7 +315,7 @@ def quaternion_to_rotvec(quaternion: Quatf):
     return rvec
 
 DEG_TO_RAD = pi / 180.0
-RIFT_LED_ANGLE = 30.0  # This value should be set to whatever the real angle is in your use case
+RIFT_LED_ANGLE = 75  # This value should be set to whatever the real angle is in your use case
 def OHMD_MAX(_a, _b):
     return _a if _a > _b else _b
 def LED_OBJECT_ID(l):
@@ -420,7 +420,7 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
                 bounds['bottom'] = max(bounds['bottom'], led_pos_px[1] + led_radius_px)
     
     score_visible_leds = len(visible_led_points)
-    print(f"score_visible_leds {score_visible_leds}")
+    # print(f"score_visible_leds {score_visible_leds}")
     if score_visible_leds < 5:
         return bounds
     
@@ -456,12 +456,15 @@ def rift_evaluate_pose_with_prior(pose, pose_prior=None):
 
     # Check if there are enough matched blobs
     if score['matched_blobs'] < 5:
-        print("Not enough matched blobs, exiting.")
-        # Your exit or return logic here
+        # print("Not enough matched blobs, exiting.")
+        return
     else:
         error_per_led = score['reprojection_error'] / score['matched_blobs']
         print(f"Error per LED: {error_per_led}")
-    
+
+        if error_per_led < 1.5:
+            print(f"MATCH STRONG")
+            sys.exit()
 
  
 def check_led_match(anchor, candidate_list):
@@ -480,7 +483,6 @@ def check_led_match(anchor, candidate_list):
     POINTS3D_candidates_POS = np.array(MODEL_DATA[list(candidate_list), :], dtype=np.float64)
     POINTS3D_candidates_DIR = np.array(DIRECTION[list(candidate_list), :], dtype=np.float64)
     # print(f"points3D_candidate {POINTS3D_candidates}")
-    
 
     for neighbours_2D in SEARCH_BLOBS:
         for blob_searching in SEARCH_BLOBS_MAP:
@@ -546,7 +548,6 @@ def check_led_match(anchor, candidate_list):
                         # print(f"Error pose candidate")
                         continue
                         
-                    # check 4th point                
                     led_check_pos = Quatf.oquatf_get_rotated(pose.orient ,
                                                     Vec3f(POINTS3D_candidates_POS[3][0],
                                                             POINTS3D_candidates_POS[3][1],
@@ -562,10 +563,12 @@ def check_led_match(anchor, candidate_list):
                     print(f"pose.orient {pose.orient.x} {pose.orient.y} {pose.orient.z} {pose.orient.w}")      
                     print(f"distance {distance}")
 
-                    # 4th blob가 distance 비교 추가필요
-                    rift_evaluate_pose_with_prior(pose)
+                    # ToDo
+                    # 4th blob의 max_size와 distance 비교 추가필요                    
+                    if distance <= 100:
+                        rift_evaluate_pose_with_prior(pose)
             
-            sys.exit()
+            # sys.exit()
                     
 
 def select_k_leds_from_n(anchor, candidate_list):

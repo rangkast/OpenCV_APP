@@ -336,12 +336,13 @@ def click_event(event, x, y, flags, param, frame, blob_area_0, bboxes, POS=NOT_S
     if event == cv2.EVENT_LBUTTONDOWN:
         down_in_box = NOT_SET
         # print(f"EVENT_LBUTTONDOWN {x} {y}")
-        for i, bbox in enumerate(blob_area_0):
-            if point_in_bbox(x, y, bbox[2]):
-                input_number = input('Please enter ID for this bbox: ')
-                bboxes.append({'idx': input_number, 'bbox': bbox[2]})
-                draw_blobs_and_ids(frame, blob_area_0, bboxes)
-                down_in_box = DONE
+        if blob_area_0 != NOT_SET:
+            for i, bbox in enumerate(blob_area_0):
+                if point_in_bbox(x, y, bbox[2]):
+                    input_number = input('Please enter ID for this bbox: ')
+                    bboxes.append({'idx': input_number, 'bbox': bbox[2]})
+                    draw_blobs_and_ids(frame, blob_area_0, bboxes)
+                    down_in_box = DONE
         if down_in_box == NOT_SET and POS != NOT_SET:
             if POS['status'] == UP or POS['status'] == NOT_SET:
                 POS['start'] = [x, y]
