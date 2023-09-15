@@ -7,8 +7,8 @@ ORIGINAL 3D Points
 # MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_right+.json"
 # MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/arcturas_#3_right_new.json"
 
-# MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_right_new_cal_sensor_cal_LED21X_ref_out.json"
-# MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_right_new.json"
+MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_right_new_cal_sensor_cal_LED21X_ref_out.json"
+MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/rifts_right_new.json"
 
 # MODEL_PATH = f"{script_dir}/jsons/specs/arcturus_#3_left.json"
 # MODEL_PATH_SAVE = f"{script_dir}/jsons/specs/arcturas_#3_left_new.json"
@@ -134,6 +134,6 @@ for i, jdata in enumerate(json_data['TrackedObject']['ModelPoints']):
     # print(json_data_cpy['TrackedObject']['ModelPoints'].get(jdata))
 
 
-rw_json_data(WRITE, MODEL_PATH_SAVE, json_data_cpy)
-print(f"Saved to: \"{MODEL_PATH_SAVE}\".")
+# rw_json_data(WRITE, MODEL_PATH_SAVE, json_data_cpy)
+# print(f"Saved to: \"{MODEL_PATH_SAVE}\".")
 
