@@ -228,6 +228,7 @@ def led_search_candidate_new(MODEL_DATA, DIRECTION):
         
     return rift_leds, search_model
 
+
 def correspondence_search_set_blobs(points2D_D, camera_m, blobs=[]):
     def distance(point1, point2):
         return np.sqrt ((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
@@ -240,23 +241,28 @@ def correspondence_search_set_blobs(points2D_D, camera_m, blobs=[]):
     sorted_neighbors = []
     print(f"camera_m\n{camera_m[0][0][1]}")
     max_size_array = []
-    for blob in blobs:
-        max_size = np.max(blob[3]/camera_m[0][0][0][0], blob[4]/camera_m[0][0][1][1])
-        max_size_array.append(max_size)
+    size_calc = 0
+
+    if len(blobs) > 0:
+        size_calc = 1
+        for blob in blobs:
+            max_size = np.max(blob[3]/camera_m[0][0][0][0], blob[4]/camera_m[0][0][1][1])
+            max_size_array.append(max_size)    
+        print(f"max_size_array {max_size_array} len {len(max_size_array)}")
 
     for i, anchor in enumerate(points2D_D):
-        distances = [(NOT_SET, i, 0.0, anchor, points2D_U[i], blobs[i], max_size_array[i])] # 현재 anchor 자신을 추가
-        distances += [(NOT_SET, j, distance(anchor, point), point, points2D_U[j], blobs[j],  max_size_array[j]) for j, point in enumerate(points2D_D) if i != j]
+        distances = [(NOT_SET,  i, 0.0, anchor, points2D_U[i], blobs[i] if size_calc == 1 else 0, max_size_array[i] if size_calc == 1 else 0)] # 현재 anchor 자신을 추가
+        distances += [(NOT_SET, j, distance(anchor, point), point, points2D_U[j], blobs[j] if size_calc == 1 else 0,  max_size_array[j] if size_calc == 1 else 0) for j, point in enumerate(points2D_D) if i != j]
         sorted_by_distance = sorted(distances, key=lambda x: x[2])
-        sorted_neighbors.append (sorted_by_distance[:8])
+        sorted_neighbors.append (sorted_by_distance[:6])
 
     print(f"Sorted neighbors by distance")
     for i, neighbors in enumerate(sorted_neighbors):
         print(f"Model 0, blob {i} @ {points2D_D[i][0]:.6f} , {points2D_D[i][1]:.6f} neighbours {len(neighbors)} Search list:")
-        for ID, j, dist, point, point_u, blobs_detected in neighbors:
-            print(f"LED ID {ID} ( {point_u} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f} blobs {blobs_detected}")
+        for ID, j, dist, point, point_u, blobs_detected, max_sized in neighbors:
+            print(f"LED ID {ID} ( {point_u} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f} blobs {blobs_detected} size {max_sized}")
 
-    return np.array(sorted_neighbors), points2D_U
+    return np.array(sorted_neighbors, dtype=object), points2D_U
 
 
 def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
@@ -414,15 +420,16 @@ def check_led_match(DATA_SET, anchor, candidate_list):
             # print(f"{blob_searching}")
             # print(f"points2D_list {points2D_list}")
             # print(f"neighbours_2D {neighbours_2D}")
-            POINTS2D_candidates = np.array([point[-1] for point in points2D_list], dtype=np.float64)
-            blob0 = Vec3f(POINTS2D_candidates[0][0], POINTS2D_candidates[0][1], 1.0)
-            checkblob = Vec3f(POINTS2D_candidates[3][0], POINTS2D_candidates[3][1], 1.0)
-
+            POINTS2D_candidates = np.array([(point[4], point[6]) for point in points2D_list], dtype=object)
+            # print(f"POINTS2D_candidates {POINTS2D_candidates}")
+            blob0 = Vec3f(POINTS2D_candidates[0][0][0], POINTS2D_candidates[0][0][1], 1.0)
+            checkblob = Vec3f(POINTS2D_candidates[3][0][0], POINTS2D_candidates[3][0][1], 1.0)
+            checkblob_size = POINTS2D_candidates[3][1]
             # print(f"blob0 {blob0.x} {blob0.y} {blob0.z}")      
-            # print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z}")
+            # print(f"checkblob {checkblob.x} {checkblob.y} {checkblob.z} {checkblob_size}")
 
             # 첫 세 개의 3D 및 2D 포인트
-            y1, y2, y3 = [ np.append (point, 1.0) for point in POINTS2D_candidates[:3]]
+            y1, y2, y3 = [np.append(point[0], 1.0) for point in POINTS2D_candidates[:3]]
             x1, x2, x3 = POINTS3D_candidates_POS[:3]
 
             # print(f"POINTS2D_candidates")
@@ -455,8 +462,8 @@ def check_led_match(DATA_SET, anchor, candidate_list):
                     checkpos = Vec3f.ovec3f_add(checkpos, pose.pos)                    
                     checkdir = Quatf.oquatf_get_rotated(pose.orient ,
                                                     Vec3f(POINTS3D_candidates_DIR[0][0],
-                                                            POINTS3D_candidates_DIR[0][1],
-                                                            POINTS3D_candidates_DIR[0][2]))
+                                                          POINTS3D_candidates_DIR[0][1],
+                                                          POINTS3D_candidates_DIR[0][2]))
                     checkpos = Vec3f.ovec3f_normalize_me(checkpos)
                     facing_dot = Vec3f.get_dot(checkpos, checkdir)
 
@@ -490,12 +497,11 @@ def check_led_match(DATA_SET, anchor, candidate_list):
 
                     # ToDo
                     # 4th blob의 max_size와 distance 비교 추가필요                    
-                    if distance <= 0.020:
+                    if distance <= 0.020 if checkblob_size == 0 else checkblob_size:
                         flag, score = rift_evaluate_pose_with_prior(DATA_SET, pose)
-
                         if flag == MATCH_STRONG:
-                            print(f"score {score}")
-                        
+                            print(f"MATCH_STRONG score {score}")
+                    # sys.exit()    
                     
 
 def select_k_leds_from_n(DATA_SET, anchor, candidate_list):

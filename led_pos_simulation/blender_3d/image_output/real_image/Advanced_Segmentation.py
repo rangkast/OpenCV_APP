@@ -570,9 +570,10 @@ if __name__ == "__main__":
     RESULTS = []
     for i in range(1):
         # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/front_side/dataset_front_70cm/CAM{i}*.bmp"))
-        image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
-
+        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
         # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_40cm/CAM{i}*.bmp"))
+        
+        image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/left_side/dataset_left_40cm/CAM{i}*.bmp"))
     
         _, areas = blob_area_setting(f"{script_dir}/jsons/test_3/blob_area_{i}.json", image_files)
         jitters = read_image((image_files, areas))
