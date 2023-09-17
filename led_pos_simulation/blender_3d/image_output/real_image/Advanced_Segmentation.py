@@ -250,9 +250,11 @@ def GaussianSharp(img):
                 f"ADD_WEIGHT :{ADD_WEIGHT}" + '\n' + \
                 f"Thres:{CV_MIN_THRESHOLD}"
 
+    '''
     stacked_frame = np.hstack ((blurred, sharpened, blur_sharp_img))
     cv2.imshow('GaussianSharp', stacked_frame)
-
+    '''
+    
     return blur_sharp_img, DEBUG_LOG
 ####################################### Filter TEST #######################################
 
@@ -364,12 +366,7 @@ def segmentation_algo_1(image, blob_area, max_level):
 
 def blob_detection(img):
     # Segmentation Test
-    MIN_BLOB_SIZE = 2
-    MAX_BLOB_SIZE = 100
-    TRACKER_PADDING = 1
-    CV_MAX_THRESHOLD = 255
-    CV_MIN_THRESHOLD = 95
-    _, img = cv2.threshold(img, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    _, img = cv2.threshold(img, MIN_THRESHOLD, MAX_THRESHOLD, cv2.THRESH_TOZERO)
 
     blob_area = detect_led_lights(img, TRACKER_PADDING)
     blobs = []
@@ -379,7 +376,7 @@ def blob_detection(img):
         if gsize < MIN_BLOB_SIZE or gsize > MAX_BLOB_SIZE:
             continue            
         
-        blobs.append([-1, gcx, gcy, gsize, w, h])
+        blobs.append([NOT_SET, gcx, gcy, gsize, (x, y, w, h), NOT_SET])
 
         if DO_SEG == 1:
             result_frame, R_DETECT = segmentation_algo_1(img, (x, y, w, h), max_level=3)
@@ -394,8 +391,8 @@ def blob_detection(img):
     for idx, blob in enumerate(blobs):
         # print(blob)
         blob[0] = idx
-        (x, y) = (int(blob[1]), int(blob[2]))
-        cv2.putText(img, f"{blob[0]}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        (x, y, w, h) = blob[4]
+        cv2.putText(img, f"{blob[0]}", (int(x) - int(w/2), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
 
     ret_blobs = copy.deepcopy(blobs)
     return ret_blobs, img
@@ -404,6 +401,16 @@ def blob_detection(img):
 
 
 def read_image(IMAGE_FILES):
+    def update_blobs_with_matched_ids(matched_id_array, blobs):
+        for matched_ids in matched_id_array:
+            blob_id = matched_ids[0]
+            matched_value = matched_ids[1]
+            
+            for blob in blobs:
+                if blob[0] == blob_id:
+                    blob[-1] = matched_value
+                    break
+
     image_files = IMAGE_FILES[0]
     areas = IMAGE_FILES[1]
     print('lenght of images: ', len(image_files))
@@ -427,9 +434,8 @@ def read_image(IMAGE_FILES):
         fig.suptitle("Jitter")
         plt.ion ()
 
-    curr_frame_cnt = 0
+    curr_frame_cnt = 50
     prev_frame_cnt = -1
-
 
     while True:
         if curr_frame_cnt >= len(image_files):
@@ -443,26 +449,44 @@ def read_image(IMAGE_FILES):
 
         # Area Bypass Filter
         bypass_img = area_filter(areas, frame_0)
+
         # Make Filter IMAGE
         TEST_IMAGE, DEBUG_LOG = GaussianSharp(bypass_img)
 
         # BLOB Detection
         blobs, TEST_IMAGE = blob_detection(TEST_IMAGE)
 
-        # ID MAPPING
+        # print(f"blobs {blobs}")
+        # ID MAPPING (Long Search, OpenHMD Algorithm)
+        ID_MATCHED = NOT_SET
         if DO_LONGSEARCH == 1 and first_detection == 0:
             if len(blobs) > 4:
+                # Initialize score dictionary
+                score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': float('inf'), 'error_per_led': float('inf'), 'flags': NOT_SET}
                 points2D_D = []
                 for blob in blobs:
                     points2D_D.append(blob[1:3])
                 points2D_D = np.array(points2D_D, dtype=np.float64)
                 print(f"points2D_D\n {points2D_D }")
-                SEARCH_BLOBS, points2D_U = correspondence_search_set_blobs(points2D_D, pebble_camera_matrix, blobs=blobs)
-                DATA_SET = (MODEL_DATA, DIRECTION, SEARCH_MODEL, SEARCH_BLOBS, pebble_camera_matrix, points2D_D, points2D_U)
+                SEARCH_BLOBS, points2D_U = correspondence_search_set_blobs(points2D_D, camera_matrix, blobs=blobs)
+                DATA_SET = (MODEL_DATA, DIRECTION, SEARCH_MODEL, SEARCH_BLOBS, camera_matrix, points2D_D, points2D_U, score)
                 long_search_python(DATA_SET)
                 first_detection = 1
+                print(f"After Long Search {score}")
+                
+                if score['flags'] >= MATCH_GOOD:
+                    matched_id_array = score['matched_id']
+                    # print(f"matched_id_array {matched_id_array}")
+                    # Update blobs
+                    update_blobs_with_matched_ids(matched_id_array, blobs)
+                    
+                    ID_MATCHED = DONE
+                    # Print updated blobs
+                    print(f"update blobs {blobs}")
+
+        # PnPSolver
         
-        
+        # Calc Blob pos jitter
         if curr_frame_cnt > prev_frame_cnt and len(blobs) > 0:
             for blob in blobs:
                 id, x, y, _, _, _ = blob
@@ -473,7 +497,6 @@ def read_image(IMAGE_FILES):
                         jitters[id] = []
                     jitters[id].append(jitter)
 
-                    # Update the line data for this ID
                     if SHOW_CHART == 1:
                         if id < initial_id_count:
                             if id not in lines:
@@ -488,7 +511,6 @@ def read_image(IMAGE_FILES):
             if SHOW_CHART:
                 plt.draw()
                 plt.pause(0.01)
-
 
         prev_frame_cnt = curr_frame_cnt
 
@@ -507,8 +529,7 @@ def read_image(IMAGE_FILES):
         if AUTO_LOOP:
             curr_frame_cnt += 1
 
-
-        # DEBUG and Show IMAGE
+        # DEBUG and Show IMAGE        
         cv2.putText(draw_frame, f"frame_cnt:{curr_frame_cnt} file:[{filename}]", (10, 10),
             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         cv2.putText(draw_frame, f"ORIGIN", (CAP_PROP_FRAME_WIDTH - 100, 10),
@@ -525,7 +546,13 @@ def read_image(IMAGE_FILES):
         cv2.putText(TEST_IMAGE, f"FILTERED", (CAP_PROP_FRAME_WIDTH - 100, 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         cv2.putText(TEST_IMAGE, f"Detected {len(blobs)}", (CAP_PROP_FRAME_WIDTH - 100, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         cv2.rectangle(TEST_IMAGE,(areas['rectangle'][0], areas['rectangle'][1]),(areas['rectangle'][2],areas['rectangle'][3]),(255,255,255),1)
-
+        
+        if ID_MATCHED == DONE:     
+            for idx, blob in enumerate(blobs):
+                if blob[5] == NOT_SET:
+                    continue
+                (x, y, w, h) = blob[4]
+                cv2.putText(TEST_IMAGE, f"{blob[5]}", (int(x) + int(w/2), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         # show Image
         stacked_frame = np.hstack ((draw_frame, TEST_IMAGE))
@@ -536,27 +563,55 @@ def read_image(IMAGE_FILES):
     return jitters
 
 
-
 if __name__ == "__main__":
-    pebble_camera_matrix = [
-        # 0번 sensor
-        [np.array([[240.699213, 0.0, 313.735554],
-                [0.0, 240.394949, 235.316344],
-                [0.0, 0.0, 1.0]], dtype=np.float64),
-        np.array([[0.040384], [-0.015174], [-0.000401], [-0.000584]], dtype=np.float64)],
-    ]
-
     SHOW_CHART = 0
     AUTO_LOOP = 0
     DO_SEG = 1
     DO_LONGSEARCH = 1
-    CAP_PROP_FRAME_WIDTH = 640
-    CAP_PROP_FRAME_HEIGHT = 480
 
-    MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_new/arcturas_left_#4_new.json"))
+    TARGET_DEVICE = 'RIFTS'
+
+    if TARGET_DEVICE == 'ARCTURAS':
+        CAP_PROP_FRAME_WIDTH = 640
+        CAP_PROP_FRAME_HEIGHT = 480    
+        camera_matrix = [
+            # 0번 sensor
+            [np.array([[240.699213, 0.0, 313.735554],
+                    [0.0, 240.394949, 235.316344],
+                    [0.0, 0.0, 1.0]], dtype=np.float64),
+            np.array([[0.040384], [-0.015174], [-0.000401], [-0.000584]], dtype=np.float64)],
+        ]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_new/arcturas_left_#4_new.json"))
+        MIN_BLOB_SIZE = 2
+        MAX_BLOB_SIZE = 100
+        TRACKER_PADDING = 1
+        MAX_THRESHOLD = 255
+        MIN_THRESHOLD = 95
+        '''
+        Arcturas Real Data test
+        '''
+        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/front_side/dataset_front_70cm/CAM{i}*.bmp"))
+        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
+        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_40cm/CAM{i}*.bmp"))
+    elif TARGET_DEVICE == 'RIFTS':
+        CAP_PROP_FRAME_WIDTH = 1280
+        CAP_PROP_FRAME_HEIGHT = 960
+        camera_matrix = [
+            [np.array([[715.159, 0.0, 650.741],
+                    [0.0, 715.159, 489.184],
+                    [0.0, 0.0, 1.0]], dtype=np.float64),
+            np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)],
+        ]
+        MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
+        MIN_BLOB_SIZE = 2
+        MAX_BLOB_SIZE = 250
+        TRACKER_PADDING = 1
+        MAX_THRESHOLD = 255
+        MIN_THRESHOLD = 95
+        image_files = sorted(glob.glob(f"{script_dir}/render_img/rifts_right_9/test_1/*.png*"))
+
     MODEL_DATA = np.array(MODEL_DATA, dtype=np.float64)
     DIRECTION = np.array(DIRECTION, dtype=np.float64)
-
     BLOB_CNT = len(MODEL_DATA)
     print('PTS')
     for i, leds in enumerate(MODEL_DATA):
@@ -568,13 +623,9 @@ if __name__ == "__main__":
     _, SEARCH_MODEL = led_search_candidate_new(MODEL_DATA, DIRECTION)
 
     RESULTS = []
-    for i in range(1):
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/front_side/dataset_front_70cm/CAM{i}*.bmp"))
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_40cm/CAM{i}*.bmp"))
-        
-        image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/left_side/dataset_left_40cm/CAM{i}*.bmp"))
-    
+    CONTROLLER_CNT = 1
+    for i in range(CONTROLLER_CNT):       
+        print(f"image_files length {len(image_files)}")
         _, areas = blob_area_setting(f"{script_dir}/jsons/test_3/blob_area_{i}.json", image_files)
         jitters = read_image((image_files, areas))
         RESULTS.append(jitters)

@@ -105,10 +105,10 @@ if __name__ == "__main__":
         print(f"{np.array2string(dir, separator=', ')},")
 
     # show_calibrate_data(np.array(MODEL_DATA), np.array(DIRECTION))
-    
+    score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': float('inf'), 'error_per_led': float('inf'), 'flags': NOT_SET}
     _, SEARCH_MODEL = led_search_candidate_new(MODEL_DATA, DIRECTION)
     SEARCH_BLOBS, points2D_U = correspondence_search_set_blobs(points2D_D, pebble_camera_matrix)
-    DATA_SET = (MODEL_DATA, DIRECTION, SEARCH_MODEL, SEARCH_BLOBS, pebble_camera_matrix, points2D_D, points2D_U)
+    DATA_SET = (MODEL_DATA, DIRECTION, SEARCH_MODEL, SEARCH_BLOBS, pebble_camera_matrix, points2D_D, points2D_U, score)
     long_search_python(DATA_SET)
 
 

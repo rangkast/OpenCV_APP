@@ -139,7 +139,7 @@ lambdatwist_p3p.argtypes = [
 
 DEG_TO_RAD = pi / 180.0
 RIFT_LED_ANGLE = 75  # This value should be set to whatever the real angle is in your use case
-MATCH_STRONG = 0
+MATCH_STRONG = 2
 MATCH_GOOD = 1
 def OHMD_MAX(_a, _b):
     return _a if _a > _b else _b
@@ -239,16 +239,16 @@ def correspondence_search_set_blobs(points2D_D, camera_m, blobs=[]):
                                                 camera_m[0][1])
     points2D_U = np.array ( points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
     sorted_neighbors = []
-    print(f"camera_m\n{camera_m[0][0][1]}")
+    # print(f"camera_m\n{camera_m[0][0][1]}")
     max_size_array = []
     size_calc = 0
 
     if len(blobs) > 0:
         size_calc = 1
         for blob in blobs:
-            max_size = np.max(blob[3]/camera_m[0][0][0][0], blob[4]/camera_m[0][0][1][1])
+            max_size = np.max([blob[4][2]/camera_m[0][0][0][0], blob[4][3]/camera_m[0][0][1][1]])
             max_size_array.append(max_size)    
-        print(f"max_size_array {max_size_array} len {len(max_size_array)}")
+        # print(f"max_size_array {max_size_array} len {len(max_size_array)}")
 
     for i, anchor in enumerate(points2D_D):
         distances = [(NOT_SET,  i, 0.0, anchor, points2D_U[i], blobs[i] if size_calc == 1 else 0, max_size_array[i] if size_calc == 1 else 0)] # 현재 anchor 자신을 추가
@@ -272,6 +272,8 @@ def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
     DIRECTION = DATA_SET[1]
     camera_m = DATA_SET[4]
     points2D_D = DATA_SET[5]
+    score = DATA_SET[7]
+
     BLOB_CNT = len(MODEL_DATA)
     # print("MODEL_DATA dtype:", MODEL_DATA.dtype)
     # print("MODEL_DATA shape:", MODEL_DATA.shape)
@@ -345,53 +347,55 @@ def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
     score_visible_leds = len(visible_led_points)
     # print(f"score_visible_leds {score_visible_leds}")
     if score_visible_leds < 5:
+        score['flags'] = ERROR
         return ERROR, bounds
     
     # print("points2D_D")
     # for blobs in points2D_D:
     #     print(blobs)
-    
-    # Initialize score dictionary
-    score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': 0.0, 'error_per_led': 0}
+    tmp_score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': 0.0, 'error_per_led': 0}
 
     for i, blob in enumerate(points2D_D):  # Assuming points2D_D is similar to blobs in C
-        # led_object_id = LED_OBJECT_ID(blob['led_id'])  # Assuming blob has 'led_id'
-        
+        # led_object_id = LED_OBJECT_ID(blob['led_id'])  # Assuming blob has 'led_id'        
         # # Skip blobs which already have an ID not belonging to this device
         # if led_object_id != LED_INVALID_ID and led_object_id != device_id:
-        #     continue
-        
+        #     continue        
         # Check if blob is within the bounding box
         if blob[0] >= bounds['left'] and blob[1] >= bounds['top'] and blob[0] < bounds['right'] and blob[1] < bounds['bottom']:
             sqerror = 0.0  # You might want to replace this with an actual calculation
-
             match_result = find_best_matching_led(visible_led_points, score_visible_leds, blob)
             if match_result is not None:  # or some other condition to check for valid result
                 match_led_index, sqerror = match_result
                 if match_led_index >= 0:
-                    score['reprojection_error'] += sqerror
-                    score['matched_blobs'] += 1
-                    score['matched_id'].append([i, match_led_index])
+                    tmp_score['reprojection_error'] += sqerror
+                    tmp_score['matched_blobs'] += 1
+                    tmp_score['matched_id'].append([i, match_led_index])
                 else:
-                    score['unmatched_blobs'] += 1
+                    tmp_score['unmatched_blobs'] += 1
 
     # print(f"score {score}")
 
     # Check if there are enough matched blobs
-    if score['matched_blobs'] < 5:
+    if tmp_score['matched_blobs'] < 5:
         # print("Not enough matched blobs, exiting.")
-        return ERROR, score
+        score['flags'] = ERROR
+        return ERROR, tmp_score
     else:
-        error_per_led = score['reprojection_error'] / score['matched_blobs']
-        score['error_per_led'] = error_per_led
+        error_per_led = tmp_score['reprojection_error'] / tmp_score['matched_blobs']        
+        if error_per_led < score['error_per_led'] and tmp_score['reprojection_error'] < score['reprojection_error']:
+            score['error_per_led'] = error_per_led        
+            score['reprojection_error'] = tmp_score['reprojection_error']
+            score['matched_blobs'] = tmp_score['matched_blobs']
+            score['unmatched_blobs'] = tmp_score['unmatched_blobs']
+            score['matched_id'] = tmp_score['matched_id']
         # print(f"Error per LED: {error_per_led}")
         if error_per_led < 1.5:
             # print(f"MATCH STRONG")
-            return MATCH_STRONG, score
-
-    return MATCH_GOOD, score
-
-            
+            score['flags'] =  MATCH_STRONG
+            return MATCH_STRONG, tmp_score
+    score['flags'] = MATCH_GOOD
+    return MATCH_GOOD, tmp_score
+        
 
 def check_led_match(DATA_SET, anchor, candidate_list):
     # 조합은 미리 만들어놔도 될 듯?
@@ -416,6 +420,8 @@ def check_led_match(DATA_SET, anchor, candidate_list):
 
     for neighbours_2D in SEARCH_BLOBS:
         for blob_searching in SEARCH_BLOBS_MAP:
+            if DATA_SET[7]['flags'] == MATCH_STRONG:
+                return
             points2D_list = neighbours_2D[list(blob_searching), :]
             # print(f"{blob_searching}")
             # print(f"points2D_list {points2D_list}")
@@ -479,11 +485,10 @@ def check_led_match(DATA_SET, anchor, candidate_list):
                     if l > 0.0025:
                         # print(f"Error pose candidate")
                         continue
-                        
                     led_check_pos = Quatf.oquatf_get_rotated(pose.orient ,
                                                     Vec3f(POINTS3D_candidates_POS[3][0],
-                                                            POINTS3D_candidates_POS[3][1],
-                                                            POINTS3D_candidates_POS[3][2]))
+                                                          POINTS3D_candidates_POS[3][1],
+                                                          POINTS3D_candidates_POS[3][2]))
 
                     led_check_pos = Vec3f.ovec3f_add(led_check_pos, pose.pos)
                     led_check_pos = Vec3f.ovec3f_multiply_scalar(led_check_pos, 1.0/led_check_pos.z)
@@ -498,9 +503,11 @@ def check_led_match(DATA_SET, anchor, candidate_list):
                     # ToDo
                     # 4th blob의 max_size와 distance 비교 추가필요                    
                     if distance <= 0.020 if checkblob_size == 0 else checkblob_size:
-                        flag, score = rift_evaluate_pose_with_prior(DATA_SET, pose)
-                        if flag == MATCH_STRONG:
-                            print(f"MATCH_STRONG score {score}")
+                        DATA_SET[7]['flags'] = NOT_SET
+                        _, _ = rift_evaluate_pose_with_prior(DATA_SET, pose)
+                        if DATA_SET[7]['flags'] == MATCH_STRONG:
+                            print(f"MATCH_STRONG score input {DATA_SET[7]}")
+                            # print("MATCH_STRONG")
                     # sys.exit()    
                     
 
@@ -513,16 +520,16 @@ def select_k_leds_from_n(DATA_SET, anchor, candidate_list):
         check_led_match(DATA_SET, anchor, list(combo))
         # 가운데 2개만 바꿔서 새로운 조합 생성
         if len(combo) >= 3:
+            if DATA_SET[7]['flags'] == MATCH_STRONG:
+                return
             swapped = [combo[0], combo[2], combo[1]]
             check_led_match(DATA_SET, anchor, swapped)
 
 def generate_led_match_candidates(DATA_SET, neighbors, start=0, depth=3, hopping=3):
     anchor = neighbors[start]
-
     for _ in range(depth):
         if start + hopping >= len(neighbors):
             break
-
         candidate_list = neighbors[start + hopping:start + hopping + 3]
         if len(candidate_list) != 3:
             break
