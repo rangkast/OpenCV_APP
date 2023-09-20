@@ -4,18 +4,15 @@ from Advanced_Correspondence_Class import *
 
 # Common Functions
 def find_center(frame, SPEC_AREA):
+    (X, Y, W, H) = SPEC_AREA
     x_sum = 0
     t_sum = 0
     y_sum = 0
-    g_c_x = 0
-    g_c_y = 0
     m_count = 0
-
-    (X, Y, W, H) = SPEC_AREA
-
+    
     for y in range(Y, Y + H):
         for x in range(X, X + W):
-            if y < 0 or y >= CAP_PROP_FRAME_HEIGHT or x < 0 or x >= CAP_PROP_FRAME_WIDTH:
+            if y < 0 or y >= frame.shape[0] or x < 0 or x >= frame.shape[1]:
                 continue
             x_sum += x * frame[y][x]
             t_sum += frame[y][x]
@@ -24,7 +21,7 @@ def find_center(frame, SPEC_AREA):
 
     for x in range(X, X + W):
         for y in range(Y, Y + H):
-            if y < 0 or y >= CAP_PROP_FRAME_HEIGHT or x < 0 or x >= CAP_PROP_FRAME_WIDTH:
+            if y < 0 or y >= frame.shape[0] or x < 0 or x >= frame.shape[1]:
                 continue
             y_sum += y * frame[y][x]
 
@@ -172,7 +169,7 @@ def area_filter(areas, img):
     return result
 def draw_result_chart(results):
     fig, axes = plt.subplots (1, 2, figsize=(14, 6))
-    for idx, jitters in enumerate([results[0], results[1]]):
+    for idx, jitters in enumerate(results):
         ax = axes[idx]
         ids = []
         std_values = []
@@ -215,7 +212,7 @@ def GaussianBlur(img):
     GAUSSIAN_KERNEL = (3, 3)
     GAUSSIAN_SIG = 1.0
 
-    _, img = cv2.threshold(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    # _, img = cv2.threshold(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
     img_tmp = cv2.GaussianBlur(img, GAUSSIAN_KERNEL, GAUSSIAN_SIG)
 
     DEBUG_LOG = f"W:{CAP_PROP_FRAME_WIDTH} H:{CAP_PROP_FRAME_HEIGHT}" + '\n' \
@@ -233,13 +230,13 @@ def GaussianSharp(img):
         4. addweight
     '''
     CV_MAX_THRESHOLD = 255
-    CV_MIN_THRESHOLD = 20
+    CV_MIN_THRESHOLD = 23
     GAUSSIAN_KERNEL = (3, 3)
-    GAUSSIAN_SIG = 1.0
-    SHARPNESS_KERNEL = np.array([[-1,-1,-1], [-1,10,-1], [-1,-1,-1]])
-    ADD_WEIGHT = (1.0, -0.1)
+    GAUSSIAN_SIG = 3.0
+    SHARPNESS_KERNEL = np.array([[-1,-1,-1], [-1,20,-1], [-1,-1,-1]])
+    ADD_WEIGHT = (1.5, -0.4)
     
-    _, img = cv2.threshold(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    # _, img = cv2.threshold(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
     blurred = cv2.GaussianBlur(img, GAUSSIAN_KERNEL, GAUSSIAN_SIG)
     sharpened = cv2.filter2D(blurred, -1, SHARPNESS_KERNEL)
     blur_sharp_img = cv2.addWeighted(blurred, ADD_WEIGHT[0], sharpened,ADD_WEIGHT[1], 0)
@@ -250,12 +247,20 @@ def GaussianSharp(img):
                 f"ADD_WEIGHT :{ADD_WEIGHT}" + '\n' + \
                 f"Thres:{CV_MIN_THRESHOLD}"
 
-    '''
-    stacked_frame = np.hstack ((blurred, sharpened, blur_sharp_img))
-    cv2.imshow('GaussianSharp', stacked_frame)
-    '''
+
+    # stacked_frame = np.hstack ((blurred, sharpened, blur_sharp_img))
+    # cv2.imshow('GaussianSharp', stacked_frame)
+
     
     return blur_sharp_img, DEBUG_LOG
+
+def DoNothing(img):
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    DEBUG_LOG = f"W:{CAP_PROP_FRAME_WIDTH} H:{CAP_PROP_FRAME_HEIGHT}" + '\n' \
+                f"Do Nothing" + '\n'
+    
+    return img, DEBUG_LOG
+
 ####################################### Filter TEST #######################################
 
 
@@ -363,20 +368,41 @@ def segmentation_algo_1(image, blob_area, max_level):
     return draw_frame, R_DETECT
 
 ####################################### Segmentation TEST #######################################
-
+from Advanced_Blob_Filter import Pyramid_algo_1
 def blob_detection(img):
     # Segmentation Test
     _, img = cv2.threshold(img, MIN_THRESHOLD, MAX_THRESHOLD, cv2.THRESH_TOZERO)
-
     blob_area = detect_led_lights(img, TRACKER_PADDING)
     blobs = []
     for blob_id, bbox in enumerate(blob_area):
         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
-        gcx, gcy, gsize = find_center(img, (x, y, w, h))
-        if gsize < MIN_BLOB_SIZE or gsize > MAX_BLOB_SIZE:
-            continue            
+        if DO_PYR == 0:
+            gcx, gcy, gsize = find_center(img, (x, y, w, h))
+            if gsize < MIN_BLOB_SIZE or gsize > MAX_BLOB_SIZE:
+                continue
+        else:
+            if w * h <= 1:
+                continue
+            cropped = crop_image(img, x, y, w, h)
+            # _, cropped = cv2.threshold(cropped, 30, MAX_THRESHOLD, cv2.THRESH_TOZERO)
+            if min(w, h) < 5:
+                # print(f"do pyr {blob_id}")
+                pyr_img, (ch, cw) = Pyramid_algo_1(cropped, max_level=3, min_spec=15)
+                # cropped_sharp, _ = GaussianSharp(pyr_img)
+                gcx_tmp, gcy_tmp, gsize_pyrup = find_center(pyr_img, (0, 0, cw, ch))
+                cv2.imshow(f"{blob_id}_pyr_img", pyr_img)
+            else:
+                # print(f"do blur {blob_id}")
+                ch, cw = cropped.shape[:2]
+                cropped_sharp, _ = GaussianSharp(cropped)
+                gcx_tmp, gcy_tmp, gsize = find_center(cropped_sharp, (0, 0, cw, ch))
+                cv2.imshow(f"{blob_id}_cropped_sharp", cropped_sharp)
+
+            gcx = x + (gcx_tmp / cw) * w
+            gcy = y + (gcy_tmp / ch) * h
         
-        blobs.append([NOT_SET, gcx, gcy, gsize, (x, y, w, h), NOT_SET])
+
+        blobs.append([NOT_SET, gcx, gcy, NOT_SET if DO_PYR else gsize, (x, y, w, h), NOT_SET])
 
         if DO_SEG == 1:
             result_frame, R_DETECT = segmentation_algo_1(img, (x, y, w, h), max_level=3)
@@ -384,6 +410,7 @@ def blob_detection(img):
                 cv2.putText(img, f"SEG", (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
                 cv2.imshow('SEG frame', result_frame)
                 continue
+
         # cv2.rectangle(img, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
             
     blobs = sorted(blobs, key=lambda x:(x[1], x[2])) ## 또는 l.sort(key=lambda x:x[1])
@@ -392,24 +419,29 @@ def blob_detection(img):
         # print(blob)
         blob[0] = idx
         (x, y, w, h) = blob[4]
-        cv2.putText(img, f"{blob[0]}", (int(x) - int(w/2), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+
+        # cv2.circle(img, (int(blob[1]), int(blob[2])), 1, (0,0,0), -1)  
+        # cv2.putText(img, f"{blob[0]}", (int(x) - int(w), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
     ret_blobs = copy.deepcopy(blobs)
     return ret_blobs, img
-####################################### Segmentation TEST #######################################
 
+
+####################################### Segmentation TEST #######################################
 
 
 def read_image(IMAGE_FILES):
     def update_blobs_with_matched_ids(matched_id_array, blobs):
+        tmp_blobs = blobs.copy()
         for matched_ids in matched_id_array:
             blob_id = matched_ids[0]
             matched_value = matched_ids[1]
             
-            for blob in blobs:
+            for blob in tmp_blobs:
                 if blob[0] == blob_id:
                     blob[-1] = matched_value
                     break
+        return tmp_blobs
 
     image_files = IMAGE_FILES[0]
     areas = IMAGE_FILES[1]
@@ -434,8 +466,12 @@ def read_image(IMAGE_FILES):
         fig.suptitle("Jitter")
         plt.ion ()
 
-    curr_frame_cnt = 50
+    curr_frame_cnt = 35
     prev_frame_cnt = -1
+
+    ID_MATCHED = NOT_SET
+
+    prev_blob_len = 0
 
     while True:
         if curr_frame_cnt >= len(image_files):
@@ -451,40 +487,82 @@ def read_image(IMAGE_FILES):
         bypass_img = area_filter(areas, frame_0)
 
         # Make Filter IMAGE
-        TEST_IMAGE, DEBUG_LOG = GaussianSharp(bypass_img)
+        TEST_IMAGE, DEBUG_LOG = DoNothing(bypass_img)
+        # TEST_IMAGE, DEBUG_LOG = GaussianSharp(bypass_img)
 
         # BLOB Detection
         blobs, TEST_IMAGE = blob_detection(TEST_IMAGE)
 
         # print(f"blobs {blobs}")
         # ID MAPPING (Long Search, OpenHMD Algorithm)
-        ID_MATCHED = NOT_SET
-        if DO_LONGSEARCH == 1 and first_detection == 0:
+        if DO_LONGSEARCH == 1 and (first_detection == 0 or prev_blob_len != len(blobs)):
             if len(blobs) > 4:
-                # Initialize score dictionary
-                score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': float('inf'), 'error_per_led': float('inf'), 'flags': NOT_SET}
                 points2D_D = []
                 for blob in blobs:
                     points2D_D.append(blob[1:3])
                 points2D_D = np.array(points2D_D, dtype=np.float64)
                 print(f"points2D_D\n {points2D_D }")
+                
+                # Initialize score dictionary
+                score = {'matched_id':[], 'matched_blobs': 0, 'unmatched_blobs': 0, 'reprojection_error': float('inf'), 'error_per_led': float('inf'), 'flags': NOT_SET}
+
                 SEARCH_BLOBS, points2D_U = correspondence_search_set_blobs(points2D_D, camera_matrix, blobs=blobs)
                 DATA_SET = (MODEL_DATA, DIRECTION, SEARCH_MODEL, SEARCH_BLOBS, camera_matrix, points2D_D, points2D_U, score)
                 long_search_python(DATA_SET)
                 first_detection = 1
                 print(f"After Long Search {score}")
                 
-                if score['flags'] >= MATCH_GOOD:
+                if score['flags'] >= MATCH_STRONG:
                     matched_id_array = score['matched_id']
                     # print(f"matched_id_array {matched_id_array}")
                     # Update blobs
-                    update_blobs_with_matched_ids(matched_id_array, blobs)
+                    updated_blobs = update_blobs_with_matched_ids(matched_id_array, blobs)
                     
                     ID_MATCHED = DONE
                     # Print updated blobs
-                    print(f"update blobs {blobs}")
+                    print(f"update blobs {updated_blobs}")
+            
+                prev_blob_len = len(blobs)
 
         # PnPSolver
+        if ID_MATCHED == DONE:
+            points2D_D_updated = []
+            points3D_updated = []
+
+            points2D_U = cv2.fisheye.undistortPoints (points2D_D.reshape (-1, 1, 2), 
+                                                        camera_matrix[0][0],
+                                                        camera_matrix[0][1])
+            points2D_U = np.array (points2D_U.reshape (len(points2D_U), -1), dtype= np.float64 )
+
+            for i, blob_info in enumerate(updated_blobs):
+                if blob_info[5] != NOT_SET:
+                    points2D_D_updated.append(points2D_U[i])
+                    points3D_updated.append(MODEL_DATA[i])
+            points2D_D_updated = np.array(points2D_D_updated, dtype=np.float64)
+            points3D_updated = np.array(points3D_updated, dtype=np.float64)
+            METHOD = POSE_ESTIMATION_METHOD.SOLVE_PNP_RANSAC
+            INPUT_ARRAY = [
+                0,
+                points3D_updated,
+                points2D_D_updated,
+                default_cameraK,
+                default_dist_coeffs
+            ]
+            _, rvec, tvec, _ = SOLVE_PNP_FUNCTION[METHOD](INPUT_ARRAY)
+            # rvec이나 tvec가 None인 경우 continue
+            if rvec is None or tvec is None:
+                ret_status = ERROR
+            
+            # rvec이나 tvec에 nan이 포함된 경우 continue
+            if np.isnan(rvec).any() or np.isnan(tvec).any():
+                ret_status = ERROR
+
+            # rvec과 tvec의 모든 요소가 0인 경우 continue
+            if np.all(rvec == 0) and np.all(tvec == 0):
+                ret_status = ERROR
+            # print('rvec:', rvec.flatten())
+            # print('tvec:', tvec.flatten())
+
         
         # Calc Blob pos jitter
         if curr_frame_cnt > prev_frame_cnt and len(blobs) > 0:
@@ -519,12 +597,14 @@ def read_image(IMAGE_FILES):
             if SHOW_CHART == 1:
                 plt.close()
             break
-        elif key & 0xFF == ord('n'):
+        elif key & 0xFF == ord('n'):                
                 if AUTO_LOOP == 0:
                     curr_frame_cnt += 1     
+                    first_detection = 0
         elif key & 0xFF == ord('b'):
                 if AUTO_LOOP == 0:
-                    curr_frame_cnt -= 1    
+                    curr_frame_cnt -= 1
+                    first_detection = 0    
 
         if AUTO_LOOP:
             curr_frame_cnt += 1
@@ -547,12 +627,12 @@ def read_image(IMAGE_FILES):
         cv2.putText(TEST_IMAGE, f"Detected {len(blobs)}", (CAP_PROP_FRAME_WIDTH - 100, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         cv2.rectangle(TEST_IMAGE,(areas['rectangle'][0], areas['rectangle'][1]),(areas['rectangle'][2],areas['rectangle'][3]),(255,255,255),1)
         
-        if ID_MATCHED == DONE:     
-            for idx, blob in enumerate(blobs):
+        if DO_LONGSEARCH == 1 and ID_MATCHED == DONE:     
+            for idx, blob in enumerate(updated_blobs):
                 if blob[5] == NOT_SET:
                     continue
                 (x, y, w, h) = blob[4]
-                cv2.putText(TEST_IMAGE, f"{blob[5]}", (int(x) + int(w/2), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                cv2.putText(TEST_IMAGE, f"{blob[5]}", (int(x) + int(w), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
 
         # show Image
         stacked_frame = np.hstack ((draw_frame, TEST_IMAGE))
@@ -566,10 +646,11 @@ def read_image(IMAGE_FILES):
 if __name__ == "__main__":
     SHOW_CHART = 0
     AUTO_LOOP = 0
-    DO_SEG = 1
-    DO_LONGSEARCH = 1
+    DO_SEG = 0
+    DO_PYR = 1
+    DO_LONGSEARCH = 0
 
-    TARGET_DEVICE = 'RIFTS'
+    TARGET_DEVICE = 'ARCTURAS'
 
     if TARGET_DEVICE == 'ARCTURAS':
         CAP_PROP_FRAME_WIDTH = 640
@@ -582,17 +663,12 @@ if __name__ == "__main__":
             np.array([[0.040384], [-0.015174], [-0.000401], [-0.000584]], dtype=np.float64)],
         ]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/arcturas_new/arcturas_left_#4_new.json"))
-        MIN_BLOB_SIZE = 2
+        MIN_BLOB_SIZE = 4
         MAX_BLOB_SIZE = 100
         TRACKER_PADDING = 1
         MAX_THRESHOLD = 255
-        MIN_THRESHOLD = 95
-        '''
-        Arcturas Real Data test
-        '''
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/front_side/dataset_front_70cm/CAM{i}*.bmp"))
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
-        # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_40cm/CAM{i}*.bmp"))
+        MIN_THRESHOLD = 90
+
     elif TARGET_DEVICE == 'RIFTS':
         CAP_PROP_FRAME_WIDTH = 1280
         CAP_PROP_FRAME_HEIGHT = 960
@@ -603,12 +679,12 @@ if __name__ == "__main__":
             np.array([[0.075663], [-0.027738], [0.007440], [-0.000961]], dtype=np.float64)],
         ]
         MODEL_DATA, DIRECTION = init_coord_json(os.path.join(script_dir, f"./jsons/specs/rifts_right_9.json"))
-        MIN_BLOB_SIZE = 2
+        MIN_BLOB_SIZE = 50
         MAX_BLOB_SIZE = 250
         TRACKER_PADDING = 1
         MAX_THRESHOLD = 255
         MIN_THRESHOLD = 95
-        image_files = sorted(glob.glob(f"{script_dir}/render_img/rifts_right_9/test_1/*.png*"))
+
 
     MODEL_DATA = np.array(MODEL_DATA, dtype=np.float64)
     DIRECTION = np.array(DIRECTION, dtype=np.float64)
@@ -624,11 +700,19 @@ if __name__ == "__main__":
 
     RESULTS = []
     CONTROLLER_CNT = 1
-    for i in range(CONTROLLER_CNT):       
+    for i in range(CONTROLLER_CNT):
+        if TARGET_DEVICE == 'ARCTURAS':
+            # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/front_side/dataset_front_60cm/CAM{i}*.bmp"))
+            # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_60cm/CAM{i}*.bmp"))
+            # image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_70cm/CAM{i}*.bmp"))
+            image_files = sorted(glob.glob(f"{script_dir}/../../../../../dataset/dataset_segmentation/left_side/dataset_left_40cm/CAM{i}*.bmp"))
+        elif TARGET_DEVICE == 'RIFTS':
+            image_files = sorted(glob.glob(f"{script_dir}/render_img/rifts_right_9/test_1/rifts_right_9/*.png*"))
+    
         print(f"image_files length {len(image_files)}")
         _, areas = blob_area_setting(f"{script_dir}/jsons/test_3/blob_area_{i}.json", image_files)
         jitters = read_image((image_files, areas))
         RESULTS.append(jitters)
 
-    # draw_result_chart(RESULTS)
+    draw_result_chart(RESULTS)
 

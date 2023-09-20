@@ -3,7 +3,6 @@ from Advanced_Calibration import blob_setting
 from Advanced_Correspondence_Class import *
 
 # Common Functions
-
 def find_center(frame, SPEC_AREA):
     (X, Y, W, H) = SPEC_AREA
     x_sum = 0
@@ -249,12 +248,19 @@ def GaussianSharp(img):
                 f"ADD_WEIGHT :{ADD_WEIGHT}" + '\n' + \
                 f"Thres:{CV_MIN_THRESHOLD}"
 
-    '''
+    
     stacked_frame = np.hstack ((blurred, sharpened, blur_sharp_img))
     cv2.imshow('GaussianSharp', stacked_frame)
-    '''
+    
     
     return blur_sharp_img, DEBUG_LOG
+
+
+def DoNothing(img):
+    DEBUG_LOG = f"W:{CAP_PROP_FRAME_WIDTH} H:{CAP_PROP_FRAME_HEIGHT}" + '\n' \
+                f"Do Nothing" + '\n'
+    
+    return img, DEBUG_LOG
 ####################################### Filter TEST #######################################
 
 
@@ -364,24 +370,20 @@ def segmentation_algo_1(image, blob_area, max_level):
 ####################################### Segmentation TEST #######################################
 
 ####################################### Pyramid TEST #######################################
-def Pyramid_algo_1(image, blob_area, max_level):
-    print(blob_area)
-    (x, y, w, h) = blob_area
-    cropped = crop_image(image, x, y, w, h)
-    print(f"shape: {w} {h}")
+def Pyramid_algo_1(cropped, max_level, min_spec=30):
+    # print(f"shape: {w} {h}")
     # Generate image pyramid using pyrUp (increasing resolution)
     gaussian_pyramid = [cropped]
     for i in range(max_level):
         cropped = cv2.pyrUp(cropped)
         ch, cw = cropped.shape[:2]
+        min_data = min(ch, cw)
+        if min_data > CAP_PROP_FRAME_HEIGHT or min_data > min_spec:
+            break
 
-        if min(ch, cw) > CAP_PROP_FRAME_HEIGHT:
-            break
-        if min(ch, cw) > 50:
-            break
-        print(f"pryUP {ch} {cw}")
+        # print(f"pryUP {ch} {cw}")
         gaussian_pyramid.append(cropped)
-    ch, cw = cropped.shape[:2]  # 마지막으로 pyrUp된 이미지의 크기를 다시 얻습니다.
+    ch, cw = cropped.shape[:2]
 
     return cropped, (ch, cw)
 ####################################### Pyramid TEST #######################################
@@ -480,7 +482,7 @@ def read_image(IMAGE_FILES):
         _, bypass_img = cv2.threshold(cv2.cvtColor(bypass_img, cv2.COLOR_BGR2GRAY), MIN_THRESHOLD, MAX_THRESHOLD, cv2.THRESH_TOZERO)
         TEST_IMAGE = copy.deepcopy(bypass_img)
         
-        
+
         blob_area = detect_led_lights(bypass_img, TRACKER_PADDING)
         blobs = []
         blob_images = []
@@ -491,21 +493,26 @@ def read_image(IMAGE_FILES):
             if gsize < MIN_BLOB_SIZE or gsize > MAX_BLOB_SIZE:
                 continue
             blobs.append([NOT_SET, gcx, gcy, gsize, (x, y, w, h), NOT_SET])
-    
-            img, (ch, cw) = Pyramid_algo_1(bypass_img, (x, y, w, h), max_level=3)
+            cropped = crop_image(bypass_img, x, y, w, h)
+            img, (ch, cw) = Pyramid_algo_1(cropped, max_level=3)
+            sharp, _ = GaussianSharp(img)
+
+
+
             gcx_pyrup, gcy_pyrup, gsize_pyrup = find_center(img, (0, 0, cw, ch))
             # 원본 이미지 내에서의 중심점 좌표 계산
             gcx_original = x + (gcx_pyrup / cw) * w
             gcy_original = y + (gcy_pyrup / ch) * h
             
-            print(f"x {gcx} {gcx_original}")
-            print(f"y {gcy} {gcy_original}")
+            print(f"coords {gcx},{gcy} {gcx_original},{gcy_original}")
+            print(f"origin size {w} {h}")
+            print(f"pyrup size {cw} {ch}")
             
             # draw_blob_id(img, blob_id)  # Draw blob_id on the image
             # blob_images.append(img)  # Add to the list
             cv2.putText(TEST_IMAGE, f"{blob_id}", (int(x) - int(w/2), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            cv2.rectangle(TEST_IMAGE, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
-            cv2.imshow(f"id {blob_id}", img)
+            # cv2.rectangle(TEST_IMAGE, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
+            cv2.imshow(f"id {blob_id}", np.hstack ((img, sharp)))
             cv2.imshow('IMAGE', TEST_IMAGE)
             while True:
                 KEY = cv2.waitKey(0)
@@ -530,7 +537,8 @@ def read_image(IMAGE_FILES):
 
 
         # Make Filter IMAGE
-        TEST_IMAGE, DEBUG_LOG = GaussianSharp(TEST_IMAGE)
+        # TEST_IMAGE, DEBUG_LOG = GaussianSharp(TEST_IMAGE)
+        TEST_IMAGE, DEBUG_LOG = DoNothing(TEST_IMAGE)
 
         # # BLOB Detection
         # blobs, TEST_IMAGE = blob_detection(TEST_IMAGE)

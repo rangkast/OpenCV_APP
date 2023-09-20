@@ -256,11 +256,11 @@ def correspondence_search_set_blobs(points2D_D, camera_m, blobs=[]):
         sorted_by_distance = sorted(distances, key=lambda x: x[2])
         sorted_neighbors.append (sorted_by_distance[:6])
 
-    print(f"Sorted neighbors by distance")
-    for i, neighbors in enumerate(sorted_neighbors):
-        print(f"Model 0, blob {i} @ {points2D_D[i][0]:.6f} , {points2D_D[i][1]:.6f} neighbours {len(neighbors)} Search list:")
-        for ID, j, dist, point, point_u, blobs_detected, max_sized in neighbors:
-            print(f"LED ID {ID} ( {point_u} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f} blobs {blobs_detected} size {max_sized}")
+    # print(f"Sorted neighbors by distance")
+    # for i, neighbors in enumerate(sorted_neighbors):
+    #     print(f"Model 0, blob {i} @ {points2D_D[i][0]:.6f} , {points2D_D[i][1]:.6f} neighbours {len(neighbors)} Search list:")
+    #     for ID, j, dist, point, point_u, blobs_detected, max_sized in neighbors:
+    #         print(f"LED ID {ID} ( {point_u} ) @ {point[0]:.6f} , {point[1]:.6f}. Dist {dist:.6f} blobs {blobs_detected} size {max_sized}")
 
     return np.array(sorted_neighbors, dtype=object), points2D_U
 
@@ -272,7 +272,6 @@ def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
     DIRECTION = DATA_SET[1]
     camera_m = DATA_SET[4]
     points2D_D = DATA_SET[5]
-    score = DATA_SET[7]
 
     BLOB_CNT = len(MODEL_DATA)
     # print("MODEL_DATA dtype:", MODEL_DATA.dtype)
@@ -347,7 +346,6 @@ def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
     score_visible_leds = len(visible_led_points)
     # print(f"score_visible_leds {score_visible_leds}")
     if score_visible_leds < 5:
-        score['flags'] = ERROR
         return ERROR, bounds
     
     # print("points2D_D")
@@ -378,22 +376,15 @@ def rift_evaluate_pose_with_prior(DATA_SET, pose, pose_prior=None):
     # Check if there are enough matched blobs
     if tmp_score['matched_blobs'] < 5:
         # print("Not enough matched blobs, exiting.")
-        score['flags'] = ERROR
+
         return ERROR, tmp_score
     else:
-        error_per_led = tmp_score['reprojection_error'] / tmp_score['matched_blobs']        
-        if error_per_led < score['error_per_led'] and tmp_score['reprojection_error'] < score['reprojection_error']:
-            score['error_per_led'] = error_per_led        
-            score['reprojection_error'] = tmp_score['reprojection_error']
-            score['matched_blobs'] = tmp_score['matched_blobs']
-            score['unmatched_blobs'] = tmp_score['unmatched_blobs']
-            score['matched_id'] = tmp_score['matched_id']
+        tmp_score['error_per_led'] = tmp_score['reprojection_error'] / tmp_score['matched_blobs']        
+
         # print(f"Error per LED: {error_per_led}")
-        if error_per_led < 1.5:
-            # print(f"MATCH STRONG")
-            score['flags'] =  MATCH_STRONG
+        if tmp_score['error_per_led'] < 1.5:
             return MATCH_STRONG, tmp_score
-    score['flags'] = MATCH_GOOD
+
     return MATCH_GOOD, tmp_score
         
 
@@ -402,14 +393,16 @@ def check_led_match(DATA_SET, anchor, candidate_list):
     SEARCH_BLOBS_MAP = [
         [0, 1, 2, 3],
         [0, 1, 3, 4],
-        [0, 1, 4, 5],
         [0, 2, 3, 4],
+        # 6개 이상 찾았을 때
+        [0, 1, 4, 5],
         [0, 2, 4, 5],
         [0, 3, 4, 5]
     ]
     MODEL_DATA = DATA_SET[0]
     DIRECTION = DATA_SET[1]
     SEARCH_BLOBS = DATA_SET[3]
+    BLOB_DETECT_LEN = len(DATA_SET[5])
 
     # print(f"check_led_match: {anchor} {candidate_list}")
     candidate_list.insert(0, anchor)
@@ -419,13 +412,17 @@ def check_led_match(DATA_SET, anchor, candidate_list):
     # print(f"points3D_candidate {POINTS3D_candidates}")
 
     for neighbours_2D in SEARCH_BLOBS:
-        for blob_searching in SEARCH_BLOBS_MAP:
-            if DATA_SET[7]['flags'] == MATCH_STRONG:
-                return
-            points2D_list = neighbours_2D[list(blob_searching), :]
-            # print(f"{blob_searching}")
-            # print(f"points2D_list {points2D_list}")
+        for search_i, blob_searching in enumerate(SEARCH_BLOBS_MAP):
+            # if DATA_SET[7]['flags'] == MATCH_STRONG:
+            #     return
+            if BLOB_DETECT_LEN <= 5 and search_i >= 3:
+                continue
+                
             # print(f"neighbours_2D {neighbours_2D}")
+            # print(f"blob_searching {blob_searching}")
+            points2D_list = neighbours_2D[list(blob_searching), :]
+
+            # print(f"points2D_list {points2D_list}")
             POINTS2D_candidates = np.array([(point[4], point[6]) for point in points2D_list], dtype=object)
             # print(f"POINTS2D_candidates {POINTS2D_candidates}")
             blob0 = Vec3f(POINTS2D_candidates[0][0][0], POINTS2D_candidates[0][0][1], 1.0)
@@ -502,12 +499,19 @@ def check_led_match(DATA_SET, anchor, candidate_list):
 
                     # ToDo
                     # 4th blob의 max_size와 distance 비교 추가필요                    
-                    if distance <= 0.020 if checkblob_size == 0 else checkblob_size:
-                        DATA_SET[7]['flags'] = NOT_SET
-                        _, _ = rift_evaluate_pose_with_prior(DATA_SET, pose)
-                        if DATA_SET[7]['flags'] == MATCH_STRONG:
-                            print(f"MATCH_STRONG score input {DATA_SET[7]}")
-                            # print("MATCH_STRONG")
+                    if distance <= 0.020 if checkblob_size == 0 else checkblob_size:                        
+                        flag, tmp_score = rift_evaluate_pose_with_prior(DATA_SET, pose)
+                        if flag >= MATCH_STRONG:
+                            if tmp_score['error_per_led'] <  DATA_SET[7]['error_per_led']:
+                                DATA_SET[7]['error_per_led'] = tmp_score['error_per_led']
+                                DATA_SET[7]['reprojection_error'] = tmp_score['reprojection_error']
+                                DATA_SET[7]['matched_blobs'] = tmp_score['matched_blobs']
+                                DATA_SET[7]['unmatched_blobs'] = tmp_score['unmatched_blobs']
+                                DATA_SET[7]['matched_id'] = tmp_score['matched_id']
+                                DATA_SET[7]['flags'] = flag
+
+                            print(f"score input {DATA_SET[7]}")
+
                     # sys.exit()    
                     
 
@@ -520,8 +524,8 @@ def select_k_leds_from_n(DATA_SET, anchor, candidate_list):
         check_led_match(DATA_SET, anchor, list(combo))
         # 가운데 2개만 바꿔서 새로운 조합 생성
         if len(combo) >= 3:
-            if DATA_SET[7]['flags'] == MATCH_STRONG:
-                return
+            # if DATA_SET[7]['flags'] == MATCH_STRONG:
+            #     return
             swapped = [combo[0], combo[2], combo[1]]
             check_led_match(DATA_SET, anchor, swapped)
 
