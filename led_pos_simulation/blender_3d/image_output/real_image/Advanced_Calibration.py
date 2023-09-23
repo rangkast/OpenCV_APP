@@ -965,6 +965,7 @@ def gathering_data_single(ax1, script_dir, bboxes, areas, start, end, DO_CALIBRA
                         #P3P
                         mutex.acquire()
                         try:
+                            import poselib
                             print('P3P LamdaTwist')
                             points2D_U = np.array(points2D_U.reshape(len(points2D), -1))                   
                             X = np.array(points3D)   

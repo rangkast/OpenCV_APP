@@ -43,9 +43,7 @@ from itertools import combinations, permutations
 from matplotlib.ticker import MaxNLocator
 from collections import defaultdict
 from data_class import *
-import torch
-import torchvision
-import kornia as K
+
 import time
 from sklearn.cluster import AgglomerativeClustering
 from numba import jit, float64, int32
@@ -58,10 +56,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 print(script_dir)
 
 sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
-# poselib only working in LINUX or WSL (window)
-import poselib
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
-
 
 CAP_PROP_FRAME_WIDTH = 1280
 CAP_PROP_FRAME_HEIGHT = 960

@@ -1,6 +1,11 @@
 from Advanced_Function import *
 from data_class import *
 import Advanced_Cython_Functions
+import torch
+import torchvision
+import kornia as K
+# poselib only working in LINUX or WSL (window)
+import poselib
 
 RER_SPEC = 3.0
 BLOB_SIZE = 30
