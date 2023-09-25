@@ -45,7 +45,7 @@ from collections import defaultdict
 from data_class import *
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-image_files = sorted(glob.glob(f"{script_dir}/../../../../dataset/dataset_right_40cm/CAM0*.bmp"))
+image_files = sorted(glob.glob(f"{script_dir}/../../../../dataset/blob*.bmp"))
 print(f"image_files length {len(image_files)}")
 frame_cnt = 0
 while True:
