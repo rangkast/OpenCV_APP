@@ -233,9 +233,9 @@ def GaussianSharp(img):
     CV_MAX_THRESHOLD = 255
     CV_MIN_THRESHOLD = 20
     GAUSSIAN_KERNEL = (3, 3)
-    GAUSSIAN_SIG = 1.0
-    SHARPNESS_KERNEL = np.array([[-1,-1,-1], [-1,10,-1], [-1,-1,-1]])
-    ADD_WEIGHT = (1.0, -0.1)
+    GAUSSIAN_SIG = 3.0
+    SHARPNESS_KERNEL = np.array([[-1,-1,-1], [-1,20,-1], [-1,-1,-1]])
+    ADD_WEIGHT = (1.5, -0.4)
     
     _, img = cv2.threshold(img, CV_MIN_THRESHOLD, CV_MAX_THRESHOLD, cv2.THRESH_TOZERO)
     blurred = cv2.GaussianBlur(img, GAUSSIAN_KERNEL, GAUSSIAN_SIG)
@@ -496,7 +496,6 @@ def read_image(IMAGE_FILES):
             cropped = crop_image(bypass_img, x, y, w, h)
             img, (ch, cw) = Pyramid_algo_1(cropped, max_level=3)
             sharp, _ = GaussianSharp(img)
-
 
 
             gcx_pyrup, gcy_pyrup, gsize_pyrup = find_center(img, (0, 0, cw, ch))

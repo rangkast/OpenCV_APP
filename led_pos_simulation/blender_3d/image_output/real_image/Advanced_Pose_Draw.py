@@ -1,62 +1,70 @@
-import subprocess
-import re
 from Advanced_Function import *
 
-# left: [0.1, 0.2, 0.3] | [1.0, 1.1, 1.2]
-# right: [0.4, 0.5, 0.6] | [1.3, 1.4, 1.5]
-
-
-def get_pose_from_adb_log():
-    cmd = ["adb", "logcat"]
+def get_pose_from_adb_log(q):
+    cmd = ["adb", "logcat", "-s", "XRC", "-v", "time"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    pattern = re.compile(r"POSE : (\d+\.\d+) (\d+\.\d+) (\d+\.\d+) (\d+\.\d+)")
+    pattern = re.compile(r"Pose\(RT\)\s+\[0\]\[(\d+)\]:\[([-?\d+.\d+,\s]+)\],\[([-?\d+.\d+,\s]+)\]")
 
-    while True:
+    while not exit_signal.is_set():
         line = process.stdout.readline().decode('utf-8')
-        if line == '' and process.poll() is not None:
-            break
         match = pattern.search(line)
         if match:
-            w, x, y, z = map(float, match.groups())
-            yield w, x, y, z
+            index, rvec_str, tvec_str = match.groups()
+            rvec = np.array([float(x) for x in rvec_str.split(',')])
+            tvec = np.array([float(x) for x in tvec_str.split(',')])
+            q.put((index, rvec, tvec))
 
-import numpy as np
-import cv2
-import matplotlib.pyplot as plt
+def on_key(event):
+    if event.key == 'q':
+        plt.close()
 
-def parse_log(log_file):
-    with open(log_file, 'r') as file:
-        for line in file:
-            parts = line.strip().split(":")
-            side = parts[0].strip()
-            data = parts[1].strip()
-            rvec_str, tvec_str = data.split('|')
+def draw_realtime_quiver(q):
+    global exit_signal
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    colors = {'0': 'b', '1': 'r'}
+    quivers = {}
+
+    fig.canvas.mpl_connect('key_press_event', on_key)  # q키 감지 이벤트 연결
+
+    plt.show(block=False)  # 창을 비동기로 표시
+
+    while not exit_signal.is_set():
+        if not q.empty():
+            index, rvec, tvec = q.get()
+            location, direction = world_location_rotation_from_opencv(rvec, tvec)
             
-            rvec = np.array([float(x) for x in rvec_str.strip('[]').split(',')])
-            tvec = np.array([float(x) for x in tvec_str.strip('[]').split(',')])
-            
-            yield side, rvec, tvec
+            if index in quivers:
+                quivers[index].remove()
 
-def get_location_direction(log_file):
-    for side, rvec, tvec in parse_log(log_file):
-        location, direction = world_location_rotation_from_opencv(rvec, tvec)
-        yield side, location, direction
+            quivers[index] = ax.quiver(location[0], location[1], location[2], direction[0], direction[1], direction[2], color=colors.get(index, 'g'), length=1, normalize=True)
+            ax.scatter(location[0], location[1], location[2], marker='o')
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+            ax.set_xlim([-5, 5])
+            ax.set_ylim([-5, 5])
+            ax.set_zlim([-5, 5])
 
-for side, location, direction in get_location_direction('test.txt'):
-    # location을 시작점으로, direction을 화살표 방향으로 하는 quiver를 그림
-    ax.quiver(location[0], location[1], location[2], direction[0], direction[1], direction[2], color='b' if side == 'left' else 'r')
+            plt.draw()
+            plt.pause(0.1)
 
-    # 적절한 축 범위 설정 (필요에 따라 수정)
-    ax.set_xlim([-5, 5])
-    ax.set_ylim([-5, 5])
-    ax.set_zlim([-5, 5])
-    
-    plt.draw()
-    plt.pause(0.5)
-    ax.cla()
+    plt.close(fig)
 
-plt.show()
+def keyboard_input_thread():
+    input("Press any key to stop...")
+    exit_signal.set()
+
+if __name__ == '__main__':
+    exit_signal = threading.Event()
+    q = Queue()
+    input_thread = threading.Thread(target=keyboard_input_thread)
+    log_thread = threading.Thread(target=get_pose_from_adb_log, args=(q,))
+
+    input_thread.start()
+    log_thread.start()
+    draw_realtime_quiver(q)
+
+    input_thread.join()
+    log_thread.join()
+    plt.close('all')  # 모든 창 닫기
+    sys.exit()  # 프로그램 종료

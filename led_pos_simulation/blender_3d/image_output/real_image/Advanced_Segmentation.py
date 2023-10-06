@@ -9,6 +9,8 @@ def find_center(frame, SPEC_AREA):
     t_sum = 0
     y_sum = 0
     m_count = 0
+    g_c_x = 0
+    g_c_y = 0
     
     for y in range(Y, Y + H):
         for x in range(X, X + W):
@@ -371,32 +373,28 @@ def segmentation_algo_1(image, blob_area, max_level):
 from Advanced_Blob_Filter import Pyramid_algo_1
 def blob_detection(img):
     # Segmentation Test
-    _, img = cv2.threshold(img, MIN_THRESHOLD, MAX_THRESHOLD, cv2.THRESH_TOZERO)
-    blob_area = detect_led_lights(img, TRACKER_PADDING)
+    img_gry = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, frame_img = cv2.threshold(img_gry, MIN_THRESHOLD, MAX_THRESHOLD, cv2.THRESH_TOZERO)
+    blob_area = detect_led_lights(frame_img, TRACKER_PADDING)
     blobs = []
     for blob_id, bbox in enumerate(blob_area):
         (x, y, w, h) = (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]))
         if DO_PYR == 0:
-            gcx, gcy, gsize = find_center(img, (x, y, w, h))
+            gcx, gcy, gsize = find_center(frame_img, (x, y, w, h))
             if gsize < MIN_BLOB_SIZE or gsize > MAX_BLOB_SIZE:
                 continue
         else:
             if w * h <= 1:
                 continue
-            cropped = crop_image(img, x, y, w, h)
+            cropped = crop_image(frame_img, x, y, w, h)
             # _, cropped = cv2.threshold(cropped, 30, MAX_THRESHOLD, cv2.THRESH_TOZERO)
-            if min(w, h) < 5:
-                # print(f"do pyr {blob_id}")
-                pyr_img, (ch, cw) = Pyramid_algo_1(cropped, max_level=3, min_spec=15)
-                # cropped_sharp, _ = GaussianSharp(pyr_img)
-                gcx_tmp, gcy_tmp, gsize_pyrup = find_center(pyr_img, (0, 0, cw, ch))
-                cv2.imshow(f"{blob_id}_pyr_img", pyr_img)
-            else:
-                # print(f"do blur {blob_id}")
-                ch, cw = cropped.shape[:2]
-                cropped_sharp, _ = GaussianSharp(cropped)
-                gcx_tmp, gcy_tmp, gsize = find_center(cropped_sharp, (0, 0, cw, ch))
-                cv2.imshow(f"{blob_id}_cropped_sharp", cropped_sharp)
+
+            # print(f"do pyr {blob_id}")
+            pyr_img, (ch, cw) = Pyramid_algo_1(cropped, max_level=3, min_spec=15)
+            cropped_sharp, _ = GaussianSharp(pyr_img)
+
+            gcx_tmp, gcy_tmp, gsize_pyrup = find_center(cropped_sharp, (0, 0, cw, ch))
+            # cv2.imshow(f"{blob_id}_pyr_img", pyr_img)
 
             gcx = x + (gcx_tmp / cw) * w
             gcy = y + (gcy_tmp / ch) * h
@@ -405,25 +403,25 @@ def blob_detection(img):
         blobs.append([NOT_SET, gcx, gcy, NOT_SET if DO_PYR else gsize, (x, y, w, h), NOT_SET])
 
         if DO_SEG == 1:
-            result_frame, R_DETECT = segmentation_algo_1(img, (x, y, w, h), max_level=3)
+            result_frame, R_DETECT = segmentation_algo_1(frame_img, (x, y, w, h), max_level=3)
             if R_DETECT > 1:
-                cv2.putText(img, f"SEG", (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                cv2.imshow('SEG frame', result_frame)
+                # cv2.putText(img, f"SEG", (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                # cv2.imshow('SEG frame', result_frame)
                 continue
 
         # cv2.rectangle(img, (x, y), (x + w, y + h), (255, 255, 255), 1, 1)
             
-    blobs = sorted(blobs, key=lambda x:(x[1], x[2])) ## 또는 l.sort(key=lambda x:x[1])
+    blobs_sorted = sorted(blobs, key=lambda x:(x[1], x[2])) ## 또는 l.sort(key=lambda x:x[1])
 
-    for idx, blob in enumerate(blobs):
+    for idx, blob in enumerate(blobs_sorted):
         # print(blob)
         blob[0] = idx
         (x, y, w, h) = blob[4]
 
-        # cv2.circle(img, (int(blob[1]), int(blob[2])), 1, (0,0,0), -1)  
-        # cv2.putText(img, f"{blob[0]}", (int(x) - int(w), int(y) - int(h)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+        cv2.circle(img, (int(blob[1]), int(blob[2])), 1, (0,0,255), -1)  
+        cv2.putText(img, f"{blob[0]}", (int(x), int(y) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
 
-    ret_blobs = copy.deepcopy(blobs)
+    ret_blobs = copy.deepcopy(blobs_sorted)
     return ret_blobs, img
 
 
@@ -487,11 +485,11 @@ def read_image(IMAGE_FILES):
         bypass_img = area_filter(areas, frame_0)
 
         # Make Filter IMAGE
-        TEST_IMAGE, DEBUG_LOG = DoNothing(bypass_img)
+        _, DEBUG_LOG = DoNothing(bypass_img)
         # TEST_IMAGE, DEBUG_LOG = GaussianSharp(bypass_img)
 
         # BLOB Detection
-        blobs, TEST_IMAGE = blob_detection(TEST_IMAGE)
+        blobs, TEST_IMAGE = blob_detection(bypass_img)
 
         # print(f"blobs {blobs}")
         # ID MAPPING (Long Search, OpenHMD Algorithm)
@@ -616,7 +614,7 @@ def read_image(IMAGE_FILES):
             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)   
 
         # Display the resulting frame        
-        TEST_IMAGE = cv2.cvtColor(TEST_IMAGE, cv2.COLOR_GRAY2BGR)
+        # TEST_IMAGE = cv2.cvtColor(TEST_IMAGE, cv2.COLOR_GRAY2BGR)
         debug_lines = DEBUG_LOG.split ('\n')
         y0, dy = 10, 15 # 시작 y좌표와 라인 간의 거리
 
@@ -648,7 +646,7 @@ if __name__ == "__main__":
     AUTO_LOOP = 0
     DO_SEG = 0
     DO_PYR = 1
-    DO_LONGSEARCH = 0
+    DO_LONGSEARCH = 1
 
     TARGET_DEVICE = 'ARCTURAS'
 
@@ -683,7 +681,7 @@ if __name__ == "__main__":
         MAX_BLOB_SIZE = 250
         TRACKER_PADDING = 1
         MAX_THRESHOLD = 255
-        MIN_THRESHOLD = 95
+        MIN_THRESHOLD = 30
 
 
     MODEL_DATA = np.array(MODEL_DATA, dtype=np.float64)

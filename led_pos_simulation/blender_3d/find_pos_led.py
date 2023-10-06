@@ -133,9 +133,7 @@ def create_circle_leds_on_surface(led_coords, led_size, shape, name_prefix="LED"
 
         # Emission 쉐이더를 출력 노드에 연결합니다.
         links.new(emission_node.outputs['Emission'], output_node.inputs['Surface'])
-
         led_obj.data.materials.append(led_material)
-
         led_objects.append(led_obj)
 
     return led_objects

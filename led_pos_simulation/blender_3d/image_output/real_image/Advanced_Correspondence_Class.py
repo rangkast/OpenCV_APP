@@ -524,8 +524,8 @@ def select_k_leds_from_n(DATA_SET, anchor, candidate_list):
         check_led_match(DATA_SET, anchor, list(combo))
         # 가운데 2개만 바꿔서 새로운 조합 생성
         if len(combo) >= 3:
-            # if DATA_SET[7]['flags'] == MATCH_STRONG:
-            #     return
+            if DATA_SET[7]['flags'] == MATCH_STRONG:
+                return
             swapped = [combo[0], combo[2], combo[1]]
             check_led_match(DATA_SET, anchor, swapped)
 
@@ -556,4 +556,6 @@ def long_search_python(DATA_SET):
     print("NEIGHBOURS_LIST")
     for neighbors in NEIGHBOURS_LIST:
         print(f"neighbours: {neighbors}")
+        if DATA_SET[7]['flags'] == MATCH_STRONG:
+            return
         generate_led_match_candidates(DATA_SET, neighbors, start=0, depth=3, hopping=3)
