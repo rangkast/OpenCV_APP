@@ -8,81 +8,86 @@ from PyQt5.QtCore import QTimer, pyqtSignal, pyqtSlot, QThread
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import datetime
+from mpl_toolkits.mplot3d import Axes3D
+import asyncio
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+class Quiver3DGraphicsView(FigureCanvas):
+    def __init__(self, parent=None):
+        self.fig = Figure()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        super(Quiver3DGraphicsView, self).__init__(self.fig)
+        self.ax.set_xlabel('X')
+        self.ax.set_ylabel('Y')
+        self.ax.set_zlabel('Z')
+        self.ax.set_box_aspect([1280/960, 1, 1])  # 고정된 3D box 비율
+        self.ax.set_xlim([-1, 1])  # x축의 한계
+        self.ax.set_ylim([-1, 1])  # y축의 한계
+        self.ax.set_zlim([-1, 1])  # z축의 한계
+        self.quiver = None
+
+    def update_data(self, location, direction):
+        if self.quiver:
+            self.quiver.remove()
+        
+        # 길이와 화살표 머리의 크기를 조절
+        X, Y, Z = location
+        self.quiver = self.ax.quiver(X, Y, Z, direction[0], direction[1], direction[2], color="blue", length=0.1, normalize=True)
+        self.ax.scatter(X, Y, Z, marker='o')
+        
+        # 방향벡터에 직교하는 평면 표현
+        v = direction / np.linalg.norm(direction)
+        u = np.array([1, 0, 0])
+        if np.abs(np.dot(u, v)) == 1:
+            u = np.array([0, 1, 0])
+        w = np.cross(u, v)
+        u = np.cross(v, w)
+        u /= np.linalg.norm(u)
+        w /= np.linalg.norm(w)
+        l = 0.1
+        p1 = location + (l / 2) * (u + w)
+        p2 = location + (l / 2) * (-u + w)
+        p3 = location + (l / 2) * (-u - w)
+        p4 = location + (l / 2) * (u - w)
+        vertices = np.array([p1, p2, p3, p4])
+        rect = Poly3DCollection([vertices], alpha=0.3, facecolor='gray', edgecolor='none')
+        self.ax.add_collection3d(rect)
+        
+        self.draw()
+
 
 class LogReader(QThread):
     new_log_signal = pyqtSignal(str, str)
+    def __init__(self, device_filter=None, parent=None):
+        super(LogReader, self).__init__(parent)
+        self.device_filter = device_filter
+        self.buffer = []
 
-    def run(self):
+    def set_device_filter(self, device):
+        self.device_filter = device
+
+    def read_logs(self):
         cmd = ["adb", "logcat", "-s", "XRC", "-v", "time"]
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        pattern = re.compile(r"Pose\(RT\)\s+\[0\]\[(\d+)\]:\[([-?\d+.\d+,\s]+)\],\[([-?\d+.\d+,\s]+)\]")
-
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pattern = re.compile(f"Pose\(RT\)\s+\[0\]\[{self.device_filter}\]:\[([-?\d+.\d+,\s]+?)\],\[([-?\d+.\d+,\s]+?)\]")
         while True:
             line = process.stdout.readline().decode('utf-8')
             match = pattern.search(line)
             if match:
-                index, rvec_str, tvec_str = match.groups()
+                rvec_str, tvec_str = match.groups()
                 rvec = np.array([float(x) for x in rvec_str.split(',')])
                 tvec = np.array([float(x) for x in tvec_str.split(',')])
-                
+
                 location, direction = world_location_rotation_from_opencv(rvec, tvec)
-                print(f"location {location} direction {direction}")
-                self.new_log_signal.emit(line, f"Location: {location}, Direction: {direction}")
-
-
-class Quiver3DPlot(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.initUI()
-
-    def initUI(self):
-        layout = QVBoxLayout()
-
-        self.canvas = FigureCanvas(Figure())
-        layout.addWidget(self.canvas)
-
-        self.ax = self.canvas.figure.add_subplot(111, projection='3d')
-        self.canvas.figure.tight_layout()
-        self.setLayout(layout)
-
-    def plot_quiver(self, location, direction):
-        self.ax.clear()
-        self.ax.quiver(*location, *direction, color='b', length=0.5, normalize=True)
-        self.ax.scatter(*location, c='k', marker='o', label='')
-        self.ax.set_xlim([-1.0, 1.0])
-        self.ax.set_ylim([-1.0, 1.0])
-        self.ax.set_zlim([-1.0, 1.0])
-        self.canvas.draw()
-
-# 실시간 차트를 위한 클래스 추가
-class RealTimeChart(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.initUI()
-
-    def initUI(self):
-        layout = QVBoxLayout()
-
-        self.canvas = FigureCanvas(Figure())
-        layout.addWidget(self.canvas)
-        
-        self.ax = self.canvas.figure.add_subplot(111)
-        self.canvas.figure.tight_layout()
-        self.data = [0] * 100
-        self.counter = 0  # count 변수 추가
-
-        self.setLayout(layout)
-
-    def update_chart(self, new_data_point):
-        self.data.append(new_data_point)
-        self.data.pop(0)
-        
-        self.counter += 1  # count 증가
-        
-        self.ax.clear()
-        self.ax.plot(range(self.counter, self.counter + 100), self.data)  # count를 기반으로 x축 데이터 설정
-        self.canvas.draw()
+                self.buffer.append((line, f"Location: {location}, Direction: {direction}"))
+                
+                if len(self.buffer) >= 5:
+                    for log, parsed_log in self.buffer:
+                        self.new_log_signal.emit(log, parsed_log)
+                    self.buffer = []
+    def run(self):
+        self.read_logs()
 
 
 class App(QWidget):
@@ -91,10 +96,14 @@ class App(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setGeometry(500, 500, 1000, 500)
+        self.setGeometry(500, 500, 1000, 600) # 창 크기 조정
         self.setWindowTitle('Log Viewer')
 
         mainLayout = QHBoxLayout()
+
+        # 3D Graphics View UI
+        self.quiver_view = Quiver3DGraphicsView(self)
+        mainLayout.addWidget(self.quiver_view)
 
         # Log Viewer UI
         logUI = QVBoxLayout()
@@ -106,58 +115,40 @@ class App(QWidget):
         exit_btn.clicked.connect(self.close)
         logUI.addWidget(exit_btn)
 
-        # Quiver Plot UI
-        self.quiver_plot = Quiver3DPlot()
         mainLayout.addLayout(logUI)
-        mainLayout.addWidget(self.quiver_plot)
-
-        # ECG-like Plot UI (placeholder for now)
-        ecgUI = QGroupBox("ECG-like Data Plot")
-        mainLayout.addWidget(ecgUI)
-
-        # 실시간 차트 UI 추가
-        self.real_time_chart = RealTimeChart()
-        mainLayout.addWidget(self.real_time_chart)
-        
-        # Timer 설정
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_real_time_chart)
-        self.timer.start(10)  # 10ms마다 차트 업데이트
-
         self.setLayout(mainLayout)
         self.show()
 
     @pyqtSlot(str, str)
     def update_log(self, log_line, processed_data):
-        self.text_edit.append(log_line)
-        self.text_edit.append(processed_data)
+        try:
+            self.text_edit.append(log_line)
+            self.text_edit.append(processed_data)
 
-        location_pattern = r"Location: \[([-?\d+.\d+,\s]+)\]"
-        direction_pattern = r"Direction: \[([-?\d+.\d+,\s]+)\]"
+            location_pattern = r"Location: \[([-?\d+.\d+,\s]+)\]"
+            direction_pattern = r"Direction: \[([-?\d+.\d+,\s]+)\]"
 
-        loc_match = re.search(location_pattern, processed_data)
-        dir_match = re.search(direction_pattern, processed_data)
+            loc_match = re.search(location_pattern, processed_data)
+            dir_match = re.search(direction_pattern, processed_data)
 
+            timestamp_pattern = re.compile(r"(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})")
+            timestamp_match = timestamp_pattern.search(log_line)
+            if timestamp_match:
+                timestamp_str = timestamp_match.group(1)
+                timestamp = datetime.datetime.strptime(timestamp_str, "%m-%d %H:%M:%S.%f")
 
-        timestamp_pattern = re.compile(r"(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})")
-        timestamp_match = timestamp_pattern.search(log_line)
-        if timestamp_match:
-            timestamp_str = timestamp_match.group(1)
-            timestamp = datetime.datetime.strptime(timestamp_str, "%m-%d %H:%M:%S.%f")
+            if loc_match and dir_match:
+                location_str = loc_match.group(1).split()
+                direction_str = dir_match.group(1).split()
+                location = [float(x) for x in location_str]
+                direction = [float(x) for x in direction_str]
 
-        if loc_match and dir_match:
-            location_str = loc_match.group(1).split()
-            direction_str = dir_match.group(1).split()
-
-            location = [float(x) for x in location_str]
-            direction = [float(x) for x in direction_str]
-            self.quiver_plot.plot_quiver(location, direction)
-            self.real_time_chart.update_chart(location[0])  # x 값만 사용
-            
-    def update_real_time_chart(self):
-        # 주의: 이 함수는 현재 사용되지 않지만 필요한 경우를 위해 남겨둡니다.
-        # 실제로는 update_log 함수에서 실시간 차트를 업데이트하고 있습니다.
-        pass  # 필요하지 않은 경우 이 함수를 제거할 수 있습니다.         
+                #여기서 location과 direction을 이용하여 그래픽 표현
+                # Update 3D Graphics
+                self.quiver_view.update_data(location, direction)
+    
+        except Exception as e:
+            print(f"Error in update_log: {e}")                 
 
 if __name__ == '__main__':
     app = QApplication([])
@@ -165,6 +156,7 @@ if __name__ == '__main__':
 
     log_reader = LogReader()
     log_reader.new_log_signal.connect(ex.update_log)
+    log_reader.set_device_filter("1")
     log_reader.start()
 
     app.exec_()
