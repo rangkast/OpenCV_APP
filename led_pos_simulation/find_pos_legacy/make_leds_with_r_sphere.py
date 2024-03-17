@@ -193,3 +193,5 @@ data = convert_to_meters(data)
 ret = pickle_data(WRITE, file, data)
 if ret != ERROR:
     print('data saved')
+
+plt.show()
