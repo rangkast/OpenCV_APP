@@ -173,8 +173,8 @@ def draw_camera_pos_and_dir():
         orvec = camera_info['OPENCV']['rt']['rvec']
         otvec = camera_info['OPENCV']['rt']['tvec']
         degree = camera_info['ANGLE']
-#        brvec = camera_info['BLENDER']['rt']['rvec']
-#        btvec = camera_info['BLENDER']['rt']['tvec']
+        brvec = camera_info['BLENDER']['rt']['rvec']
+        btvec = camera_info['BLENDER']['rt']['tvec']
 #        barvec = camera_info['BA_RT']['rt']['rvec']
 #        batvec = camera_info['BA_RT']['rt']['tvec']
         
@@ -198,11 +198,24 @@ def draw_camera_pos_and_dir():
             txt_obj.data.body = str(key)
             txt_obj.rotation_euler = rotation_euler  # Optional, if you want to align text with the sphere's orientation
             txt_obj.scale = (0.005, 0.005, 0.005)  # adjust the values to get the desired size
+#        if len(brvec) > 0 and degree == 0:
+#            # Add Camera Position
+#            bposition, brotation_quat = blender_location_rotation_from_opencv(brvec, btvec)        
+#            # Convert quaternion rotation to Euler rotation
+#            rotation_mat = brotation_quat.to_matrix().to_4x4()
+#            rotation_euler = rotation_mat.to_euler()        
+#            # Create a small sphere at the camera position
+#            bpy.ops.mesh.primitive_uv_sphere_add(location=bposition, radius=0.001)
+#            bsphere = bpy.context.object
+#            bsphere.data.materials.append(bmat)  # Assign the material to the sphere
+#            bpositions.append(np.array(bposition))
+#            # For Blender Camera
+#            draw_arrow(bposition, brotation_quat @ mathutils.Vector((0.0, 0.0, -1.0)), 0.03, bmat)
 
     data = OrderedDict()
     data['opositions'] = opositions
     pickle_data(WRITE, 'D:/OpenCV_APP/BLENDER.pickle', data)
-#    pickle_data(WRITE, '/home/rangkast.jeong/Project/OpenCV_APP/BLENDER.pickle', data)
+    pickle_data(WRITE, '/home/rangkast.jeong/Project/OpenCV_APP/BLENDER.pickle', data)
             
             
 make_models('real')

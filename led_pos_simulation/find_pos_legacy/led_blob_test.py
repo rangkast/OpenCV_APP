@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from function import *
 from definition import *
 
+import cv2
+
 num_points = 150
 radius = 0.05
 led_info = np.array([[0.05, 0, 0]])

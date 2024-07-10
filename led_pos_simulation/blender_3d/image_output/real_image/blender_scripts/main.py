@@ -111,7 +111,7 @@ set_camera_roll(bpy.data.objects['CAMERA_0_DEFAULT'], math.radians(90), math.rad
     Rendering Images
 '''
 #save_png_files()
-#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=35, end_frame=155, save_pose = 1, do_render=0, do_reverse=0)
+#render_camera_pos_and_png('CAMERA_0_DEFAULT', start_frame=35, end_frame=155, save_pose = 1, do_render=1, do_reverse=0)
 #render_image_inverse('CAMERA_0')
 
 '''
