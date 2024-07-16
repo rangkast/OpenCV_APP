@@ -482,7 +482,6 @@ if __name__ == "__main__":
             fig, axs = plt.subplots(3, 1, figsize=(15, 15))
             fig.suptitle(f'Calibration Data Analysis for Combination: {COMBINATION}')  # Set overall title
 
-
             summary_text = ""
 
             for idx, points3D_data in enumerate(points3D_datas):
@@ -667,7 +666,7 @@ if __name__ == "__main__":
 
     # TEST
     USING_KORNIA = NOT_SET
-    combination_cnt = [4,5]
+    combination_cnt = [4]
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
 
     plt.show()
