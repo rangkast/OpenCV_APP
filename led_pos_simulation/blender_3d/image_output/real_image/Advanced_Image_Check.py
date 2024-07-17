@@ -45,7 +45,9 @@ from collections import defaultdict
 from data_class import *
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-image_files = sorted(glob.glob(f"{script_dir}/../../../../dataset/blob*.bmp"))
+# image_files = sorted(glob.glob(f"{script_dir}/../../../../../../../sm870.lee/blob_center_new/front_side/dataset_front_40cm/CAM1*.bmp"))
+image_files = sorted(glob.glob(f"{script_dir}/../../../../../../../rangkast.jeong/workspace/simulator/openhmd/result/C0*.bmp"))
+# image_files = sorted(glob.glob(f"{script_dir}/../../../../../../../rangkast.jeong/workspace/simulator/openhmd_final/result/C0*.bmp"))
 print(f"image_files length {len(image_files)}")
 frame_cnt = 0
 while True:

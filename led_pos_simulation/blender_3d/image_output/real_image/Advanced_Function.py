@@ -52,10 +52,11 @@ from numba import jit, float64, int32
 from queue import Queue
 from scipy.spatial import KDTree
 from ctypes import cdll, c_double
+
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
 # Add the directory containing poselib to the module search path
-print(script_dir)
+# print(script_dir)
 
 sys.path.append(os.path.join(script_dir, '../../../../EXTERNALS'))
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(f"{script_dir}../../../../connection"))))
@@ -856,18 +857,36 @@ def check_angle_and_facing(MODEL_DATA, DIRECTION, pos, dir, blob_ids, threshold_
         # print(f"{blob_id} : facing_dot: {facing_dot} rad{rad}")
     return results
 
-def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):        
-        points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
-        # Squeeze the points2D_reprojection to match the dimensionality of points2D
-        points2D_reprojection = points2D_reprojection.squeeze()
-        if len(points2D.shape) > 1:
-            RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
-        else:
-            RER = np.average(np.linalg.norm(points2D - points2D_reprojection))
-        # print('points2D:\n', points2D)
-        # print('points2D_reprojection:\n', points2D_reprojection)
-        # print('RER:', RER)
-        return RER, points2D_reprojection
+def reprojection_error(points3D, points2D, rvec, tvec, camera_k, dist_coeff):
+    points2D_reprojection, _ = cv2.projectPoints(points3D, np.array(rvec), np.array(tvec), camera_k, dist_coeff)
+    points2D_reprojection = points2D_reprojection.squeeze()
+
+    if (points2D_reprojection < 0).any() or (points2D_reprojection[:, 0] > 1280).any() or (points2D_reprojection[:, 1] > 960).any():
+        print("==== DEBUG LOG START ====")
+        print("Input 3D Points (points3D):")
+        print(points3D)
+        print("Input 2D Points (points2D):")
+        print(points2D)
+        print("Rotation Vector (rvec):")
+        print(rvec)
+        print("Translation Vector (tvec):")
+        print(tvec)
+        print("Camera Matrix (camera_k):")
+        print(camera_k)
+        print("Distortion Coefficients (dist_coeff):")
+        print(dist_coeff)
+        print("Reprojected 2D Points (After Squeeze):")
+        print(points2D_reprojection)
+        print("==== DEBUG LOG END ====")
+
+    if len(points2D.shape) > 1:
+        RER = np.average(np.linalg.norm(points2D - points2D_reprojection, axis=1))
+    else:
+        RER = np.average(np.linalg.norm(points2D - points2D_reprojection))
+
+    return RER, points2D_reprojection
+
+
 def cal_iqr_func(arr):
     Q1 = np.percentile(arr, 25)
     Q3 = np.percentile(arr, 75)

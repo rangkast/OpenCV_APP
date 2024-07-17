@@ -1582,6 +1582,76 @@ def BA_RT(**kwargs):
     if ret != ERROR:
         print('data saved')
 
+'''
+### 소프트웨어 아키텍처 전략
+
+1. **모듈화 (Modularization)**:
+   - 코드를 기능별로 분리하여 모듈화하고 있습니다. 예를 들어, `fun` 함수는 비용 함수 역할을 하며, `bundle_adjustment_sparsity_RT` 함수는 희소 매트릭스를 생성합니다.
+   - 모듈화는 코드의 가독성을 높이고, 유지보수 및 테스트를 용이하게 합니다.
+
+2. **희소 행렬 활용 (Sparse Matrix Utilization)**:
+   - 대규모 최적화 문제에서 희소 행렬을 사용하여 계산 효율성을 높이고 있습니다. `bundle_adjustment_sparsity_RT` 함수는 희소 행렬을 생성합니다.
+   - 이는 메모리 사용을 줄이고 계산 속도를 높이는 데 도움이 됩니다.
+
+3. **데이터 전처리 및 변환 (Data Preprocessing and Transformation)**:
+   - 입력 데이터를 NumPy 배열로 변환하여 연산 속도를 최적화하고 있습니다.
+   - 대규모 데이터 처리를 위해 적절한 데이터 구조를 사용하여 효율적인 연산을 보장합니다.
+
+4. **시각화 (Visualization)**:
+   - 희소 행렬을 시각화하여 이해를 돕고, 디버깅 및 분석을 용이하게 합니다.
+   - 이는 결과를 검증하고 문제를 빠르게 파악하는 데 도움이 됩니다.
+
+5. **최적화 문제 해결 (Optimization Problem Solving)**:
+   - `least_squares` 함수를 사용하여 비선형 최적화 문제를 해결합니다.
+   - 희소 행렬을 사용하여 자코비안 매트릭스를 지정함으로써 계산 효율성을 극대화합니다.
+
+### 이론적 배경: 희소 행렬의 사용이 왜 빠른가?
+
+1. **메모리 효율성 (Memory Efficiency)**:
+   - 희소 행렬은 대부분의 원소가 0인 행렬입니다. 일반적으로 희소 행렬은 0이 아닌 원소만 저장하여 메모리 사용을 줄입니다.
+   - 이는 대규모 행렬을 다룰 때 특히 중요하며, 메모리 낭비를 최소화합니다.
+
+2. **계산 효율성 (Computational Efficiency)**:
+   - 희소 행렬을 사용하면 연산 시 0인 요소를 무시할 수 있어 계산 시간이 크게 단축됩니다.
+   - 예를 들어, 행렬 곱셈이나 선형 시스템 해결 시, 0이 아닌 요소만 고려하기 때문에 연산 속도가 빨라집니다.
+
+3. **자코비안 행렬의 희소성 (Sparsity of the Jacobian Matrix)**:
+   - 많은 최적화 문제에서 자코비안 행렬은 희소한 형태를 가지므로, 이를 활용하여 연산 속도를 높일 수 있습니다.
+   - `least_squares` 함수는 희소 자코비안 행렬을 사용하여 효율적인 솔버를 사용합니다. 이는 특히 대규모 비선형 최소제곱 문제를 해결할 때 유리합니다.
+
+4. **메모리 대역폭 (Memory Bandwidth)**:
+   - 희소 행렬을 사용하면 메모리 대역폭을 줄일 수 있습니다. 이는 특히 병렬 처리 환경에서 중요합니다.
+   - CPU와 메모리 간의 데이터 전송이 줄어들어 전체 시스템의 성능을 향상시킬 수 있습니다.
+
+### 코드 설명
+
+#### 주요 함수
+
+1. **`fun` 함수**:
+   - 카메라 파라미터와 3D 포인트를 사용하여 2D 포인트를 투영합니다.
+   - 실제 2D 포인트와 투영된 2D 포인트 간의 차이를 반환합니다. 이는 최적화 문제에서 최소화하려는 비용 함수입니다.
+
+2. **`bundle_adjustment_sparsity_RT` 함수**:
+   - 희소 자코비안 행렬을 생성합니다. 이 행렬은 카메라 파라미터와 관련된 부분만을 포함합니다.
+   - 행렬 A는 카메라 파라미터와 2D 포인트 간의 관계를 나타내며, 희소한 형태를 가집니다.
+
+#### 최적화 문제 설정
+
+1. **데이터 전처리**:
+   - 카메라 파라미터, 2D 포인트, 3D 포인트 등을 NumPy 배열로 변환합니다.
+   - 이는 `least_squares` 함수의 입력으로 사용됩니다.
+
+2. **희소 행렬 생성**:
+   - `bundle_adjustment_sparsity_RT` 함수를 사용하여 희소 자코비안 행렬을 생성합니다.
+   - 이는 `least_squares` 함수의 `jac_sparsity` 인자로 전달되어 최적화 과정에서 사용됩니다.
+
+3. **최적화 실행**:
+   - `least_squares` 함수를 사용하여 최적화 문제를 해결합니다.
+   - 자코비안 행렬의 희소성을 활용하여 계산 효율성을 높입니다.
+
+'''
+
+
 # def BA_3D_POINT(**kwargs):
 #     print('BA_3D_POINT START')
 #     RT = kwargs.get('RT')
@@ -1930,9 +2000,11 @@ def Check_Calibration_data_combination(combination_cnt, **kwargs):
     plt.subplots_adjust(hspace=0.5)
 
 def init_plot(MODEL_DATA):
-    root = tk.Tk()
-    width_px = root.winfo_screenwidth()
-    height_px = root.winfo_screenheight()
+    # root = tk.Tk()
+    # width_px = root.winfo_screenwidth()
+    # height_px = root.winfo_screenheight()
+    width_px = 1920
+    height_px = 1080
 
     # 모니터 해상도에 맞게 조절
     mpl.rcParams['figure.dpi'] = 120  # DPI 설정

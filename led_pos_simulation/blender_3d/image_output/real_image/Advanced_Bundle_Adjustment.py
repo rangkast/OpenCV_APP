@@ -86,11 +86,13 @@ CALIBRATION_DATA = np.array([
 # [-0.01716512, -0.02484437, 0.01682995],
 # ])
 
+# ORIGIN_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_left.json")
+# MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturus_#3_left.json")
+
+
 TARGET_DEVICE = 'ARCTURAS'
 ORIGIN_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_right.json")
 MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturus_#3_right+.json")
-# ORIGIN_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturas_left.json")
-# MODEL_DATA, DIRECTION = init_coord_json(f"{script_dir}/jsons/specs/arcturus_#3_left.json")
 CAMERA_INFO_BACKUP = pickle_data(READ, "CAMERA_INFO_PLANE.pickle", None)['CAMERA_INFO']
 NEW_CAMERA_INFO_UP = pickle_data(READ, "NEW_CAMERA_INFO_1.pickle", None)['NEW_CAMERA_INFO']
 NEW_CAMERA_INFO_UP_KEYS = list(NEW_CAMERA_INFO_UP.keys())
@@ -667,7 +669,11 @@ if __name__ == "__main__":
     # TEST
     USING_KORNIA = NOT_SET
     combination_cnt = [4]
+    start_time = time.time()
     Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
+    end_time = time.time()
+    elapsed_time_ms = (end_time - start_time)
+    print(f"Processing time: {elapsed_time_ms:.2f} s")
 
     plt.show()
 
