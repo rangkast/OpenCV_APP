@@ -3,6 +3,8 @@ from Advanced_Function import *  # 필요한 함수와 클래스를 임포트하
 
 import multiprocessing as mp
 import psutil
+import platform
+from pymongo import MongoClient
 
 # Your existing functions and imports here
 USING_KORNIA = NOT_SET
@@ -30,9 +32,9 @@ def STD_Analysis(points3D_data, combination, CAMERA_INFO):
         batch_3d_points = []
         
         LED_NUMBER = cam_data['LED_NUMBER']
-        points3D = cam_data[points3D_data]
-        points2D = cam_data['points2D']['greysum']
-        points2D_U = cam_data['points2D_U']['greysum']
+        points3D = np.array(cam_data[points3D_data])
+        points2D = np.array(cam_data['points2D']['greysum'])
+        points2D_U = np.array(cam_data['points2D_U']['greysum'])
         # print('frame_cnt: ',frame_cnt)
         # print('points2D: ', points2D)
         # print('points2D_U: ', points2D_U)
@@ -163,8 +165,15 @@ def log_process_core_info():
     pid = os.getpid()
     process = psutil.Process(pid)
     cpu_affinity = process.cpu_affinity()
-    cpu_num = psutil.Process(pid).cpu_num()
-    print(f"Process {pid} is running on CPU {cpu_num} with affinity {cpu_affinity}")
+    
+    # 운영 체제에 따라 분기 처리
+    if platform.system() == "Windows":
+        # Windows에서는 cpu_num 메서드가 지원되지 않음
+        print(f"Process {pid} is running with affinity {cpu_affinity}")
+    else:
+        # Unix 계열 운영 체제에서는 cpu_num 메서드 사용
+        cpu_num = process.cpu_num()
+        print(f"Process {pid} is running on CPU {cpu_num} with affinity {cpu_affinity}")
 
 def process_points3D(points3D_data, combination_cnt, CAMERA_INFO):
     log_process_core_info()  # Log core info
@@ -205,12 +214,17 @@ def process_points3D(points3D_data, combination_cnt, CAMERA_INFO):
     if ret != ERROR:
         print('data saved')
 
-
 def Check_Calibration_data_combination(combination_cnt, **kwargs):
     print('Check_Calibration_data_combination START')
-    info_name = kwargs.get('info_name')
-    CAMERA_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]
-    RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+    # info_name = kwargs.get('info_name')
+    # CAMERA_INFO = pickle_data(READ, info_name, None)[info_name.split('.')[0]]
+    # RIGID_3D_TRANSFORM_IQR = pickle_data(READ, 'RIGID_3D_TRANSFORM.pickle', None)['IQR_ARRAY_LSM']
+
+    # MongoDB에서 데이터 읽기
+    camera_info_document = camera_info_collection.find_one({})
+    transform_document = transform_collection.find_one({})
+    CAMERA_INFO = camera_info_document['camera_info']
+    RIGID_3D_TRANSFORM_IQR = transform_document['rigid_3d_transform_iqr']
 
     print('Calibration cadidates')
     for blob_id, points_3d in enumerate(RIGID_3D_TRANSFORM_IQR):
@@ -300,10 +314,18 @@ def Check_Calibration_data_combination(combination_cnt, **kwargs):
         print("No data to combine and visualize.")
 
 if __name__ == "__main__":
+    # MongoDB에 연결
+    client = MongoClient('localhost', 27017)
+    db = client['calibration_db']
+    gathering_collection = db['gathering_data']
+    camera_info_collection = db['camera_info']
+    transform_collection = db['transform_data']
+
+
     combination_cnt = [4]
     
     start_time = time.time()
-    Check_Calibration_data_combination(combination_cnt, info_name='CAMERA_INFO.pickle')
+    Check_Calibration_data_combination(combination_cnt)
     end_time = time.time()
     elapsed_time_ms = (end_time - start_time)
     print(f"Processing time: {elapsed_time_ms:.2f} s")
